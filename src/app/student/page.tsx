@@ -324,10 +324,11 @@ export default function StudentDashboard() {
       </aside>
 
       {/* ================= MAIN CONTENT WRAPPER CONTAINER ================= */}
-      <main className={`flex-1 min-h-screen p-3 sm:p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? "bg-[#FDFBF7]" : "bg-[#0F172A] text-[#F8FAFC]"}`}>
+      {/* ADDED RESPONSIVE SCREEN HORIZONTAL MARGINS (px-4 sm:px-6 md:px-0) ONLY TO MOBILE SO THAT CHAT CARDS DO NOT ATTACH TO EDGES */}
+      <main className={`flex-1 min-h-screen p-3 px-4 sm:p-4 sm:px-6 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? "bg-[#FDFBF7]" : "bg-[#0F172A] text-[#F8FAFC]"}`}>
         
         {/* Floating Mobile Hamburger Menu Action Button Trigger */}
-        <div className="md:hidden flex items-center justify-between mb-3 bg-slate-900/40 backdrop-blur-md border border-slate-800 px-3 py-2 rounded-xl">
+        <div className="md:hidden flex items-center justify-between mb-4 bg-slate-900/40 backdrop-blur-md border border-slate-800 px-3 py-2 rounded-xl">
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white shadow-sm"
