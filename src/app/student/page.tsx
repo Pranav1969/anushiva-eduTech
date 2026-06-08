@@ -218,51 +218,51 @@ export default function StudentDashboard() {
 
   if (!student) {
     return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
         <Loader2 className="animate-spin text-blue-500" size={32} />
       </div>
     );
   }
 
   return (
-    <main className={`min-h-screen p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? "bg-[#FDFBF7]" : "bg-[#0F172A] text-[#F8FAFC]"}`}>
+    <main className={`min-h-screen p-3 sm:p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? "bg-[#FDFBF7]" : "bg-[#0F172A] text-[#F8FAFC]"}`}>
       
       {/* Visual background decoration for examination view */}
       {dashboardFocus === "assessments" && (
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#312E81]/15 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 md:left-1/4 md:translate-x-0 w-[280px] h-[280px] sm:w-[350px] sm:h-[350px] md:w-[500px] md:h-[500px] bg-[#312E81]/15 blur-[60px] sm:blur-[90px] md:blur-[120px] rounded-full pointer-events-none transition-opacity duration-500" />
       )}
 
-      <div className="w-full mx-auto space-y-5 relative z-10">
+      <div className="w-full mx-auto space-y-4 sm:space-y-5 relative z-10">
         
         {/* ANIMATED HEADER COLLAPSE: Shrinks down beautifully when reading notes to save huge space */}
         <div className={`transition-all duration-500 ease-in-out transform origin-top overflow-hidden ${
-          dashboardFocus === "notes" ? "max-h-0 opacity-0 scale-y-95 pointer-events-none mb-0" : "max-h-[300px] opacity-100 scale-y-100 mb-2"
+          dashboardFocus === "notes" ? "max-h-0 opacity-0 scale-y-95 pointer-events-none mb-0" : "max-h-[500px] md:max-h-[300px] opacity-100 scale-y-100 mb-1 sm:mb-2"
         }`}>
           <DashboardHeader student={student} onLogout={handleLogout} />
         </div>
 
         {/* Workspace Mode Sub-Navigation System */}
-        <div className={`flex items-center justify-between border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
-          <div className="flex gap-6">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
+          <div className="flex flex-row gap-4 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth tracking-tight">
             <button 
               onClick={() => setDashboardFocus("assessments")} 
-              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
+              className={`pb-2.5 sm:pb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
                 dashboardFocus === "assessments" 
                   ? "border-blue-500 text-blue-400" 
                   : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
-              <GraduationCap className="w-4 h-4" /> Examination Center
+              <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Examination Center
             </button>
             <button 
               onClick={() => setDashboardFocus("notes")} 
-              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
+              className={`pb-2.5 sm:pb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
                 dashboardFocus === "notes" 
                   ? "border-amber-700 text-amber-800" 
                   : "border-transparent text-slate-400 hover:text-slate-500"
               }`}
             >
-              <BookOpen className="w-4 h-4" /> Revision Notes Module
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Revision Notes Module
             </button>
           </div>
 
@@ -270,7 +270,7 @@ export default function StudentDashboard() {
           {dashboardFocus === "notes" && (
             <button 
               onClick={() => setDashboardFocus("assessments")}
-              className="text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-3 py-1.5 rounded-lg transition-all duration-200 mr-2"
+              className="text-[11px] sm:text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-2.5 py-1.5 sm:px-3 rounded-lg transition-all duration-200 self-start sm:self-auto sm:mr-2"
             >
               Back to Dashboard &rarr;
             </button>
@@ -279,7 +279,7 @@ export default function StudentDashboard() {
 
         {/* FOCUS VIEW SWITCHER INTERFACE BRANCHES */}
         {dashboardFocus === "assessments" ? (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 w-full">
+          <div className="space-y-5 sm:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 w-full">
             {!loading && <RecentAssignedTests tests={tests} />}
 
             {!loading && (
@@ -298,14 +298,14 @@ export default function StudentDashboard() {
             />
 
             {loading ? (
-              <div className="text-center py-20 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="animate-spin text-[#2563EB]" size={32} />
-                <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse">Filtering Target Assignments...</span>
+              <div className="text-center py-12 sm:py-20 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="animate-spin text-[#2563EB]" size={28} sm={32} />
+                <span className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse px-4 text-center">Filtering Target Assignments...</span>
               </div>
             ) : filteredTests.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-in fade-in duration-300">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 animate-in fade-in duration-300">
                 {filteredTests.map(t => (
                   <TestCard key={t.id} test={t} />
                 ))}
