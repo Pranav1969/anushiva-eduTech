@@ -1,7 +1,7 @@
 // src/components/admin/cms/FormAddNotes.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { Loader2, Save, Eye, Layers, FileText, Plus, X, FolderPlus } from "lucide-react";
+import { Loader2, Save, Eye, Layers, FileText, Plus, X, FolderPlus, Trash2 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import ImageManager from "./ImageManager";
 import NotesPreviewRenderer from "./NotesPreviewRenderer";
@@ -10,10 +10,19 @@ interface FormAddNotesProps {
   onSuccess: () => void;
 }
 
+// Custom inline confirmation modal configuration for bulletproof deletion
+interface DeleteModalState {
+  isOpen: boolean;
+  type: "exam" | "section" | "chapter" | "topic" | null;
+  expectedName: string;
+  onConfirm: () => Promise<void>;
+}
+
 export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessingNewNode, setIsProcessingNewNode] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); // Tracks active deletion category
 
   const [exams, setExams] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
@@ -41,6 +50,15 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   // Target Sequence States allowing manual entry overrides
   const [newChapterOrder, setNewChapterOrder] = useState("");
   const [newTopicOrder, setNewTopicOrder] = useState("");
+
+  // Safety confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
+    isOpen: false,
+    type: null,
+    expectedName: "",
+    onConfirm: async () => {},
+  });
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
 
   useEffect(() => {
     loadInitialExams();
@@ -257,6 +275,126 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     }
   };
 
+  // ================= NEW DELETION FUNCTIONS INTEGRATED DOWN BELOW =================
+
+  const handleDeleteExam = async () => {
+    if (!selectedExam) return;
+    const target = exams.find(e => e.id === selectedExam);
+    if (!target) return;
+
+    setDeleteConfirmationInput("");
+    setDeleteModal({
+      isOpen: true,
+      type: "exam",
+      expectedName: target.name,
+      onConfirm: async () => {
+        try {
+          setIsDeleting("exam");
+          const { error } = await supabase.from("exams").delete().eq("id", selectedExam);
+          if (error) throw error;
+
+          setExams(prev => prev.filter(e => e.id !== selectedExam));
+          handleExamChange(""); // Completely reset downstream selection configurations
+          onSuccess();
+        } catch (err: any) {
+          alert("Error removing Exam structure: " + err.message);
+        } finally {
+          setIsDeleting(null);
+          setDeleteModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
+  const handleDeleteSection = async () => {
+    if (!selectedSection) return;
+    const target = sections.find(s => s.id === selectedSection);
+    if (!target) return;
+
+    setDeleteConfirmationInput("");
+    setDeleteModal({
+      isOpen: true,
+      type: "section",
+      expectedName: target.name,
+      onConfirm: async () => {
+        try {
+          setIsDeleting("section");
+          const { error } = await supabase.from("notes_sections").delete().eq("id", selectedSection);
+          if (error) throw error;
+
+          setSections(prev => prev.filter(s => s.id !== selectedSection));
+          handleSectionChange(""); // Clean drop children allocations
+          onSuccess();
+        } catch (err: any) {
+          alert("Error removing Section node: " + err.message);
+        } finally {
+          setIsDeleting(null);
+          setDeleteModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
+  const handleDeleteChapter = async () => {
+    if (!selectedChapter) return;
+    const target = chapters.find(c => c.id === selectedChapter);
+    if (!target) return;
+
+    setDeleteConfirmationInput("");
+    setDeleteModal({
+      isOpen: true,
+      type: "chapter",
+      expectedName: target.name,
+      onConfirm: async () => {
+        try {
+          setIsDeleting("chapter");
+          const { error } = await supabase.from("notes_chapters").delete().eq("id", selectedChapter);
+          if (error) throw error;
+
+          setChapters(prev => prev.filter(c => c.id !== selectedChapter));
+          handleChapterChange(""); // Clear topic tracking lists
+          onSuccess();
+        } catch (err: any) {
+          alert("Error removing Chapter asset: " + err.message);
+        } finally {
+          setIsDeleting(null);
+          setDeleteModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
+  const handleDeleteTopic = async () => {
+    if (!selectedTopic) return;
+    const target = topics.find(t => t.id === selectedTopic);
+    if (!target) return;
+
+    setDeleteConfirmationInput("");
+    setDeleteModal({
+      isOpen: true,
+      type: "topic",
+      expectedName: target.name,
+      onConfirm: async () => {
+        try {
+          setIsDeleting("topic");
+          const { error } = await supabase.from("notes_topics").delete().eq("id", selectedTopic);
+          if (error) throw error;
+
+          setTopics(prev => prev.filter(t => t.id !== selectedTopic));
+          setSelectedTopic("");
+          setTopicContent("");
+          setSelectedTopicTitle("");
+          onSuccess();
+        } catch (err: any) {
+          alert("Error removing Topic leaf entry: " + err.message);
+        } finally {
+          setIsDeleting(null);
+          setDeleteModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
   return (
     <div className="w-full min-h-screen bg-[#020408] text-slate-100 flex flex-col font-sans">
       <header className="sticky top-0 z-50 bg-[#040814]/80 backdrop-blur-md border-b border-slate-900/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
@@ -296,6 +434,8 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       </header>
 
       <section className="bg-[#040814] border-b border-slate-900/50 px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        
+        {/* Exam Selection Block */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">Exam Vector</label>
@@ -323,13 +463,26 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </button>
             </div>
           ) : (
-            <select value={selectedExam} onChange={(e) => handleExamChange(e.target.value)} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800">
-              <option value="">Select Exam Target...</option>
-              {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            <div className="flex gap-1.5">
+              <select value={selectedExam} onChange={(e) => handleExamChange(e.target.value)} className="flex-1 bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800">
+                <option value="">Select Exam Target...</option>
+                {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+              {selectedExam && (
+                <button
+                  onClick={handleDeleteExam}
+                  disabled={isDeleting !== null}
+                  title="Delete Selected Exam Entity"
+                  className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 rounded-xl px-2.5 flex items-center justify-center text-rose-400 hover:text-white transition-all disabled:opacity-30"
+                >
+                  {isDeleting === "exam" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
           )}
         </div>
 
+        {/* Section Selection Block */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">Section Node</label>
@@ -357,13 +510,26 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </button>
             </div>
           ) : (
-            <select value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)} disabled={!selectedExam} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
-              <option value="">Select Section Axis...</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div className="flex gap-1.5">
+              <select value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)} disabled={!selectedExam} className="flex-1 bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
+                <option value="">Select Section Axis...</option>
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              {selectedSection && (
+                <button
+                  onClick={handleDeleteSection}
+                  disabled={isDeleting !== null}
+                  title="Delete Selected Section"
+                  className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 rounded-xl px-2.5 flex items-center justify-center text-rose-400 hover:text-white transition-all disabled:opacity-30"
+                >
+                  {isDeleting === "section" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
           )}
         </div>
 
+        {/* Chapter Selection Block */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">Chapter Reference</label>
@@ -399,13 +565,26 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </button>
             </div>
           ) : (
-            <select value={selectedChapter} onChange={(e) => handleChapterChange(e.target.value)} disabled={!selectedSection} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
-              <option value="">Select Chapter Core...</option>
-              {chapters.map(c => <option key={c.id} value={c.id}>({c.sequence_order}) {c.name}</option>)}
-            </select>
+            <div className="flex gap-1.5">
+              <select value={selectedChapter} onChange={(e) => handleChapterChange(e.target.value)} disabled={!selectedSection} className="flex-1 bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
+                <option value="">Select Chapter Core...</option>
+                {chapters.map(c => <option key={c.id} value={c.id}>({c.sequence_order}) {c.name}</option>)}
+              </select>
+              {selectedChapter && (
+                <button
+                  onClick={handleDeleteChapter}
+                  disabled={isDeleting !== null}
+                  title="Delete Selected Chapter"
+                  className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 rounded-xl px-2.5 flex items-center justify-center text-rose-400 hover:text-white transition-all disabled:opacity-30"
+                >
+                  {isDeleting === "chapter" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
           )}
         </div>
 
+        {/* Topic Selection Block */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">Topic Instance Target</label>
@@ -441,10 +620,22 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </button>
             </div>
           ) : (
-            <select value={selectedTopic} onChange={(e) => handleTopicSelect(e.target.value)} disabled={!selectedChapter} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
-              <option value="">Select Target Topic Block...</option>
-              {topics.map(t => <option key={t.id} value={t.id}>({t.sequence_order}) {t.name}</option>)}
-            </select>
+            <div className="flex gap-1.5">
+              <select value={selectedTopic} onChange={(e) => handleTopicSelect(e.target.value)} disabled={!selectedChapter} className="flex-1 bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
+                <option value="">Select Target Topic Block...</option>
+                {topics.map(t => <option key={t.id} value={t.id}>({t.sequence_order}) {t.name}</option>)}
+              </select>
+              {selectedTopic && (
+                <button
+                  onClick={handleDeleteTopic}
+                  disabled={isDeleting !== null}
+                  title="Delete Selected Topic"
+                  className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 rounded-xl px-2.5 flex items-center justify-center text-rose-400 hover:text-white transition-all disabled:opacity-30"
+                >
+                  {isDeleting === "topic" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </section>
@@ -493,6 +684,64 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
           </div>
         )}
       </main>
+
+      {/* Security Check Confirmation Portal Modality Overlays */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-[#040814] border border-rose-500/30 rounded-2xl p-6 shadow-2xl shadow-rose-950/20 space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-rose-400 text-sm font-bold tracking-tight">
+                <Trash2 className="w-4 h-4" />
+                <span>Critical Destructive Action Intercepted</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                You are trying to completely drop the structural <span className="text-rose-400 font-semibold uppercase">{deleteModal.type}</span> item:
+              </p>
+              <div className="bg-slate-950/60 p-3 border border-slate-900 rounded-xl font-mono text-xs text-slate-200 break-all select-all">
+                {deleteModal.expectedName}
+              </div>
+              {deleteModal.type !== "topic" && (
+                <p className="text-[11px] text-amber-400/80 bg-amber-500/5 border border-amber-500/10 p-2.5 rounded-xl leading-normal">
+                  ⚠️ <strong>Cascading Warning:</strong> Confirming this deletion operation immediately clears all lower child sub-elements structured below this point.
+                </p>
+              )}
+              <p className="text-xs text-slate-400">
+                Please type out the exact name of the component into the field block layout context down below to clear processing blocks:
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type structural name accurately..."
+                value={deleteConfirmationInput}
+                onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                className="w-full bg-[#070c19] border border-slate-900 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 placeholder:text-slate-700 outline-none focus:border-rose-500/40"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl py-2.5 text-xs font-medium transition-all"
+              >
+                Abrupt Intercept
+              </button>
+              <button
+                type="button"
+                disabled={deleteConfirmationInput !== deleteModal.expectedName || isDeleting !== null}
+                onClick={deleteModal.onConfirm}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-900 disabled:text-slate-600 border border-rose-500/20 disabled:border-slate-800/60 text-white rounded-xl py-2.5 text-xs font-semibold tracking-wide transition-all shadow-lg shadow-rose-600/5 disabled:shadow-none flex items-center justify-center gap-1.5"
+              >
+                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Confirm Wipe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

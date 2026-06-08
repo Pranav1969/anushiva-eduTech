@@ -1,7 +1,7 @@
 // src/components/admin/cms/ImageManager.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/utils/supabase";
 import { UploadCloud, Copy, Check, Search, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
 
@@ -11,6 +11,7 @@ export default function ImageManager() {
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [customName, setCustomName] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Storage Target Bucket Key Context Configuration
   const BUCKET_NAME = "notes_images";
@@ -18,6 +19,37 @@ export default function ImageManager() {
   useEffect(() => {
     fetchImages();
   }, []);
+
+  // Listen for clipboard Ctrl+V paste events globally/locally within the container scope
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't intercept paste if the user is actively typing a custom lookup name slug or searching
+      if (
+        document.activeElement?.tagName === "INPUT" || 
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            processImageFile(file);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [customName]); // Depend on customName state to accurately evaluate validation rules inside the closure
 
   async function fetchImages() {
     try {
@@ -33,11 +65,9 @@ export default function ImageManager() {
     }
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // Abstracted upload logic handler to process images coming from both the file picker and keyboard clipboard paste
+  async function processImageFile(file: File) {
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
       if (!customName.trim()) {
         alert("Please assign a unique lookup syntax reference name before execution.");
         return;
@@ -50,7 +80,7 @@ export default function ImageManager() {
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const cleanName = `${baseCleanName}-${randomSuffix}`;
       
-      const fileExt = file.name.split(".").pop();
+      const fileExt = file.name ? file.name.split(".").pop() : "png"; // Fallback to png for raw pasted buffer streams
       const filePath = `notes/${Date.now()}-${cleanName}.${fileExt}`;
 
       // A. Stream file data directly to the storage bucket
@@ -82,8 +112,6 @@ export default function ImageManager() {
       }
 
       setCustomName("");
-      // Clear file input DOM reference safely
-      e.target.value = "";
       await fetchImages();
     } catch (err: any) {
       console.error("Upload failure pipeline exception:", err);
@@ -91,6 +119,15 @@ export default function ImageManager() {
     } finally {
       setUploading(false);
     }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    await processImageFile(file);
+    // Clear file input DOM reference safely
+    e.target.value = "";
   }
 
   async function deleteAsset(id: string, storagePath: string) {
@@ -128,10 +165,15 @@ export default function ImageManager() {
   );
 
   return (
-    <div className="bg-[#070b13] border border-slate-900 rounded-xl p-5 space-y-5">
-      <div className="flex items-center gap-2">
-        <ImageIcon className="w-4 h-4 text-emerald-400" />
-        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Asset Canvas & Image Token Library</h3>
+    <div ref={containerRef} className="bg-[#070b13] border border-slate-900 rounded-xl p-5 space-y-5 outline-none">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Asset Canvas & Image Token Library</h3>
+        </div>
+        <span className="text-[10px] text-slate-500 font-mono hidden md:inline-block bg-[#0b0f19] px-2 py-0.5 rounded border border-slate-900">
+          💡 Tip: You can press Ctrl + V here to paste an image directly
+        </span>
       </div>
 
       <div className="space-y-3 p-4 rounded-xl bg-[#0b0f19] border border-slate-900">
@@ -155,7 +197,7 @@ export default function ImageManager() {
             ) : (
               <>
                 <UploadCloud className="w-5 h-5 text-slate-500 mb-1" />
-                <span className="text-[11px] text-slate-400">Trigger upload runtime engine</span>
+                <span className="text-[11px] text-slate-400">Trigger upload runtime engine or press Ctrl+V</span>
               </>
             )}
           </label>

@@ -10,6 +10,9 @@ import {
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk"; // Update path as needed
 
+// ==========================================
+// TYPES & THEMES TYPES
+// ==========================================
 interface RevisionNotesTreeProps {
   loadingNotes: boolean;
   courseContentTree: any[];
@@ -33,6 +36,9 @@ type MetricsType = {
   percentage: number;
 };
 
+// ==========================================
+// HOOKS & ENGINE UTILS
+// ==========================================
 const getSubjectTheme = (name: string = ""): SubjectTheme => {
   const normalized = name.toLowerCase();
   if (normalized.includes("reasoning")) {
@@ -63,36 +69,410 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
   };
 };
 
-// --- FLUID MEDIA PARSING RENDERING ENGINE ---
+const processInlineStyles = (text: string): React.ReactNode => {
+  if (!text) return "";
+  
+  // Custom token processing loop for markdown and highlights
+  const renderTextNodes = (rawStr: string): React.ReactNode[] => {
+    // Process highlights formatting first ==text==
+    const highlightRegex = /==([\s\S]*?)==/g;
+    const subParts = rawStr.split(highlightRegex);
+    
+    return subParts.map((part, i) => {
+      if (i % 2 === 1) {
+        return (
+          <mark key={`hl-${i}`} className="bg-amber-100 text-amber-950 font-bold px-1.5 py-0.5 rounded-sm mx-0.5 border-b border-amber-200 antialiased text-[13px]">
+            {part}
+          </mark>
+        );
+      }
+      
+      // Handle inline LaTeX mathematical symbols/variables ($L - L$)
+      if (part.includes("$")) {
+        const latexParts = part.split(/\$([\s\S]*?)\$/g);
+        return latexParts.map((lPart, lIdx) => {
+          if (lIdx % 2 === 1) {
+            return (
+              <span key={`latex-${lIdx}`} className="font-serif italic font-medium text-slate-900 bg-slate-50/60 px-1 py-0.5 rounded border border-slate-200/40 tracking-wide mx-0.5 select-all">
+                {lPart}
+              </span>
+            );
+          }
+          
+          // Render standard bold typography within the remainder string
+          if (lPart.includes("**")) {
+            const boldParts = lPart.split(/\*\*([\s\S]*?)\*\*/g);
+            return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className="font-extrabold text-slate-900">{bPart}</strong> : bPart);
+          }
+          return lPart;
+        });
+      }
+      
+      // Fallback for standard bold markdown handler wrapper
+      if (part.includes("**")) {
+        const boldParts = part.split(/\*\*([\s\S]*?)\*\*/g);
+        return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className="font-extrabold text-slate-900">{bPart}</strong> : bPart);
+      }
+      
+      return part;
+    });
+  };
+
+  // Extract inline code fragments cleanly before passing downstream
+  const splitByCode = text.split(/`([\s\S]*?)`/g);
+  return splitByCode.map((segment, index) => {
+    if (index % 2 === 1) {
+      return (
+        <code key={`code-${index}`} className="bg-slate-100 text-slate-900 font-mono font-semibold px-1.5 py-0.5 rounded text-[13px] border border-slate-200/60 mx-0.5">
+          {segment}
+        </code>
+      );
+    }
+    return <React.Fragment key={`text-seg-${index}`}>{renderTextNodes(segment)}</React.Fragment>;
+  });
+};
 const renderNarrativeWithImages = (text: string, imageMap: Record<string, string>) => {
   if (!text) return null;
 
-  // Global Regex capturing signature layout tags: [img:your-custom-slug-1234]
-  const imageRegex = /\[img:([^\]]+)\]/g;
-  const parts = text.split(imageRegex);
+  // Multi-line block parsing strategy for tracking structured layouts seamlessly
+  const blockRegex = /(\[EXAMPLE\][\s\S]*?\[\/EXAMPLE\]|\[QUESTION\][\s\S]*?\[\/QUESTION\])/g;
+  const sections = text.split(blockRegex).filter(Boolean);
 
-  return parts.map((part, index) => {
-    // If the part is caught by the regex match group, it represents an image name key index
-    if (index % 2 === 1) {
-      const imageUrl = imageMap[part];
-      if (imageUrl) {
+  return sections.map((section, secIndex) => {
+    const trimmedSection = section.trim();
+
+    // 💡 INTERACTIVE EXAMPLE COMPONENT ENGINE
+    if (trimmedSection.startsWith("[EXAMPLE]") && trimmedSection.endsWith("[/EXAMPLE]")) {
+      const exampleContent = section.replace("[EXAMPLE]", "").replace("[/EXAMPLE]", "").trim();
+      return (
+        <div key={`ex-block-${secIndex}`} className="my-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100/80 text-slate-800 text-[14px] shadow-2xs leading-relaxed">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 mb-1.5 flex items-center gap-1.5 select-none">
+            <span>💡</span> INTERACTIVE EXAMPLE
+          </div>
+          <div className="whitespace-pre-wrap">{processInlineStyles(exampleContent)}</div>
+        </div>
+      );
+    }
+
+    // ❓ PRACTICE CONCEPT BOX COMPONENT ENGINE
+    if (trimmedSection.startsWith("[QUESTION]") && trimmedSection.endsWith("[/QUESTION]")) {
+      const questionContent = section.replace("[QUESTION]", "").replace("[/QUESTION]", "").trim();
+      return (
+        <div key={`q-block-${secIndex}`} className="my-4 p-4 rounded-xl bg-purple-50/50 border border-purple-100/80 text-slate-800 text-[14px] shadow-2xs leading-relaxed">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-purple-700 mb-1.5 flex items-center gap-1.5 select-none">
+            <span>❓</span> PRACTICE CONCEPT BOX
+          </div>
+          <div className="whitespace-pre-wrap font-sans font-normal antialiased tracking-wide">{processInlineStyles(questionContent)}</div>
+        </div>
+      );
+    }
+
+    // Standard markdown element strings processing line by line mapping
+    const lines = section.split(/\r?\n/);
+    let lastRenderedHeader = "";
+
+    return lines.map((line, lineIndex) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return null;
+
+      // Structured header tags identifier
+      if (trimmedLine.startsWith("**") && trimmedLine.endsWith("**")) {
+        const headerText = trimmedLine.slice(2, -2).trim();
+        
+        if (headerText === lastRenderedHeader) return null;
+        lastRenderedHeader = headerText;
+
         return (
-          <span key={index} className="block my-5 clear-both text-center select-none">
-            <img 
-              src={imageUrl} 
-              alt={`Syllabus Diagram Asset: ${part}`} 
-              className="mx-auto rounded-xl border border-slate-200 shadow-xs max-h-[420px] object-contain bg-white p-1.5 hover:scale-[1.01] transition-transform duration-200"
-              loading="lazy"
-            />
-          </span>
+          <h5 key={`h-${secIndex}-${lineIndex}`} className="text-[17px] font-extrabold text-slate-900 mt-6 mb-2.5 pb-1 border-b border-slate-100 tracking-tight flex items-center gap-2">
+            <span className="w-1.5 h-4.5 bg-amber-500 rounded-xs inline-block"></span>
+            {processInlineStyles(headerText)}
+          </h5>
         );
       }
-      return <span key={index} className="text-xs font-mono text-rose-500 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">Image Token Missing: "{part}"</span>;
-    }
-    return <span key={index}>{part}</span>;
+
+      // Inline Custom Graphics Content Parser Layer
+      const imageRegex = /\[img:([^\]]+)\]/g;
+      if (imageRegex.test(line)) {
+        imageRegex.lastIndex = 0;
+        const parts = line.split(imageRegex);
+        return (
+          <div key={`img-line-${secIndex}-${lineIndex}`} className="block my-2">
+            {parts.map((part, index) => {
+              if (index % 2 === 1) {
+                const imageUrl = imageMap[part];
+                if (imageUrl) {
+                  return (
+                    <span key={index} className="block my-5 clear-both text-center select-none">
+                      <img 
+                        src={imageUrl} 
+                        alt={`Syllabus Diagram Asset: ${part}`} 
+                        className="mx-auto rounded-xl border border-slate-200 shadow-xs max-h-[420px] object-contain bg-white p-1.5 hover:scale-[1.01] transition-transform duration-200"
+                        loading="lazy"
+                      />
+                    </span>
+                  );
+                }
+                return <span key={index} className="text-xs font-mono text-rose-500 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">Image Token Missing: "{part}"</span>;
+              }
+              return <React.Fragment key={index}>{processInlineStyles(part)}</React.Fragment>;
+            })}
+          </div>
+        );
+      }
+
+      // Structural layout description rendering fallbacks
+      return (
+        <p key={`p-${secIndex}-${lineIndex}`} className="mb-2 text-slate-700 leading-relaxed text-[14px]">
+          {processInlineStyles(line)}
+        </p>
+      );
+    });
   });
 };
 
+// ==========================================
+// SUB-COMPONENT 1: COURSE SWITCHER BAR
+// ==========================================
+interface CourseSwitcherProps {
+  courseContentTree: any[];
+  activeSectionId: string;
+  setActiveSectionId: (id: string) => void;
+  isFullscreenMode: boolean;
+  setIsFullscreenMode: (val: boolean) => void;
+}
+
+const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
+  courseContentTree,
+  activeSectionId,
+  setActiveSectionId,
+  isFullscreenMode,
+  setIsFullscreenMode
+}) => {
+  return (
+    <div className="flex items-center justify-between gap-4 bg-white p-1.5 rounded-xl border border-slate-200 sticky top-0 z-30 shrink-0 shadow-xs">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+        {courseContentTree.map((sec) => {
+          const isActive = activeSectionId === sec.id;
+          return (
+            <button
+              key={sec.id}
+              onClick={() => setActiveSectionId(sec.id)}
+              className={`px-3.5 py-1.5 text-xs font-bold tracking-tight rounded-lg whitespace-nowrap transition-all flex items-center gap-2 ${
+                isActive ? "bg-stone-950 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Book className={`w-3.5 h-3.5 ${isActive ? "text-amber-400" : "text-slate-400"}`} />
+              <span>{sec.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={() => setIsFullscreenMode(!isFullscreenMode)}
+        className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-lg transition-all"
+      >
+        {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        <span>{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
+      </button>
+    </div>
+  );
+};
+
+// ==========================================
+// SUB-COMPONENT 2: MILESTONE DASHBOARD
+// ==========================================
+interface MilestoneDashboardProps {
+  currentActiveSection: any;
+  theme: SubjectTheme;
+  metrics: MetricsType;
+}
+
+const MilestoneDashboard: React.FC<MilestoneDashboardProps> = ({
+  currentActiveSection,
+  theme,
+  metrics
+}) => {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2">
+        <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${theme.badge}`}>
+          {currentActiveSection.exams?.name || "ARCHIVES"}
+        </span>
+        <span className="text-xs font-semibold text-slate-500">Study Materials Blueprint</span>
+      </div>
+      
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+          <Trophy className="w-3.5 h-3.5 text-amber-500" /> 
+          <span>{metrics.done}/{metrics.total} Completed</span>
+        </div>
+        <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden border">
+          <div className={`h-full rounded-full transition-all duration-500 ${theme.progress}`} style={{ width: `${metrics.percentage}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// SUB-COMPONENT 3: CHAPTER ACCORDION UNIT
+// ==========================================
+interface ChapterAccordionUnitProps {
+  chap: any;
+  isExpanded: boolean;
+  onToggleChapter: (id: string) => void;
+  completedTopics: Record<string, boolean>;
+  selectedTopicIdMap: Record<string, string>;
+  setSelectedTopicIdMap: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  toggleTopicCompletion: (id: string, e: React.MouseEvent) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (val: boolean) => void;
+  imageMap: Record<string, string>;
+}
+
+const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
+  chap,
+  isExpanded,
+  onToggleChapter,
+  completedTopics,
+  selectedTopicIdMap,
+  setSelectedTopicIdMap,
+  toggleTopicCompletion,
+  isSidebarOpen,
+  setIsSidebarOpen,
+  imageMap
+}) => {
+  const totalTopics = chap.notes_topics || [];
+  const totalInChapter = totalTopics.length;
+  const doneInChapter = totalTopics.filter((t: any) => completedTopics[t.id]).length;
+  const isChapterComplete = totalInChapter > 0 && totalInChapter === doneInChapter;
+
+  const activeTopicId = selectedTopicIdMap[chap.id] || (totalTopics[0]?.id || "");
+  const currentActiveTopic = totalTopics.find((t: any) => t.id === activeTopicId);
+
+  return (
+    <div className={`border rounded-xl bg-white shadow-xs transition-all ${isChapterComplete ? "border-emerald-200" : "border-slate-200"}`}>
+      <button
+        onClick={() => onToggleChapter(chap.id)}
+        className="w-full flex items-center justify-between p-4 text-left bg-slate-50/60 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-3 truncate">
+          <span className={`text-[9px] font-bold px-2 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-700 bg-white border-slate-200"}`}>
+            {isChapterComplete ? "Done" : `CH ${chap.sequence_order}`}
+          </span>
+          <span className="text-xs font-bold text-slate-800 truncate">{chap.name}</span>
+          <span className="text-[11px] text-slate-400 font-medium font-mono shrink-0">({doneInChapter}/{totalInChapter} Read)</span>
+        </div>
+        <div className="text-slate-400">
+          {isExpanded && <ChevronDown className="w-4 h-4 text-slate-800" />}
+          {!isExpanded && <ChevronRight className="w-4 h-4" />}
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-slate-100 bg-white flex h-[550px] relative overflow-hidden transition-all duration-300">
+          
+          {/* 📖 TOPIC INDEX SIDEBAR */}
+          <div 
+            className={`bg-stone-50/60 border-r border-slate-100 flex flex-col gap-1.5 p-2 overflow-y-auto transition-all duration-300 ease-in-out shrink-0 h-full select-none ${
+              isSidebarOpen ? "w-1/4 opacity-100" : "w-0 !p-0 opacity-0 pointer-events-none"
+            }`}
+          >
+            {totalInChapter === 0 ? (
+              <div className="p-3 text-xs text-slate-400 italic">No topics mapped.</div>
+            ) : (
+              totalTopics.map((topic: any) => {
+                const isTopicActive = topic.id === activeTopicId;
+                const isTopicDone = !!completedTopics[topic.id];
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => setSelectedTopicIdMap(prev => ({ ...prev, [chap.id]: topic.id }))}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-all flex items-center justify-between gap-2 border ${
+                      isTopicActive ? "bg-white border-slate-300 shadow-xs font-bold text-slate-900" : "border-transparent text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <div 
+                        onClick={(e) => toggleTopicCompletion(topic.id, e)}
+                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isTopicDone ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"}`}
+                      >
+                        {isTopicDone && <Check className="w-2 h-2 stroke-[3]" />}
+                      </div>
+                      <span className={`truncate ${isTopicDone ? "text-slate-400 line-through font-normal" : ""}`}>
+                        {topic.sequence_order}. {topic.name}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* ↔ ADJUSTABLE COLLAPSE BUTTON PILL DRAG AXIS */}
+          <div 
+            className="absolute top-1/2 -translate-y-1/2 z-20 transition-all duration-300 ease-in-out" 
+            style={{ left: isSidebarOpen ? "25%" : "0px", transform: "translate(-50%, -50%)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="w-6 h-12 bg-white border border-slate-200 hover:border-slate-400 shadow-md rounded-full flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all active:scale-95 group"
+              title={isSidebarOpen ? "Hide Index (Full Focus Mode)" : "Show Topic Selector Index"}
+            >
+              {isSidebarOpen ? (
+                <ChevronLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
+              ) : (
+                <ChevronRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              )}
+            </button>
+          </div>
+
+          {/* HIGH VISIBILITY FOCUS CANVA DISPLAY */}
+          <div className={`overflow-y-auto p-6 bg-white flex flex-col scrollbar-thin transition-all duration-300 ${
+            isSidebarOpen ? "w-3/4" : "w-full"
+          }`}>
+            {currentActiveTopic ? (
+              <div className="space-y-4 h-full flex flex-col justify-between animate-in fade-in duration-200">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-extrabold text-slate-900 tracking-tight">{currentActiveTopic.name}</h4>
+                    <button
+                      onClick={(e) => toggleTopicCompletion(currentActiveTopic.id, e)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1.5 transition-all ${
+                        completedTopics[currentActiveTopic.id] ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <CheckCircle2 className={`w-4 h-4 ${completedTopics[currentActiveTopic.id] ? "text-emerald-600 fill-emerald-100" : "text-slate-300"}`} />
+                      <span>{completedTopics[currentActiveTopic.id] ? "Completed" : "Mark Done"}</span>
+                    </button>
+                  </div>
+                  <div className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap pt-1 font-sans font-normal antialiased tracking-wide bg-stone-50/40 p-5 rounded-xl border border-stone-100 select-text">
+                    {renderNarrativeWithImages(currentActiveTopic.paragraph_text, imageMap)}
+                  </div>
+                </div>
+                <div className="pt-6 text-center border-t border-slate-50 shrink-0">
+                  <span className="text-[10px] text-slate-300 tracking-widest font-bold uppercase block">End of Module Material</span>
+                </div>
+              </div>
+            ) : (
+              <div className="m-auto text-center space-y-1 text-slate-400">
+                <FileText className="w-8 h-8 mx-auto stroke-1" />
+                <p className="text-xs italic">Select a lesson node item from index tracking sheet.</p>
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
+// 🚀 MAIN EXPORTED WORKSPACE COMPONENT
+// ==========================================
 export default function RevisionNotesTree({
   loadingNotes,
   courseContentTree,
@@ -105,11 +485,7 @@ export default function RevisionNotesTree({
   const [completedTopics, setCompletedTopics] = useState<Record<string, boolean>>({});
   const [selectedTopicIdMap, setSelectedTopicIdMap] = useState<Record<string, string>>({});
   const [isFullscreenMode, setIsFullscreenMode] = useState<boolean>(false);
-  
-  // Custom Dynamic State for Index Sidebar Slider Collapse Panel
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  
-  // Storage dictionary keeping all image records compiled in state
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -122,7 +498,6 @@ export default function RevisionNotesTree({
     }
   }, []);
 
-  // Hydrate asset library metadata mappings directly from Supabase
   useEffect(() => {
     async function loadAssetLibrary() {
       try {
@@ -169,20 +544,6 @@ export default function RevisionNotesTree({
     return { total, done, percentage: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [currentActiveSection, completedTopics]);
 
-  const handleSaveNotes = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus(true);
-    localStorage.setItem("student_desk_scratchpad", personalNotes);
-    setTimeout(() => setSaveStatus(false), 1500);
-  };
-
-  const clearScratchpad = () => {
-    if (window.confirm("Are you sure you want to clear your current scratchpad notes?")) {
-      setPersonalNotes("");
-      localStorage.removeItem("student_desk_scratchpad");
-    }
-  };
-
   const toggleTopicCompletion = (topicId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updatedProgress = { ...completedTopics, [topicId]: !completedTopics[topicId] };
@@ -217,196 +578,52 @@ export default function RevisionNotesTree({
       {/* 📖 LEFT MODULE: MAIN WORKSPACE INTERFACE */}
       <div className="lg:col-span-3 overflow-hidden h-full flex flex-col space-y-3">
         
-        {/* Course Horizontal Switcher Bar & Focus Switchers */}
-        <div className="flex items-center justify-between gap-4 bg-white p-1.5 rounded-xl border border-slate-200 sticky top-0 z-30 shrink-0 shadow-xs">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
-            {courseContentTree.map((sec) => {
-              const isActive = activeSectionId === sec.id;
-              return (
-                <button
-                  key={sec.id}
-                  onClick={() => setActiveSectionId(sec.id)}
-                  className={`px-3.5 py-1.5 text-xs font-bold tracking-tight rounded-lg whitespace-nowrap transition-all flex items-center gap-2 ${
-                    isActive ? "bg-stone-950 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <Book className={`w-3.5 h-3.5 ${isActive ? "text-amber-400" : "text-slate-400"}`} />
-                  <span>{sec.name}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={() => setIsFullscreenMode(!isFullscreenMode)}
-            className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-lg transition-all"
-          >
-            {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span>{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
-          </button>
-        </div>
+        {/* Course Horizontal Switcher Bar Component */}
+        <CourseSwitcher 
+          courseContentTree={courseContentTree}
+          activeSectionId={activeSectionId}
+          setActiveSectionId={setActiveSectionId}
+          isFullscreenMode={isFullscreenMode}
+          setIsFullscreenMode={setIsFullscreenMode}
+        />
 
         {currentActiveSection && (
           <div className="flex-grow overflow-y-auto pr-1 space-y-3 scrollbar-thin">
             
-            {/* Upper Interactive Milestone Dashboard Banner */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${theme.badge}`}>
-                  {currentActiveSection.exams?.name || "ARCHIVES"}
-                </span>
-                <span className="text-xs font-semibold text-slate-500">Study Materials Blueprint</span>
-              </div>
-              
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                  <Trophy className="w-3.5 h-3.5 text-amber-500" /> 
-                  <span>{metrics.done}/{metrics.total} Completed</span>
-                </div>
-                <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden border">
-                  <div className={`h-full rounded-full transition-all duration-500 ${theme.progress}`} style={{ width: `${metrics.percentage}%` }} />
-                </div>
-              </div>
-            </div>
+            {/* Interactive Progress Bar Dashboard Component */}
+            <MilestoneDashboard 
+              currentActiveSection={currentActiveSection}
+              theme={theme}
+              metrics={metrics}
+            />
 
-            {/* Curriculum Accordion Units */}
+            {/* Curriculum Accordion Main Render Block */}
             <div className="space-y-3">
-              {currentActiveSection.notes_chapters?.map((chap: any) => {
-                const isExpanded = !!expandedChapters[chap.id];
-                const totalTopics = chap.notes_topics || [];
-                const totalInChapter = totalTopics.length;
-                const doneInChapter = totalTopics.filter((t: any) => completedTopics[t.id]).length;
-                const isChapterComplete = totalInChapter > 0 && totalInChapter === doneInChapter;
-
-                const activeTopicId = selectedTopicIdMap[chap.id] || (totalTopics[0]?.id || "");
-                const currentActiveTopic = totalTopics.find((t: any) => t.id === activeTopicId);
-
-                return (
-                  <div key={chap.id} className={`border rounded-xl bg-white shadow-xs transition-all ${isChapterComplete ? "border-emerald-200" : "border-slate-200"}`}>
-                    <button
-                      onClick={() => onToggleChapter(chap.id)}
-                      className="w-full flex items-center justify-between p-4 text-left bg-slate-50/60 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 truncate">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-700 bg-white border-slate-200"}`}>
-                          {isChapterComplete ? "Done" : `CH ${chap.sequence_order}`}
-                        </span>
-                        <span className="text-xs font-bold text-slate-800 truncate">{chap.name}</span>
-                        <span className="text-[11px] text-slate-400 font-medium font-mono shrink-0">({doneInChapter}/{totalInChapter} Read)</span>
-                      </div>
-                      <div className="text-slate-400">{isExpanded && <ChevronDown className="w-4 h-4 text-slate-800" />}{!isExpanded && <ChevronRight className="w-4 h-4" />}</div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="border-t border-slate-100 bg-white flex h-[550px] relative overflow-hidden transition-all duration-300">
-                        
-                        {/* 📖 TOPIC INDEX SIDEBAR */}
-                        <div 
-                          className={`bg-stone-50/60 border-r border-slate-100 flex flex-col gap-1.5 p-2 overflow-y-auto transition-all duration-300 ease-in-out shrink-0 h-full select-none ${
-                            isSidebarOpen ? "w-1/4 opacity-100" : "w-0 !p-0 opacity-0 pointer-events-none"
-                          }`}
-                        >
-                          {totalInChapter === 0 ? (
-                            <div className="p-3 text-xs text-slate-400 italic">No topics mapped.</div>
-                          ) : (
-                            totalTopics.map((topic: any) => {
-                              const isTopicActive = topic.id === activeTopicId;
-                              const isTopicDone = !!completedTopics[topic.id];
-                              return (
-                                <button
-                                  key={topic.id}
-                                  onClick={() => setSelectedTopicIdMap(prev => ({ ...prev, [chap.id]: topic.id }))}
-                                  className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-all flex items-center justify-between gap-2 border ${
-                                    isTopicActive ? "bg-white border-slate-300 shadow-xs font-bold text-slate-900" : "border-transparent text-slate-600 hover:bg-slate-100"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 truncate">
-                                    <div 
-                                      onClick={(e) => toggleTopicCompletion(topic.id, e)}
-                                      className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isTopicDone ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"}`}
-                                    >
-                                      {isTopicDone && <Check className="w-2 h-2 stroke-[3]" />}
-                                    </div>
-                                    <span className={`truncate ${isTopicDone ? "text-slate-400 line-through font-normal" : ""}`}>
-                                      {topic.sequence_order}. {topic.name}
-                                    </span>
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-
-                        {/* ↔ ADJUSTABLE COLLAPSE BUTTON PILL DRAG AXIS */}
-                        <div 
-                          className="absolute top-1/2 -translate-y-1/2 z-20 transition-all duration-300 ease-in-out" 
-                          style={{ left: isSidebarOpen ? "25%" : "0px", transform: "translate(-50%, -50%)" }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                            className="w-6 h-12 bg-white border border-slate-200 hover:border-slate-400 shadow-md rounded-full flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all active:scale-95 group"
-                            title={isSidebarOpen ? "Hide Index (Full Focus Mode)" : "Show Topic Selector Index"}
-                          >
-                            {isSidebarOpen && (
-                              <ChevronLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
-                            )}
-                            {!isSidebarOpen && (
-                              <ChevronRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                            )}
-                          </button>
-                        </div>
-
-                        {/* HIGH VISIBILITY FOCUS CANVA DISPLAY */}
-                        <div className={`overflow-y-auto p-6 bg-white flex flex-col scrollbar-thin transition-all duration-300 ${
-                          isSidebarOpen ? "w-3/4" : "w-full"
-                        }`}>
-                          {currentActiveTopic ? (
-                            <div className="space-y-4 h-full flex flex-col justify-between animate-in fade-in duration-200">
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                  <h4 className="text-sm font-extrabold text-slate-900 tracking-tight">{currentActiveTopic.name}</h4>
-                                  <button
-                                    onClick={(e) => toggleTopicCompletion(currentActiveTopic.id, e)}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1.5 transition-all ${
-                                      completedTopics[currentActiveTopic.id] ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
-                                    }`}
-                                  >
-                                    <CheckCircle2 className={`w-4 h-4 ${completedTopics[currentActiveTopic.id] ? "text-emerald-600 fill-emerald-100" : "text-slate-300"}`} />
-                                    <span>{completedTopics[currentActiveTopic.id] ? "Completed" : "Mark Done"}</span>
-                                  </button>
-                                </div>
-                                <div className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap pt-1 font-sans font-normal antialiased tracking-wide bg-stone-50/40 p-5 rounded-xl border border-stone-100 select-text">
-                                  {renderNarrativeWithImages(currentActiveTopic.paragraph_text, imageMap)}
-                                </div>
-                              </div>
-                              <div className="pt-6 text-center border-t border-slate-50 shrink-0">
-                                <span className="text-[10px] text-slate-300 tracking-widest font-bold uppercase block">End of Module Material</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="m-auto text-center space-y-1 text-slate-400">
-                              <FileText className="w-8 h-8 mx-auto stroke-1" />
-                              <p className="text-xs italic">Select a lesson node item from index tracking sheet.</p>
-                            </div>
-                          )}
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {currentActiveSection.notes_chapters?.map((chap: any) => (
+                <ChapterAccordionUnit 
+                  key={chap.id}
+                  chap={chap}
+                  isExpanded={!!expandedChapters[chap.id]}
+                  onToggleChapter={onToggleChapter}
+                  completedTopics={completedTopics}
+                  selectedTopicIdMap={selectedTopicIdMap}
+                  setSelectedTopicIdMap={setSelectedTopicIdMap}
+                  toggleTopicCompletion={toggleTopicCompletion}
+                  isSidebarOpen={isSidebarOpen}
+                  setIsSidebarOpen={setIsSidebarOpen}
+                  imageMap={imageMap}
+                />
+              ))}
             </div>
 
           </div>
         )}
       </div>
+
       {/* 📝 RIGHT MODULE: PERSONAL SCRATCHPAD DOCK */}
-         <div className="lg:col-span-1 h-full min-h-[500px]">
-           {/* The StudyDesk component will now take the full height of this div */}
-           <StudyDesk currentSection={currentActiveSection?.name || "the current topic"} />
-         </div>
+      <div className="lg:col-span-1 h-full min-h-[500px]">
+        <StudyDesk currentSection={currentActiveSection?.name || "the current topic"} />
+      </div>
     </div>
   );
 }
