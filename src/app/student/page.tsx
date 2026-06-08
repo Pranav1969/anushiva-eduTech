@@ -299,7 +299,7 @@ export default function StudentDashboard() {
 
             {loading ? (
               <div className="text-center py-12 sm:py-20 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="animate-spin text-[#2563EB]" size={28} sm={32} />
+                <Loader2 className="animate-spin text-[#2563EB] h-7 w-7 sm:h-8 sm:w-8" />
                 <span className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse px-4 text-center">Filtering Target Assignments...</span>
               </div>
             ) : filteredTests.length === 0 ? (
