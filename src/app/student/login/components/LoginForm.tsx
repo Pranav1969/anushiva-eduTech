@@ -1,14 +1,14 @@
+// src/app/student/login/components/LoginForm.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { authManager } from "@/utils/auth";
 import { Loader2, LockKeyhole, User, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,23 +27,26 @@ export function LoginForm() {
     setErrorMsg("");
 
     try {
+      const cleanUsername = username.trim().toLowerCase();
+      const cleanPassword = password.trim();
+
       // 1. Fetch student record
       const { data: student, error } = await supabase
         .from("students")
         .select("*")
-        .eq("username", username.trim().toLowerCase())
+        .eq("username", cleanUsername)
         .single();
 
-      if (error || !student || student.password !== password.trim()) {
+      if (error || !student || student.password !== cleanPassword) {
         setErrorMsg("Invalid account username or matching password passphrase.");
         setLoading(false);
         return;
       }
 
-      // 2. Generate a totally unique session token for this specific login instance
+      // 2. Generate a totally unique session token for this login instance
       const newSessionToken = crypto.randomUUID();
 
-      // 3. Write this token to the database (effectively invalidating any older device token)
+      // 3. Write token to DB (effectively invalidating older device tokens)
       const { error: updateError } = await supabase
         .from("students")
         .update({ current_session_token: newSessionToken })
@@ -55,7 +58,7 @@ export function LoginForm() {
         return;
       }
 
-      // 4. Save to your local application state manager (including the session token)
+      // 4. Save to local application state manager
       authManager.setSession({
         id: student.id,
         name: student.name,
@@ -63,8 +66,9 @@ export function LoginForm() {
         sessionToken: newSessionToken
       });
 
-      router.refresh();
-      router.push("/student");
+      // 5. Hard reload location switch to guarantee dashboard gets fresh, un-cached memory values
+      window.location.href = "/student";
+      
     } catch (err) {
       setErrorMsg("Portal failed to resolve verification sequence keys.");
       setLoading(false);
@@ -90,7 +94,7 @@ export function LoginForm() {
         <div className="space-y-1.5">
           <label className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Username</label>
           <div className="relative">
-            <User className="absolute left-3.5 top-3 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={14} />
+            <User className="absolute left-3.5 top-3 text-slate-500" size={14} />
             <input 
               type="text" 
               required 
