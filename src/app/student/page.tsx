@@ -243,10 +243,10 @@ export default function StudentDashboard() {
 
         {/* Workspace Mode Sub-Navigation System */}
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
-          <div className="flex flex-row gap-4 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth tracking-tight">
+          <div className="flex flex-row items-center w-full sm:w-auto justify-start gap-3 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth tracking-tight pb-1 sm:pb-0">
             <button 
               onClick={() => setDashboardFocus("assessments")} 
-              className={`pb-2.5 sm:pb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
+              className={`pb-2 sm:pb-3 text-[10px] xs:text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
                 dashboardFocus === "assessments" 
                   ? "border-blue-500 text-blue-400" 
                   : "border-transparent text-slate-400 hover:text-slate-200"
@@ -256,7 +256,7 @@ export default function StudentDashboard() {
             </button>
             <button 
               onClick={() => setDashboardFocus("notes")} 
-              className={`pb-2.5 sm:pb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
+              className={`pb-2 sm:pb-3 text-[10px] xs:text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 border-b-2 transition-all duration-300 whitespace-nowrap ${
                 dashboardFocus === "notes" 
                   ? "border-amber-700 text-amber-800" 
                   : "border-transparent text-slate-400 hover:text-slate-500"
@@ -270,7 +270,7 @@ export default function StudentDashboard() {
           {dashboardFocus === "notes" && (
             <button 
               onClick={() => setDashboardFocus("assessments")}
-              className="text-[11px] sm:text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-2.5 py-1.5 sm:px-3 rounded-lg transition-all duration-200 self-start sm:self-auto sm:mr-2"
+              className="text-[10px] sm:text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-2.5 py-1.5 sm:px-3 rounded-lg transition-all duration-200 self-end sm:self-auto sm:mr-2 mb-1 sm:mb-0"
             >
               Back to Dashboard &rarr;
             </button>
@@ -313,7 +313,7 @@ export default function StudentDashboard() {
             )}
           </div>
         ) : (
-          <div className="w-full animate-in fade-in zoom-in-95 duration-300">
+          <div className="w-full px-1 sm:px-2 md:px-0 mx-auto max-w-full overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <RevisionNotesTree 
               loadingNotes={loadingNotes}
               courseContentTree={courseContentTree}
