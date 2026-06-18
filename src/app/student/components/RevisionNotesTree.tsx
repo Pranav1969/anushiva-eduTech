@@ -6,7 +6,7 @@ import {
   Loader2, ChevronDown, ChevronRight, BookOpen, Edit3, 
   Save, CheckCircle, Trash2, Check, 
   Trophy, Book, FileText, CheckCircle2, Maximize2, Minimize2,
-  ChevronLeft, Sparkles
+  ChevronLeft, Sparkles, ExternalLink
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk";
@@ -72,11 +72,9 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
 
 const processInlineStyles = (text: string): React.ReactNode => {
   if (!text) return "";
-  
   const renderTextNodes = (rawStr: string): React.ReactNode[] => {
     const highlightRegex = /==([\s\S]*?)==/g;
     const subParts = rawStr.split(highlightRegex);
-    
     return subParts.map((part, i) => {
       if (i % 2 === 1) {
         return (
@@ -183,7 +181,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
 
     let activeOL: React.ReactNode[] = [];
     let activeUL: React.ReactNode[] = [];
-
     const renderedElements: React.ReactNode[] = [];
 
     // Helper: Flush structural tables cleanly to final workspace array
@@ -309,7 +306,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         
         if (headerText === lastRenderedHeader) continue;
         lastRenderedHeader = headerText;
-
         renderedElements.push(
           <h5 key={`h-${secIndex}-${i}`} className="text-[14px] font-extrabold text-slate-900 mt-4 mb-2 pb-0.5 border-b border-slate-100 tracking-tight flex items-center gap-2">
             <span className="w-1 h-3.5 bg-amber-500 rounded-xs inline-block"></span>
@@ -468,7 +464,7 @@ const MilestoneDashboard: React.FC<MilestoneDashboardProps> = ({
         </span>
         <span className="text-[11px] font-semibold text-slate-500">Study Materials Blueprint</span>
       </div>
-      
+
       <div className="flex items-center gap-2.5 shrink-0">
         <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
           <Trophy className="w-3.5 h-3.5 text-amber-500" /> 
@@ -517,6 +513,11 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
 
   const activeTopicId = selectedTopicIdMap[chap.id] || (totalTopics[0]?.id || "");
   const currentActiveTopic = totalTopics.find((t: any) => t.id === activeTopicId);
+
+  const handleLaunchAttachedTest = (testId: string) => {
+    if (!testId) return;
+    window.open(`/student/tests/${testId}`, "_blank");
+  };
 
   return (
     <div className={`border rounded-xl bg-white shadow-xs transition-all ${isChapterComplete ? "border-emerald-200" : "border-slate-200"}`}>
@@ -584,7 +585,7 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="w-5 h-10 bg-white border border-slate-200 shadow-xs rounded-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all active:scale-95"
+              className="w-5 h-10 bg-white border border-slate-200 shadow-xs rounded-full flex items-center justify-center text-slate-600 hover:text-stone-900 hover:bg-slate-50 transition-all active:scale-95"
             >
               {isSidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </button>
@@ -609,10 +610,29 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                       <span>{completedTopics[currentActiveTopic.id] ? "Completed" : "Mark Done"}</span>
                     </button>
                   </div>
+                  
                   <div className="text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide bg-stone-50/30 p-4 rounded-xl border border-stone-100/60 select-text">
                     {renderNarrativeWithImages(currentActiveTopic.paragraph_text, imageMap)}
                   </div>
+
+                  {currentActiveTopic.test_id && (
+                    <div className="mt-4 p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-mono font-bold tracking-wider text-indigo-600 uppercase block">Assessment Milestone</span>
+                        <p className="text-xs font-semibold text-slate-800">An evaluation module has been linked to this target framework.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleLaunchAttachedTest(currentActiveTopic.test_id)}
+                        className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <span>Launch Linked Test</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
+
                 <div className="pt-4 text-center border-t border-slate-50 shrink-0">
                   <span className="text-[9px] text-slate-300 tracking-widest font-bold uppercase block">End of Module Material</span>
                 </div>
@@ -647,6 +667,9 @@ export default function RevisionNotesTree({
   const [isFullscreenMode, setIsFullscreenMode] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  
+  // Track current unique authenticated student session identifier state
+  const [studentId, setStudentId] = useState<string>("");
 
   useEffect(() => {
     if (expandedChapters) {
@@ -655,12 +678,36 @@ export default function RevisionNotesTree({
     }
   }, [expandedChapters]);
 
+  // 1. Fetch current logged in student session identity from Supabase Auth Client
   useEffect(() => {
-    const savedProgress = localStorage.getItem("student_syllabus_progress");
-    if (savedProgress) {
-      try { setCompletedTopics(JSON.parse(savedProgress)); } catch (e) { console.error(e); }
+    async function resolveActiveStudentSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          setStudentId(session.user.id);
+        }
+      } catch (authError) {
+        console.error("Failed to extract active user authorization profile token:", authError);
+      }
     }
+    resolveActiveStudentSession();
   }, []);
+
+  // 2. Hydrate user progress strictly matching the authenticated student identifier
+  useEffect(() => {
+    const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
+    const savedProgress = localStorage.getItem(trackingStorageKey);
+    if (savedProgress) {
+      try {
+        setCompletedTopics(JSON.parse(savedProgress));
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      // Clear or reset context out cleanly if student session alternates
+      setCompletedTopics({});
+    }
+  }, [studentId]);
 
   useEffect(() => {
     async function loadAssetLibrary() {
@@ -700,7 +747,6 @@ export default function RevisionNotesTree({
   const metrics = useMemo<MetricsType>(() => {
     if (!currentActiveSection) return { total: 0, done: 0, percentage: 0 };
     let total = 0, done = 0;
-    
     currentActiveSection.notes_phases?.forEach((phase: any) => {
       phase.notes_chapters?.forEach((chap: any) => {
         chap.notes_topics?.forEach((topic: any) => {
@@ -709,7 +755,6 @@ export default function RevisionNotesTree({
         });
       });
     });
-    
     return { total, done, percentage: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [currentActiveSection, completedTopics]);
 
@@ -717,7 +762,10 @@ export default function RevisionNotesTree({
     e.stopPropagation();
     const updatedProgress = { ...completedTopics, [topicId]: !completedTopics[topicId] };
     setCompletedTopics(updatedProgress);
-    localStorage.setItem("student_syllabus_progress", JSON.stringify(updatedProgress));
+    
+    // Write out dynamically using the explicit unique student identifier storage key link
+    const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
+    localStorage.setItem(trackingStorageKey, JSON.stringify(updatedProgress));
   };
 
   const handleChapterToggle = (chapterId: string) => {
@@ -751,24 +799,17 @@ export default function RevisionNotesTree({
     <div className={`grid grid-cols-1 lg:grid-cols-4 gap-3 items-stretch w-full transition-all duration-300 ${
       isFullscreenMode ? "fixed inset-2 z-50 bg-[#FDFBF7] p-3 rounded-2xl border shadow-2xl h-[calc(100vh-16px)]" : "h-[calc(100vh-140px)]"
     }`}>
-      
       <div className="lg:col-span-3 overflow-hidden h-full flex flex-col space-y-2">
         <CourseSwitcher 
-          courseContentTree={courseContentTree}
-          activeSectionId={activeSectionId}
-          setActiveSectionId={setActiveSectionId}
-          isFullscreenMode={isFullscreenMode}
-          setIsFullscreenMode={setIsFullscreenMode}
+          courseContentTree={courseContentTree} 
+          activeSectionId={activeSectionId} 
+          setActiveSectionId={setActiveSectionId} 
+          isFullscreenMode={isFullscreenMode} 
+          setIsFullscreenMode={setIsFullscreenMode} 
         />
-
         {currentActiveSection && (
           <div className="flex-grow overflow-y-auto pr-0.5 space-y-4 scrollbar-thin">
-            <MilestoneDashboard 
-              currentActiveSection={currentActiveSection}
-              theme={theme}
-              metrics={metrics}
-            />
-
+            <MilestoneDashboard currentActiveSection={currentActiveSection} theme={theme} metrics={metrics} />
             <div className="space-y-4 pb-2">
               {currentActiveSection.notes_phases?.map((phase: any) => (
                 <div key={phase.id} className="space-y-2.5 bg-[#f8fafc]/50 border border-slate-100 rounded-xl p-3">
@@ -799,7 +840,6 @@ export default function RevisionNotesTree({
                 </div>
               ))}
             </div>
-
           </div>
         )}
       </div>

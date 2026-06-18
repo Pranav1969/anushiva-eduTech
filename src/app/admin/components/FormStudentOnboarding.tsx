@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, UserMinus } from "lucide-react";
+import { UserPlus, UserMinus, BookOpen } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 
 interface FormProps {
@@ -15,6 +15,11 @@ interface StudentListDetails {
   username: string;
 }
 
+interface ExamDropdownDetails {
+  id: string;
+  name: string;
+}
+
 export default function FormStudentOnboarding({ onSuccess }: FormProps) {
   // Registration Form States
   const [newStudentName, setNewStudentName] = useState("");
@@ -23,10 +28,26 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
   const [state, setState] = useState("");
   const [district, setDistrict] = useState("");
   const [gender, setGender] = useState("");
+  const [selectedExam, setSelectedExam] = useState("");
 
   // Deletion State
   const [studentToDelete, setStudentToDelete] = useState("");
   const [students, setStudents] = useState<StudentListDetails[]>([]);
+
+  // Available Exams State
+  const [exams, setExams] = useState<ExamDropdownDetails[]>([]);
+
+  // Fetch available exams from table to populate dropdown matrix
+  const fetchExams = async () => {
+    const { data, error } = await supabase
+      .from("exams")
+      .select("id, name")
+      .order("name", { ascending: true });
+
+    if (!error && data) {
+      setExams(data);
+    }
+  };
 
   // Fetch student roster on initial load and whenever an action updates the database
   const fetchStudents = async () => {
@@ -42,6 +63,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
 
   useEffect(() => {
     fetchStudents();
+    fetchExams();
   }, []);
 
   // 1. Handle Register Student
@@ -53,9 +75,10 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       !newPassword.trim() ||
       !state.trim() ||
       !district.trim() ||
-      !gender
+      !gender ||
+      !selectedExam
     ) {
-      alert("Please fill out all fields.");
+      alert("Please fill out all fields, including the target exam classification matrix.");
       return;
     }
 
@@ -66,6 +89,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       state: state.trim(),
       district: district.trim(),
       gender: gender,
+      exam: selectedExam, // Saves the text value from unique constraint reference row link
     });
 
     if (error) {
@@ -79,6 +103,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       setState("");
       setDistrict("");
       setGender("");
+      setSelectedExam("");
       // Refresh list and notify parent component
       fetchStudents();
       onSuccess();
@@ -188,6 +213,27 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
             <option value="Male" className="text-white">Male</option>
             <option value="Female" className="text-white">Female</option>
             <option value="Other" className="text-white">Other</option>
+          </select>
+
+          {/* COMPULSORY TARGET EXAM ASSIGNMENT DROPDOWN MATRIX */}
+          <select
+            value={selectedExam}
+            onChange={(e) => setSelectedExam(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-slate-400 focus:text-white focus:outline-none transition-colors"
+            required
+          >
+            <option value="" disabled hidden>
+              Select Compulsory Target Exam Assignment...
+            </option>
+            {exams.length === 0 ? (
+              <option disabled value="">No active exams found inside relational schema records</option>
+            ) : (
+              exams.map((ex) => (
+                <option key={ex.id} value={ex.name} className="text-white">
+                  {ex.name}
+                </option>
+              ))
+            )}
           </select>
 
           <button

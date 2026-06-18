@@ -111,13 +111,13 @@ export default function TestResultDiagnostics({
     const weakArea = formattedChapters[formattedChapters.length - 1]?.name || "N/A";
     const overallAccuracy = safeQuestions.length > 0 ? Math.round((totalCorrect / safeQuestions.length) * 100) : 0;
 
-    let strategicInsight = "Consistently analyze your section timing parameters to push past section benchmarks.";
+    let strategicInsight = "Keep track of how much time you spend on each section to improve your speed.";
     if (overallAccuracy >= 75) {
-      strategicInsight = `Excellent target accuracy! Your performance profile in '${strongArea}' is strong enough to secure sectional selection. Clean up remaining vulnerabilities in '${weakArea}' to maximize your aggregate merit listing.`;
+      strategicInsight = `Great job! Your accuracy is excellent. You are doing fantastic in '${strongArea}', which will help you score well. Just practice a little bit more in '${weakArea}' to get an even better overall rank!`;
     } else if (overallAccuracy >= 50) {
-      strategicInsight = `Decent baseline performance. Your '${strongArea}' metrics are sound, but you need immediate intensive mock drills in '${weakArea}' to cross the expected section cutoff safely.`;
+      strategicInsight = `Good effort! Your score is on the right track. You are doing well in '${strongArea}', but you need to practice more timed tests and extra questions in '${weakArea}' to safely clear the exam cutoffs.`;
     } else if (safeQuestions.length > 0) {
-      strategicInsight = `Aggregated performance falls short of average banking cutoffs. Dedicate immediate focus toward conceptual clarity starting with '${weakArea}', and pivot strictly toward daily high-speed timed practice sets.`;
+      strategicInsight = `Your current score is a bit lower than the standard exam cutoffs. Don't worry! Start by clearing your basic concepts in '${weakArea}' first, and then practice short, timed quizzes every day to build your speed.`;
     }
 
     return {
@@ -151,7 +151,7 @@ export default function TestResultDiagnostics({
           <p className="text-xs font-bold text-slate-200 mb-1">{payload[0].name}</p>
           <div className="space-y-0.5 text-[11px] font-mono">
             <p className="text-cyan-400">Accuracy: <span className="font-bold">{payload[0].value}%</span></p>
-            <p className="text-slate-400">Net Score: {payload[0].payload.correct} / {payload[0].payload.total} Right</p>
+            <p className="text-slate-400">Correct: {payload[0].payload.correct} / {payload[0].payload.total}</p>
           </div>
         </div>
       );
@@ -166,7 +166,7 @@ export default function TestResultDiagnostics({
         <AnalyticMetricCard 
           title="Overall Accuracy" 
           value={`${Math.round((diagnostics.totalCorrect / questions.length) * 100)}%`}
-          subtext={`Attempted: ${questions.length - diagnostics.totalUnattempted}`}
+          subtext={`Anushiva Performance Rating`}
           icon={Target}
           colorClass="from-cyan-500 to-blue-600"
           delay={0.05}
@@ -174,7 +174,7 @@ export default function TestResultDiagnostics({
         <AnalyticMetricCard 
           title="Correct Answers" 
           value={`${diagnostics.totalCorrect} Qs`}
-          subtext="Net positive evaluation counts"
+          subtext="Total right answers"
           icon={Award}
           colorClass="from-emerald-500 to-teal-600"
           delay={0.1}
@@ -182,7 +182,7 @@ export default function TestResultDiagnostics({
         <AnalyticMetricCard 
           title="Wrong Answers" 
           value={`${diagnostics.totalWrong} Qs`}
-          subtext="Triggers negative marking (-0.25)"
+          subtext="Loses marks (-0.25 penalty)"
           icon={ShieldAlert}
           colorClass="from-rose-500 to-red-600"
           delay={0.15}
@@ -190,7 +190,7 @@ export default function TestResultDiagnostics({
         <AnalyticMetricCard 
           title="Left / Unattempted" 
           value={`${diagnostics.totalUnattempted} Qs`}
-          subtext="Zero scoring or loss parameters"
+          subtext="Questions skipped (no marks lost)"
           icon={Zap}
           colorClass="from-amber-500 to-orange-600"
           delay={0.2}
@@ -210,7 +210,7 @@ export default function TestResultDiagnostics({
           <div className="space-y-0.5 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono font-bold uppercase text-indigo-400 tracking-wider flex items-center gap-1">
-                <Sparkles size={11} /> Personalized Smart Feedback for Cutoff Strategy
+                <Sparkles size={11} /> Anushiva AIGuruji — Your Exam Coach Advice
               </span>
             </div>
             <p className="text-xs font-medium text-slate-300 leading-relaxed">
@@ -219,10 +219,10 @@ export default function TestResultDiagnostics({
           </div>
           <div className="flex gap-1.5 flex-wrap text-[10px] font-mono font-bold mt-2 md:mt-0">
             <span className="bg-emerald-950/50 text-emerald-400 px-2 py-0.5 rounded border border-emerald-900/30">
-              Highest Marks: {diagnostics.strongArea}
+              Your Strongest Topic: {diagnostics.strongArea}
             </span>
             <span className="bg-rose-950/50 text-rose-400 px-2 py-0.5 rounded border border-rose-900/30">
-              Needs Work: {diagnostics.weakArea}
+              Needs Improvement: {diagnostics.weakArea}
             </span>
           </div>
         </div>
@@ -234,10 +234,10 @@ export default function TestResultDiagnostics({
         {/* Navigation Sidebar Tabs */}
         <div className="lg:col-span-3 flex flex-col gap-2">
           {[
-            { id: "overview", label: "Section Accuracy Chart", desc: "Compare major section accuracy", icon: BarChart3 },
-            { id: "radar", label: "Subject Balance View", desc: "Check balance between QA, RE, and ENG", icon: Target },
-            { id: "chapters", label: "Priority Priority Topics", desc: "Top scoring chapter nodes", icon: Activity },
-            { id: "all_topics", label: "Detailed Sub-Topic Matrix", desc: "Full breakdown overview", icon: Sparkles }
+            { id: "overview", label: "Section Progress", desc: "Compare accuracy across subjects", icon: BarChart3 },
+            { id: "radar", label: "Subject Balance Tracker", desc: "Check if your layout is balanced", icon: Target },
+            { id: "chapters", label: "Top Scoring Chapters", desc: "Your highest performing topics", icon: Activity },
+            { id: "all_topics", label: "Anushiva Syllabus Breakdown", desc: "Detailed status of every single topic", icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
@@ -368,12 +368,12 @@ export default function TestResultDiagnostics({
             </div>
           )}
 
-          {/* Optimized Sub-Topic Area Embedding (Saves Huge Layout Heights) */}
+          {/* Optimized Sub-Topic Area Embedding */}
           {activeTab === "all_topics" && (
             <div className="w-full h-full flex flex-col flex-1 space-y-3">
               <div className="flex justify-between items-center border-b border-slate-800 pb-1">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Space-Optimized Metrics Field
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Syllabus Progress Metrics Field
                 </h4>
               </div>
               <motion.div 
