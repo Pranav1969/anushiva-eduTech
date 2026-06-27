@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, BookOpen, GraduationCap, Lock } from "lucide-react"; // Import Lock for visual gating indicators [cite: 2]
+import { Loader2, BookOpen, GraduationCap, Lock, Newspaper } from "lucide-react";// Import Lock for visual gating indicators [cite: 2]
 import { supabase } from "@/utils/supabase";
 import { authManager, StudentSession } from "@/utils/auth"; // Import Session profiles [cite: 3]
 
@@ -73,14 +73,17 @@ export default function StudentDashboard() {
   }, [router]);
 
   // Aggregate Knowledge Base Material Hierarchy with Phased Navigation Schema
-  const fetchStructuredNotesTree = async () => {
-    setLoadingNotes(true); // Open compiler state loader engine [cite: 16]
+// Aggregate Knowledge Base Material Hierarchy with Phased Navigation Schema
+  // Update the function definition to accept an optional examId string parameter
+  const fetchStructuredNotesTree = async (examId?: string) => {
+    setLoadingNotes(true);
     try {
-      const { data: sections, error: secErr } = await supabase // DB content download pipeline instance [cite: 17]
+      let query = supabase
         .from("notes_sections")
         .select(`
           id,
           name,
+          exam_id,
           exams ( name ),
           notes_phases (
             id,
@@ -90,6 +93,7 @@ export default function StudentDashboard() {
               id,
               name,
               sequence_order,
+              required_plan,
               notes_topics (
                 id,
                 name,
@@ -100,12 +104,19 @@ export default function StudentDashboard() {
           )
         `);
       
-      if (secErr) throw secErr; // Abort operational tracking loop pipeline inside errors triggers [cite: 20]
+      // ✅ Filter notes sections by the student's registered exam ID
+      if (examId) {
+        query = query.eq("exam_id", examId);
+      }
+
+      const { data: sections, error: secErr } = await query;
+      
+      if (secErr) throw secErr;
       
       // Sort tree components deterministically using sequential order properties across all relational nodes
       const structuredTree = (sections || []).map((sec: any) => ({
         ...sec,
-        notes_phases: (sec.notes_phases || []).sort((a: any, b: any) => (a.sequence_order || 0) - (b.sequence_order || 0)) // Sequence parsing mechanics [cite: 21]
+        notes_phases: (sec.notes_phases || []).sort((a: any, b: any) => (a.sequence_order || 0) - (b.sequence_order || 0))
           .map((phase: any) => ({
             ...phase,
             notes_chapters: (phase.notes_chapters || []).sort((a: any, b: any) => (a.sequence_order || 0) - (b.sequence_order || 0))
@@ -114,13 +125,13 @@ export default function StudentDashboard() {
                 notes_topics: (chap.notes_topics || []).sort((a: any, b: any) => (a.sequence_order || 0) - (b.sequence_order || 0))
               }))
           }))
-      })); // Structural aggregation compiler closures [cite: 22]
+      }));
 
       setCourseContentTree(structuredTree);
-    } catch (err) {
-      console.error("Notes Compilation Engine Fail:", err);
+    } catch (err: any) {
+      console.error("Notes Compilation Engine Fail:", err?.message || err?.details || err);
     } finally {
-      setLoadingNotes(false); // Clean active threads execution metrics trackers [cite: 23]
+      setLoadingNotes(false);
     }
   };
 
@@ -132,18 +143,36 @@ export default function StudentDashboard() {
       const assignedIds = assignments?.map(a => a.test_id) || []; // Flatten relational mapping target elements data [cite: 25]
 
       // 2. Fetch the Student's Registered Exam Bucket Name Preference & Subscription Plan Matrix
+      // 2. Fetch the Student's Registered Exam Bucket Name Preference & Subscription Plan Matrix
+      // 2. Fetch the Student's Registered Exam Bucket Name Preference & Subscription Plan Matrix
       const { data: studentProfile } = await supabase
         .from("students")
-        .select("exam, current_plan")
+        .select("id, name, username, exam, current_plan, current_session_token, state, district, gender")
         .eq("id", studentId)
         .single();
-
-      let bucketTestIds: string[] = []; // Temporary tracking bucket configuration buffer array structures [cite: 26]
+        
+      let bucketTestIds: string[] = []; 
       const studentCurrentPlan = studentProfile?.current_plan || "free";
+
+      // ✅ FIX: Sync the updated state and localStorage with the fresh plan from the database
+      if (studentProfile) {
+        const freshSession = {
+          id: studentProfile.id,
+          name: studentProfile.name,
+          username: studentProfile.username,
+          sessionToken: studentProfile.current_session_token || "",
+          gender: studentProfile.gender,
+          state: studentProfile.state,
+          district: studentProfile.district,
+          current_plan: studentProfile.current_plan 
+        };
+        setStudent(freshSession as any);
+        localStorage.setItem("active_student_node", JSON.stringify(freshSession));
+      }
 
       if (studentProfile?.exam) {
         // Resolve the UUID container matching the student's text profile key string
-        const { data: examBucket } = await supabase // Relational collection lookup targets [cite: 27]
+        const { data: examBucket } = await supabase 
           .from("exams")
           .select("id")
           .eq("name", studentProfile.exam)
@@ -151,15 +180,24 @@ export default function StudentDashboard() {
 
         if (examBucket) {
           // Fetch tests explicitly aligned inside this exam bucket
-          const { data: bucketedTests } = await supabase // Structural child collections targets fetch [cite: 28]
+          const { data: bucketedTests } = await supabase 
             .from("tests")
             .select("id, exam_id")
             .eq("exam_id", examBucket.id);
-          
+
           if (bucketedTests) {
-            bucketTestIds = bucketedTests.map(t => t.id); // Output values parameters maps array mapping definitions [cite: 29]
+            bucketTestIds = bucketedTests.map(t => t.id);
           }
+
+          // ✅ Fetch structured notes filtered specifically for this exam bucket
+          fetchStructuredNotesTree(examBucket.id);
+        } else {
+          // Fallback if the resolved exam isn't found in the database
+          fetchStructuredNotesTree();
         }
+      } else {
+        // Fallback if the student has no registered exam on their profile
+        fetchStructuredNotesTree();
       }
 
       // 3. Merge Manual Assignments with Exam Bucket Blueprints, eliminating duplicates
@@ -177,8 +215,17 @@ export default function StudentDashboard() {
         const joined: TestRecord[] = testsData.map(t => {
           const match = attemptsData?.find(a => a.test_id === t.id && a.student_id === studentId);
           
-          // Gating logic evaluation rule: premium tiers open everything; free plan can ONLY access free resources.
-          const isPlanLocked = t.required_plan === "premium" && studentCurrentPlan === "free"; // Gating boolean logic matrix checkpoints evaluation rules [cite: 34]
+                  // Gating logic evaluation rule: premium tiers open everything; free plan can ONLY access free resources.
+                // Updated Hierarchical Security Resolution Loop Checks
+              const normalizedStudent = (studentCurrentPlan?.toLowerCase() || "free") as "free" | "silver" | "gold" | "premium";
+              const normalizedRequired = (t.required_plan?.toLowerCase() || "free") as "free" | "silver" | "gold" | "premium";
+
+              const PLAN_HIERARCHY_MAP = { free: 1, silver: 2, gold: 3, premium: 4 }; 
+              const studentWeight = PLAN_HIERARCHY_MAP[normalizedStudent] || 1;
+              const requiredWeight = PLAN_HIERARCHY_MAP[normalizedRequired] || 1;
+
+                  // If student weight is less than required, flag it as locked
+              const isPlanLocked = studentWeight < requiredWeight; // Gating boolean logic matrix checkpoints evaluation rules [cite: 34]
 
           return {
             ...t,
@@ -249,9 +296,10 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (student?.id) {
       fetchStudentMatrix(student.id);
-      fetchStructuredNotesTree();
+      // Removed fetchStructuredNotesTree() from here because it is now 
+      // called dynamically inside fetchStudentMatrix(student.id) after the exam ID is found.
     }
-  }, [student]);
+  }, [student?.id]); // opacity ✅ Only re-run if the specific ID string changes, breaking the loop!
 
   // Updated to ensure only one single chapter is open at any time globally
   const toggleChapterAccordion = (chapterId: string) => {
@@ -317,46 +365,61 @@ export default function StudentDashboard() {
         </div>
 
         {/* Workspace Mode Sub-Navigation System */}
-        <div className={`flex items-center justify-between border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
-          <div className="flex gap-6">
-            <button 
-              onClick={() => setDashboardFocus("assessments")} 
-              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                dashboardFocus === "assessments" 
-                  ? "border-blue-500 text-blue-400" 
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <GraduationCap className="w-4 h-4" /> Examination Center
-            </button>
-            <button 
-              onClick={() => setDashboardFocus("notes")} 
-              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                dashboardFocus === "notes" 
-                  ? "border-amber-700 text-amber-800" 
-                  : "border-transparent text-slate-400 hover:text-slate-500"
-              }`}
-            >
-              <BookOpen className="w-4 h-4" /> Revision Notes Module
-            </button>
-          </div>
+        {/* Workspace Mode Sub-Navigation System */}
+<div className={`flex items-center justify-between border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
+  <div className="flex gap-6">
+    <button 
+      onClick={() => setDashboardFocus("assessments")} 
+      className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
+        dashboardFocus === "assessments" 
+          ? "border-blue-500 text-blue-400" 
+          : "border-transparent text-slate-400 hover:text-slate-200"
+      }`}
+    >
+      <GraduationCap className="w-4 h-4" /> Examination Center
+    </button>
+    
+    <button 
+      onClick={() => setDashboardFocus("notes")} 
+      className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
+        dashboardFocus === "notes" 
+          ? "border-amber-700 text-amber-800" 
+          : "border-transparent text-slate-400 hover:text-slate-500"
+      }`}
+    >
+      <BookOpen className="w-4 h-4" /> Revision Notes Module
+    </button>
 
-          {/* Quick exit option from focus notes view */}
-          {dashboardFocus === "notes" && (
-            <button 
-              onClick={() => setDashboardFocus("assessments")}
-              className="text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-3 py-1.5 rounded-lg transition-all duration-200 mr-2"
-            >
-              Back to Dashboard &rarr;
-            </button>
-          )}
-        </div>
+    {/* NEW: Current Affairs Trigger Routing Action Link */}
+    <button 
+      onClick={() => router.push("/student/current-affairs")} 
+      className="pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-emerald-400 transition-all duration-300"
+    >
+      <Newspaper className="w-4 h-4" /> Current Affairs & GK
+    </button>
+  </div>
+
+  {/* Quick exit option from focus notes view */}
+  {dashboardFocus === "notes" && (
+    <button 
+      onClick={() => setDashboardFocus("assessments")}
+      className="text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-3 py-1.5 rounded-lg transition-all duration-200 mr-2"
+    >
+      Back to Dashboard &rarr;
+    </button>
+  )}
+</div>
 
         {/* FOCUS VIEW SWITCHER INTERFACE BRANCHES */}
         {dashboardFocus === "assessments" ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 w-full">
             {/* Handing over only manually distributed tests to the Priority Work Pipeline */}
-            {!loading && <RecentAssignedTests tests={priorityTestsOnly} />}
+            {!loading && (
+           <RecentAssignedTests 
+              tests={priorityTestsOnly} 
+              onLockedClick={handleLockedCardClick} 
+              />
+            )}
 
             {!loading && (
               <PerformanceOverview 
@@ -374,54 +437,90 @@ export default function StudentDashboard() {
             />
 
             {loading ? (
-              <div className="text-center py-20 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="animate-spin text-[#2563EB]" size={32} />
-                <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse">Filtering Target Assignments...</span>
-              </div>
-            ) : filteredTests.length === 0 ? (
-              <EmptyState />
-            ) : (
-              /* High-Density Responsive Grid Box Containers Matrix */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5 animate-in fade-in duration-300">
-                {filteredTests.map(t => (
-                  <div 
-                    key={t.id} 
-                    className="relative group transition-all duration-200 h-full"
-                    onClickCapture={t.is_locked ? (e) => {
-                      e.stopPropagation();
-                      handleLockedCardClick(t.required_plan);
-                    } : undefined}
-                  >
-                    {/* Compact Glassmorphic Premium Gating Cover Filter Plate */}
-                    {t.is_locked && (
-                      <div className="absolute inset-0 z-20 rounded-xl bg-slate-950/80 backdrop-blur-[3px] border border-amber-500/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer group-hover:bg-slate-950/70 transition-all p-2 text-center">
-                        <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-black/60">
-                          <Lock className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-[8px] font-black tracking-widest uppercase text-amber-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded shadow-md">
-                          Unlock {t.required_plan}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* Render original test card component */}
-                    <TestCard test={t} />
-                  </div>
-                ))}
-              </div>
-            )}
+  <div className="text-center py-20 flex flex-col items-center justify-center gap-3">
+    <Loader2 className="animate-spin text-[#2563EB]" size={32} />
+    <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse">Filtering Target Assignments...</span>
+  </div>
+) : filteredTests.length === 0 ? (
+  <EmptyState />
+) : (
+  /* High-Density Responsive Grid Box Containers Matrix */
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5 animate-in fade-in duration-300">
+    {/* REPLACE OLD MAP CODES CLEANLY HERE */}
+    {filteredTests.map((t) => (
+      <div 
+        key={t.id} 
+        className="relative group transition-all duration-200 h-full"
+        onClickCapture={(e) => {
+          if (t.is_locked) {
+            e.stopPropagation();
+            e.preventDefault();
+            setSelectedRequiredPlan(t.required_plan || "premium");
+            setIsUpgradeOpen(true);
+          }
+        }}
+      >
+        {/* Visual overlay indicator if locked */}
+        {t.is_locked && (
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[3px] border border-amber-500/30 rounded-xl z-20 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-950/70 transition-all p-2 text-center">
+            <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-black/60 mb-1">
+              <Lock className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-[9px] font-black tracking-widest uppercase text-amber-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded shadow-md">
+              Unlock {t.required_plan}
+            </span>
           </div>
-        ) : (
+        )}
+        
+        {/* Render original test card component safely preserving all internals */}
+        <TestCard test={t} />
+      </div>
+    ))}
+  </div>
+)}
+          </div>
+) : (
           <div className="w-full animate-in fade-in zoom-in-95 duration-300">
             <RevisionNotesTree 
               loadingNotes={loadingNotes}
               courseContentTree={courseContentTree}
               expandedChapters={expandedChapters}
-              onToggleChapter={toggleChapterAccordion}
+              onToggleChapter={(chapterId) => {
+                // 1. Look up the chapter structure to verify if authorized
+                let targetChapter: any = null;
+                for (const section of courseContentTree) {
+                  for (const phase of (section.notes_phases || [])) {
+                    const found = (phase.notes_chapters || []).find((c: any) => c.id === chapterId);
+                    if (found) { targetChapter = found; break; }
+                  }
+                  if (targetChapter) break;
+                }
+
+                if (targetChapter) {
+                  // ✅ Read directly from the current student session object or fallback safely to prevent variable matching issues
+                  const studentActivePlan = (student as any)?.current_plan || "free";
+                  const requiredPlan = targetChapter.required_plan || "free";
+                  
+                  const PLAN_MAP = { free: 1, silver: 2, gold: 3, premium: 4 };
+                  const sWeight = PLAN_MAP[studentActivePlan as keyof typeof PLAN_MAP] || 1;
+                  const rWeight = PLAN_MAP[requiredPlan as keyof typeof PLAN_MAP] || 1;
+
+                  if (sWeight < rWeight) {
+                    // Trigger upgrade popup blocking expansion handler route
+                    setSelectedRequiredPlan(requiredPlan);
+                    setIsUpgradeOpen(true);
+                    return; // Abort accordion expansion toggle execution path
+                  }
+                }
+                
+                // Fall back to original core expansion toggle behavior if authorized
+                toggleChapterAccordion(chapterId);
+              }}
+              studentPlan={(student as any)?.current_plan || "free"} // ✅ Securely passes the plan down safely
             />
           </div>
         )}
-      </div>
+          </div>
 
       {/* Subscription Gating Interface Modal */}
       <PlanUpgradeModal 

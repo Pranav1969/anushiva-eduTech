@@ -1,14 +1,22 @@
 "use client";
 import Link from "next/link";
-import { Layers, Calculator, BookOpen, ShieldCheck, Award } from "lucide-react";
+import { Layers, Calculator, BookOpen, ShieldCheck, Award, HelpCircle } from "lucide-react";
 
-export const SYLLABUS_SECTIONS = [
-  { id: "reasoning-ability", label: "Reasoning Ability", icon: Layers },
-  { id: "quantitative-ability", label: "Quantitative & DI", icon: Calculator },
-  { id: "english-language", label: "English Language", icon: BookOpen },
-  { id: "financial-awareness", label: "General/Financial Awareness", icon: ShieldCheck },
-  { id: "combine-test", label: "Combine Test", icon: Award },
-];
+// Fallback icon mapping handler helper
+const getSectionIcon = (id: string) => {
+  if (id.includes("reasoning")) return Layers;
+  if (id.includes("quant") || id.includes("numerical")) return Calculator;
+  if (id.includes("english")) return BookOpen;
+  if (id.includes("aware") || id.includes("finance")) return ShieldCheck;
+  if (id.includes("combine")) return Award;
+  return HelpCircle; // Default fallback icon for brand-new custom sections
+};
+
+// Formatting Helper: converts 'reasoning-ability' to 'REASONING ABILITY'
+const formatSectionLabel = (id: string) => {
+  if (!id) return "UNASSIGNED";
+  return id.replace(/-/g, " ");
+};
 
 interface SectionTabsProps {
   activeTab?: string;
@@ -18,18 +26,25 @@ interface SectionTabsProps {
 }
 
 export default function SectionTabs({ activeTab, onTabChange, testsCountMap, useLinks = false }: SectionTabsProps) {
+  
+  // DYNAMIC SECTION GENERATION: Get ALL section keys present in the data right now
+  const visibleSectionIds = Object.keys(testsCountMap).filter(
+    (id) => testsCountMap[id] > 0 || id === activeTab
+  );
+
   return (
     <div className="relative border-b border-slate-800 pb-2">
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x">
-        {SYLLABUS_SECTIONS.map((sec) => {
-          const Icon = sec.icon;
-          const isActive = activeTab === sec.id;
-          const count = testsCountMap[sec.id] || 0;
+        {visibleSectionIds.map((secId) => {
+          const Icon = getSectionIcon(secId);
+          const isActive = activeTab === secId;
+          const count = testsCountMap[secId] || 0;
+          const formattedLabel = formatSectionLabel(secId);
 
           const buttonContent = (
             <>
               <Icon size={14} className={isActive ? "text-[#22D3EE]" : "text-[#CBD5E1]"} />
-              <span>{sec.label}</span>
+              <span className="truncate max-w-[180px]">{formattedLabel}</span>
               <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all ${
                 isActive ? "bg-white/20 text-white shadow-inner" : "bg-slate-900 text-[#CBD5E1]"
               }`}>
@@ -41,8 +56,8 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
           if (useLinks) {
             return (
               <Link
-                key={sec.id}
-                href={`/student/section/${sec.id}`}
+                key={secId}
+                href={`/student/section/${secId}`}
                 className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 border shrink-0 snap-bleed relative ${
                   isActive
                     ? "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]"
@@ -56,8 +71,8 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
 
           return (
             <button
-              key={sec.id}
-              onClick={() => onTabChange && onTabChange(sec.id)}
+              key={secId}
+              onClick={() => onTabChange && onTabChange(secId)}
               className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 border shrink-0 snap-bleed relative ${
                 isActive
                   ? "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]"

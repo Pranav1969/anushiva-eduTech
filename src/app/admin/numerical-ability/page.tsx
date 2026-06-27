@@ -1,6 +1,5 @@
 "use client";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Clock, Layers, HelpCircle, Save, Plus, Trash2, ArrowLeft, 
@@ -46,7 +45,33 @@ export default function AdminNumericalManager() {
   const [perQuestionSeconds, setPerQuestionSeconds] = useState("60");
 
   const [loading, setLoading] = useState(false);
-
+  const [existingSectionIds, setExistingSectionIds] = useState<string[]>([]);
+  const [isCustomSectionId, setIsCustomSectionId] = useState(false);
+useEffect(() => {
+    async function fetchUniqueSectionIds() {
+      try {
+        // Querying the tests table for existing routes
+        const { data, error } = await supabase
+          .from("tests")
+          .select("section_id");
+        
+        if (error) throw error;
+        
+        if (data) {
+          // Extract values and filter out nulls/duplicates
+          const uniques = Array.from(
+            new Set(data.map((item: any) => item.section_id).filter(Boolean))
+          ) as string[];
+          setExistingSectionIds(uniques);
+        }
+      } catch (err) {
+        console.error("Error fetching deployment routes:", err);
+      }
+    }
+    fetchUniqueSectionIds();
+  }, []);
+  // -----------------------
+  
   // Initialize with one default section container block
   const [sections, setSections] = useState<SectionContainer[]>([
     {
@@ -190,7 +215,7 @@ export default function AdminNumericalManager() {
   };
 
   const handleSubmit = async () => {
-    if (!testName.trim()) return alert("Please clarify a target test framework identity name.");
+    if (!sectionId.trim()) return alert("Please specify or select a valid Deployment Route Hub identifier.");
     
     setLoading(true);
     try {
@@ -222,6 +247,7 @@ export default function AdminNumericalManager() {
         }));
       }
 
+      
       // 1. Post Meta Framework payload data to the 'tests' table
       const { data: testData, error: testError } = await supabase
         .from("tests")
@@ -346,14 +372,55 @@ export default function AdminNumericalManager() {
                   <input type="text" value={testName} onChange={(e) => setTestName(e.target.value)} className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:outline-none" placeholder="e.g. SBI PO Mock Exam #4" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2"><FolderOpen size={14} /> Deployment Route Hub</label>
-                  <select value={sectionId} onChange={(e) => setSectionId(e.target.value)} className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-700 text-sm focus:bg-white focus:outline-none cursor-pointer">
-                    <option value="combine-test">Combined Full-Scale Test Engine</option>
-                    <option value="numerical-ability">Isolated - Quantitative Aptitude</option>
-                    <option value="reasoning-ability">Isolated - Reasoning Ability</option>
-                    <option value="english-language">Isolated - English Language</option>
-                  </select>
-                </div>
+  <div className="flex justify-between items-center">
+    <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2">
+      <FolderOpen size={14} /> Deployment Route Hub
+    </label>
+    <button
+      type="button"
+      onClick={() => {
+        setIsCustomSectionId(!isCustomSectionId);
+        setSectionId(""); // Reset value when switching modes
+      }}
+      className="text-[10px] font-bold text-purple-600 hover:underline bg-purple-50 px-2 py-0.5 rounded"
+    >
+      {isCustomSectionId ? "Select Existing" : "+ Create New Route ID"}
+    </button>
+  </div>
+
+  {isCustomSectionId ? (
+    <input
+      type="text"
+      value={sectionId}
+      onChange={(e) => setSectionId(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+      className="w-full p-3 bg-white border-2 border-purple-200 rounded-xl font-bold text-slate-800 text-sm focus:outline-none focus:border-purple-500"
+      placeholder="e.g. general-awareness-mock"
+    />
+  ) : (
+    <select
+      value={sectionId}
+      onChange={(e) => setSectionId(e.target.value)}
+      className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-700 text-sm focus:bg-white focus:outline-none cursor-pointer"
+    >
+      <option value="">-- Choose Deployment Target Route --</option>
+      {/* Dynamic unique values pulled from database */}
+      {existingSectionIds.map((id) => (
+        <option key={id} value={id}>
+          {id}
+        </option>
+      ))}
+      {/* Fallback baseline options if DB is empty */}
+      {existingSectionIds.length === 0 && (
+        <>
+          <option value="combine-test">Combined Full-Scale Test Engine</option>
+          <option value="numerical-ability">Isolated - Quantitative Aptitude</option>
+          <option value="reasoning-ability">Isolated - Reasoning Ability</option>
+          <option value="english-language">Isolated - English Language</option>
+        </>
+      )}
+    </select>
+  )}
+</div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">

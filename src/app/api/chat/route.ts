@@ -1,3 +1,4 @@
+// src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
@@ -17,14 +18,14 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) {
       console.error("❌ CRITICAL: No API key found!");
-      return NextResponse.json({ reply: "Configuration error, yaar. Check API keys." }, { status: 500 });
+      return NextResponse.json({ reply: "Configuration error. Please check backend API keys." }, { status: 500 });
     }
 
     const supabase = (supabaseUrl && supabaseKey) 
       ? createClient(supabaseUrl, supabaseKey) 
       : null;
 
-    // 2. FETCH NOTES FROM DATABASE
+    // 2. FETCH NOTES FROM DATABASE (RAG Context)
     let notesData = "";
     if (supabase) {
       const { data, error } = await supabase
@@ -43,66 +44,102 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. INITIALIZE AI
-    const ai = new GoogleGenAI({ apiKey });
-    const studentName = student?.firstName || "yaar";
+    // 3. STUDENT IDENTITY & GENDER INFLFCTION CALCULATOR
+    const firstName = student?.firstName || "Student";
+    const gender = student?.gender?.toLowerCase() || "unknown";
+    
+    // Select friendly, non-slang, gender-sensitive address phrases
+    let dynamicAddressing = firstName;
+    if (gender === "female" || gender === "girl" || gender === "f") {
+      dynamicAddressing = `${firstName} beta`;
+    } else if (gender === "male" || gender === "boy" || gender === "m") {
+      dynamicAddressing = `${firstName}`;
+    } else {
+      dynamicAddressing = "dear student";
+    }
 
-    // 4. DEFINE GURUJI PERSONA
+    // 4. DEFINE RIGOROUS GURUJI PERSONA (STRICT REVISIONS)
     const systemInstruction = `
-      You are AI-Guruji, an engaging Indian coaching institute teacher.
-      - TONE: Encouraging, witty, use words like "yaar", "chalo", "bilkul", "simple hai", "mere sher".
-      - METHOD: If you are provided with [STUDY NOTES], use them as the primary source to explain concepts. 
-      - FORMAT: Keep answers structured with bold headings, bullet points, and clear explanations.
-      - CONSTRAINTS: 
-        1. NEVER reveal you are looking at notes. 
-        2. DO NOT copy-paste text. Rewrite it in your own conversational, friendly voice.
-        3. If no notes are provided, answer from your own vast knowledge base.
+      You are AI-Guruji, an elite, professional, and empathetic academic mentor guiding students for competitive exams.
+      
+      TONE & ATTITUDE:
+      - Maintain a healthy, encouraging, yet respectful and structured mentor relationship.
+      - ALWAYS address the student warmly using contextually aligned phrases like "${dynamicAddressing}".
+      - STRICTLY PROHIBITED: Never use words like "mere sher", "bhai", "dude", "yaaro", "bro", or trashy casual street slang.
+      
+      CORE METHODOLOGY:
+      - If provided with [STUDY NOTES], use them as your primary truth source to explain core concepts.
+      - Keep explanations highly concise and straight to the point. No empty fillers, long introductory scripts, or narrative fluff.
+      - NEVER reveal you are looking at notes or database vectors. Rewrite info elegantly.
+
+      QUANTITATIVE & MATHEMATICAL PRECISION CONSTRAINTS:
+      - Solutions must be 100% accurate. You must complete calculations down to the final numeric result. Do not break off halfway.
+      - Do not merge multiple logical actions into dense paragraphs. Use distinct, line-by-line formatting separated by clear whitespace.
+      - Use this layout structure for mathematical or logic-based questions:
+        * **Given Data:** List out known variables explicitly.
+        * **Formula/Concept:** State the formula, theorem, or logical rule used.
+        * **Step-by-Step Execution:** Show clear algebraic or logical iterations line by line.
+        * **Final Answer:** Clearly bold or box the complete final numeric/structural conclusion.
     `;
 
-    // 5. PREPARE HISTORY
+    // 5. PREPARE CONTEXTUAL HISTORY (Fixes chat conversation tracking)
     const cleanedContents: any[] = [];
     if (Array.isArray(chatHistory)) {
       chatHistory.forEach((chatItem) => {
-        if (chatItem.text.includes("Ready to crack") || chatItem.text.includes("Kaisa hai")) return;
+        // Skip automated welcome interface prompts or duplicate instances of the active prompt
+        if (chatItem.text.includes("Ready to crack") || chatItem.text.includes("Ready to clear") || chatItem.text.includes("Kaisa hai")) return;
         if (chatItem.role === "user" && chatItem.text === message) return;
         
         const role = chatItem.role === "ai" ? "model" : "user";
-        if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === role) return;
+        
+        // Prevent consecutive duplicate roles which break Gemini's chat schema array layout
+        if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === role) {
+          // Append contents instead of hard-failing
+          cleanedContents[cleanedContents.length - 1].parts[0].text += `\n${chatItem.text}`;
+          return;
+        }
         
         cleanedContents.push({ role, parts: [{ text: chatItem.text }] });
       });
     }
 
-    // Ensure sequence logic
-    while (cleanedContents.length > 0 && cleanedContents[0].role === "model") cleanedContents.shift();
-    if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === "user") cleanedContents.pop();
+    // Enforce alternate turn rules (User -> Model -> User) required by Google's client SDK
+    while (cleanedContents.length > 0 && cleanedContents[0].role === "model") {
+      cleanedContents.shift();
+    }
+    if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === "user") {
+      cleanedContents.pop();
+    }
 
-    // 6. CONSTRUCT FINAL PROMPT WITH CONTEXT
+    // 6. CONSTRUCT FINAL PROMPT PACK WITH DATA CONTEXT
     const finalUserMessage = `
-      ---
-      [STUDY NOTES FOR REFERENCE]: 
-      ${notesData || "No specific study material found in the database."}
-      ---
-      
-      [STUDENT QUESTION]: "${message}"
-      
-      [INSTRUCTION]: Explain this concept clearly as AI-Guruji. Use the study notes above if they are relevant to the question.
+---
+[CURRENT STUDY TOPIC MODULE]: ${currentSection || "General"}
+[STUDY NOTES FOR REFERENCE]: 
+${notesData || "No specific custom study text found in database logs."}
+---
+
+[STUDENT QUESTION]: "${message}"
+
+[INSTRUCTION]: Provide a complete, fully computed explanation as AI-Guruji adhering to the quantitative layouts requested. Be concise and write a definitive answer.
     `;
 
     cleanedContents.push({ role: "user", parts: [{ text: finalUserMessage }] });
 
-    // 7. GENERATE CONTENT
+    // 7. INITIALIZE GOOGLE GEN AI CLIENT ENGINE
+    const ai = new GoogleGenAI({ apiKey });
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: cleanedContents,
       config: {
         systemInstruction: systemInstruction,
-        temperature: 0.7, // Lower temperature keeps it focused on your notes
-        maxOutputTokens: 1000,
+        temperature: 0.3, // Dropped to 0.3 to ensure strict factual and mathematical calculation stability
+        maxOutputTokens: 2048, // Expanded to prevent response truncation mid-sentence
       },
     });
 
-    const replyText = response.text || "Arre yaar, mind blank ho gaya. Ek baar firse poocho?";
+    const replyText = response.text || "I was unable to complete the calculations. Please write down the details again.";
     
     return NextResponse.json({ 
       reply: replyText,
@@ -110,9 +147,9 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("👉 REAL UNDERLYING ERROR:", error);
+    console.error("👉 CHAT ROUTE UNDERLYING CRASH:", error);
     return NextResponse.json(
-      { reply: "Arre yaar! Server circuit short-circuit ho gaya mechanical breakdown se! Let's try again." },
+      { reply: "An error occurred while generating the solution. Let's try this calculation once more." },
       { status: 500 }
     );
   }

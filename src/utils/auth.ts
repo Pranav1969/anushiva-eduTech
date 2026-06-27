@@ -4,10 +4,11 @@ export interface StudentSession {
   id: string;
   name: string;
   username: string;
-  sessionToken: string; // <-- Added to track active multi-device token signatures
-  gender?: string;      // Added safely as optional field
-  state?: string;       // Added safely as optional field
-  district?: string;    // Added safely as optional field
+  sessionToken: string; 
+  gender?: string;      
+  state?: string;       
+  district?: string;
+  current_plan?: string; 
 }
 
 export const authManager = {

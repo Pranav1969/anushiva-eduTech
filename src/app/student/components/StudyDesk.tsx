@@ -1,58 +1,57 @@
+// src/app/student/components/StudyDesk.tsx
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, Bot, User, BookOpen, AlertCircle } from "lucide-react";
+import { Send, Sparkles, Bot, User } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { authManager } from "@/utils/auth"; // Accessing existing session manager
+import { authManager, StudentSession } from "@/utils/auth";
 
-interface Message { role: 'user' | 'ai'; text: string; }
+interface Message { 
+  role: 'user' | 'ai'; 
+  text: string; 
+}
 
-interface StudentProfile {
-  id: string;
-  name: string;
+interface ExtendedStudentProfile extends StudentSession {
   firstName: string;
-  username: string;
 }
 
 export default function StudyDesk({ currentSection }: { currentSection: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [student, setStudent] = useState<ExtendedStudentProfile | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch current student identity safely on component mount
   useEffect(() => {
     try {
       const session = authManager.getSession();
       if (session) {
-        // Extract only the first name string from the full name payload
         const extractedFirstName = session.name ? session.name.split(" ")[0] : "Student";
 
         setStudent({
-          id: session.id,
-          name: session.name,
-          firstName: extractedFirstName,
-          username: session.username
+          ...session,
+          firstName: extractedFirstName
         });
 
-        // Provide a warm, personalized greeting using only the first name
+        // Dynamic gender-aware initial interface message
+        const isFemale = session.gender?.toLowerCase() === 'female' || session.gender?.toLowerCase() === 'girl';
+        const personalGreeting = isFemale ? `${extractedFirstName}, dear` : extractedFirstName;
+
         setMessages([
-      { 
-        role: 'ai', 
-        text: `Hey **${extractedFirstName}**! Ready to crack the **${currentSection}** module today? 🚀 Drop your doubts below—no question is too silly here!` 
-      }
-  ]);
+          { 
+            role: 'ai', 
+            text: `Hello **${personalGreeting}**! Ready to clear your doubts in the **${currentSection}** module today? 🚀 Drop your questions below—I am here to guide you step-by-step.` 
+          }
+        ]);
       }
     } catch (err) {
       console.error("Failed to extract active session metrics for AI context:", err);
     }
   }, [currentSection]);
 
-  // Auto-scroll logic
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
@@ -75,14 +74,23 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
         body: JSON.stringify({ 
           message: userMessage, 
           currentSection,
-          student: student ? { name: student.name, firstName: student.firstName, username: student.username } : null,
-          chatHistory: updatedHistory 
+          student: student ? { 
+            id: student.id,
+            name: student.name, 
+            firstName: student.firstName, 
+            username: student.username,
+            gender: student.gender,
+            state: student.state,
+            district: student.district,
+            current_plan: student.current_plan
+          } : null,
+          chatHistory: updatedHistory // Pass historical payload securely for contextual memory
         }),
       });
       const data = await response.json();
       setMessages(prev => [...prev, { role: 'ai', text: data.reply }]);
     } catch {
-      setMessages(prev => [...prev, { role: 'ai', text: "Guruji is in deep meditation. Please try again." }]);
+      setMessages(prev => [...prev, { role: 'ai', text: "Guruji is processing your solution. Please try again in a moment." }]);
     } finally {
       setIsTyping(false);
     }
@@ -107,7 +115,7 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
         )}
       </div>
 
-      {/* Messages */}
+      {/* Messages Window */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
         {messages.map((m, i) => (
           <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
@@ -135,10 +143,10 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
             </div>
           </div>
         ))}
-        {isTyping && <div className="text-xs text-slate-500 animate-pulse px-2">Guruji is writing...</div>}
+        {isTyping && <div className="text-xs text-slate-500 animate-pulse px-2">Guruji is calculating...</div>}
       </div>
 
-      {/* Input */}
+      {/* User Input Module Area */}
       <form onSubmit={handleSendMessage} className="shrink-0 p-4 bg-[#0A0D16]">
         <div className="relative flex items-center bg-[#04060B] rounded-2xl border border-slate-800 focus-within:border-amber-500/50 transition-all">
           <input
@@ -147,7 +155,9 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
             placeholder="Ask a question..."
             className="w-full bg-transparent pl-4 pr-12 py-4 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none"
           />
-          <button type="submit" className="absolute right-2 p-2 bg-amber-600 text-white rounded-xl hover:bg-amber-500"><Send className="w-4 h-4" /></button>
+          <button type="submit" className="absolute right-2 p-2 bg-amber-600 text-white rounded-xl hover:bg-amber-500">
+            <Send className="w-4 h-4" />
+          </button>
         </div>
       </form>
     </div>

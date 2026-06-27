@@ -84,9 +84,9 @@ export function LoginForm() {
     >
       <div className="text-center space-y-2 mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-950/60 border border-purple-500/30 text-cyan-400 text-[11px] font-bold uppercase tracking-wider rounded-md">
-          <Sparkles size={12} /> Examination Node Gateway
+          <Sparkles size={12} /> Preperation Node Gateway
         </div>
-        <h2 className="text-xl font-extrabold text-white tracking-tight">Student Identity Login</h2>
+        <h2 className="text-xl font-extrabold text-white tracking-tight">Anushiva Identity Login</h2>
         <p className="text-slate-400 text-xs font-medium">Access your personal, dedicated examination workspace board.</p>
       </div>
 

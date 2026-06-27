@@ -1,12 +1,10 @@
-// src/app/student/components/RevisionNotesTree.tsx
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-
 import { 
   Loader2, ChevronDown, ChevronRight, BookOpen, Edit3, 
   Save, CheckCircle, Trash2, Check, 
   Trophy, Book, FileText, CheckCircle2, Maximize2, Minimize2,
-  ChevronLeft, Sparkles, ExternalLink
+  ChevronLeft, Sparkles, ExternalLink, Lock // Added Lock icon
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk";
@@ -19,6 +17,7 @@ interface RevisionNotesTreeProps {
   courseContentTree: any[];
   expandedChapters: Record<string, boolean>;
   onToggleChapter: (chapterId: string) => void;
+  studentPlan?: string; // Passed to evaluate hierarchical gates
 }
 
 type SubjectTheme = {
@@ -37,9 +36,14 @@ type MetricsType = {
   percentage: number;
 };
 
-// ==========================================
-// HOOKS & ENGINE UTILS
-// ==========================================
+// Hierarchical Plan Comparison Core Values
+const PLAN_HIERARCHY: Record<string, number> = {
+  free: 1,
+  silver: 2,
+  gold: 3,
+  premium: 4,
+};
+
 const getSubjectTheme = (name: string = ""): SubjectTheme => {
   const normalized = name.toLowerCase();
   if (normalized.includes("reasoning")) {
@@ -170,11 +174,9 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       );
     }
 
-    // Process regular text blocks line by line safely accumulating arrays of lists/tables
     const lines = section.split(/\r?\n/);
     let lastRenderedHeader = "";
     
-    // Accumulator Buffers for List and Table structures
     let inTable = false;
     let tableHeaders: string[] = [];
     let tableRows: string[][] = [];
@@ -183,7 +185,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     let activeUL: React.ReactNode[] = [];
     const renderedElements: React.ReactNode[] = [];
 
-    // Helper: Flush structural tables cleanly to final workspace array
     const flushTable = (keyIndex: string) => {
       if (tableRows.length > 0 || tableHeaders.length > 0) {
         renderedElements.push(
@@ -220,7 +221,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       inTable = false;
     };
 
-    // Helper: Flush accumulated Ordered Lists cleanly
     const flushOL = (keyIndex: string) => {
       if (activeOL.length > 0) {
         renderedElements.push(
@@ -232,7 +232,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       }
     };
 
-    // Helper: Flush accumulated Unordered Bullet Lists cleanly
     const flushUL = (keyIndex: string) => {
       if (activeUL.length > 0) {
         renderedElements.push(
@@ -248,7 +247,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       const line = lines[i];
       const trimmedLine = line.trim();
 
-      // 1. Process Markdown Table Tokens
       if (trimmedLine.startsWith("|") && trimmedLine.endsWith("|")) {
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
@@ -256,7 +254,7 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         
         const cells = line.split("|").map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
         if (cells.every(cell => /^:-*-*:*|-+$/.test(cell))) {
-          continue; // Skip structural syntax dividers
+          continue;
         }
         if (tableHeaders.length === 0 && tableRows.length === 0) {
           tableHeaders = cells;
@@ -269,13 +267,11 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       }
 
       if (!trimmedLine) {
-        // Empty lines break any currently open lists cleanly
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
         continue;
       }
 
-      // 2. Process Horizontal Section Splitters Token
       if (trimmedLine === "---") {
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
@@ -285,7 +281,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // 3. Process Left Accent Quote Block Token
       if (trimmedLine.startsWith(">")) {
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
@@ -298,7 +293,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // 4. Process Standalone Header Token
       if (trimmedLine.startsWith("**") && trimmedLine.endsWith("**")) {
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
@@ -315,7 +309,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // 5. Process Ordered Sequential Lists Token (e.g., "1. Place Value")
       const olMatch = trimmedLine.match(/^(\d+)\.\s+(.*)$/);
       if (olMatch) {
         flushUL(`${secIndex}-${i}`);
@@ -328,7 +321,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // 6. Process Unordered Standard Bullet List Tokens (e.g., "* Text" or "- Text")
       const ulMatch = trimmedLine.match(/^[*•-]\s+(.*)$/);
       if (ulMatch) {
         flushOL(`${secIndex}-${i}`);
@@ -341,11 +333,9 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // If text reaches here, it is plain sentence rows. Flush any running sub-lists first.
       flushOL(`${secIndex}-${i}`);
       flushUL(`${secIndex}-${i}`);
 
-      // 7. Process Database Media Graphics Library Shortcode Asset
       const imageRegex = /\[img:([^\]]+)\]/g;
       if (imageRegex.test(line)) {
         imageRegex.lastIndex = 0;
@@ -376,7 +366,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         continue;
       }
 
-      // 8. Normal Standalone Notes Paragraph Element
       renderedElements.push(
         <p key={`p-${secIndex}-${i}`} className="mb-2 text-slate-700 leading-relaxed text-[13px] font-sans font-normal antialiased tracking-wide">
           {processInlineStyles(line)}
@@ -384,7 +373,6 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       );
     }
 
-    // Safety fallback flush sequences at closure boundary loops
     if (inTable) flushTable(`${secIndex}-end`);
     flushOL(`${secIndex}-end`);
     flushUL(`${secIndex}-end`);
@@ -492,6 +480,7 @@ interface ChapterAccordionUnitProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (val: boolean) => void;
   imageMap: Record<string, string>;
+  studentPlan: string;
 }
 
 const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
@@ -504,7 +493,8 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   toggleTopicCompletion,
   isSidebarOpen,
   setIsSidebarOpen,
-  imageMap
+  imageMap,
+  studentPlan
 }) => {
   const totalTopics = chap.notes_topics || [];
   const totalInChapter = totalTopics.length;
@@ -513,6 +503,13 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
 
   const activeTopicId = selectedTopicIdMap[chap.id] || (totalTopics[0]?.id || "");
   const currentActiveTopic = totalTopics.find((t: any) => t.id === activeTopicId);
+
+  // Compute hierarchical locked status for visual indicators
+  const isLocked = useMemo(() => {
+    const studentWeight = PLAN_HIERARCHY[studentPlan?.toLowerCase() || "free"] || 1;
+    const requiredWeight = PLAN_HIERARCHY[chap.required_plan?.toLowerCase() || "free"] || 1;
+    return studentWeight < requiredWeight;
+  }, [studentPlan, chap.required_plan]);
 
   const handleLaunchAttachedTest = (testId: string) => {
     if (!testId) return;
@@ -526,6 +523,14 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
         className="w-full flex items-center justify-between p-3 text-left bg-slate-50/40 hover:bg-slate-50 transition-colors"
       >
         <div className="flex items-center gap-2.5 truncate">
+          {/* INSERT GATING CHECK CHIPS HERE */}
+          {chap.required_plan && chap.required_plan !== 'free' && (
+            <span className="flex items-center gap-1 text-[8px] font-black tracking-wider uppercase px-1 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-600 shrink-0">
+              <Lock className="w-2 h-2" />
+              {chap.required_plan}
+            </span>
+          )}
+
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-700 bg-white border-slate-200"}`}>
             {isChapterComplete ? "Done" : `CH ${chap.sequence_order}`}
           </span>
@@ -533,11 +538,17 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
           <span className="text-[11px] text-slate-400 font-medium font-mono shrink-0">({doneInChapter}/{totalInChapter} Read)</span>
         </div>
         <div className="text-slate-400 shrink-0">
-          {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-800" /> : <ChevronRight className="w-4 h-4" />}
+          {isLocked ? (
+            <Lock className="w-4 h-4 text-amber-500" />
+          ) : isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-slate-800" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
         </div>
       </button>
 
-      {isExpanded && (
+      {isExpanded && !isLocked && (
         <div className="border-t border-slate-100 bg-white flex h-[620px] relative overflow-hidden transition-all duration-300">
           
           {/* 📖 TOPIC INDEX SIDEBAR */}
@@ -644,7 +655,6 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
               </div>
             )}
           </div>
-
         </div>
       )}
     </div>
@@ -659,6 +669,7 @@ export default function RevisionNotesTree({
   courseContentTree,
   expandedChapters,
   onToggleChapter,
+  studentPlan = "free",
 }: RevisionNotesTreeProps) {
   const [openChapterId, setOpenChapterId] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<string>("");
@@ -667,9 +678,10 @@ export default function RevisionNotesTree({
   const [isFullscreenMode, setIsFullscreenMode] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
-  
-  // Track current unique authenticated student session identifier state
   const [studentId, setStudentId] = useState<string>("");
+  
+  // New state to toggle AI Guruji layout dynamically inside Focus Canvas mode
+  const [isAiOpenInFocus, setIsAiOpenInFocus] = useState<boolean>(false);
 
   useEffect(() => {
     if (expandedChapters) {
@@ -678,7 +690,6 @@ export default function RevisionNotesTree({
     }
   }, [expandedChapters]);
 
-  // 1. Fetch current logged in student session identity from Supabase Auth Client
   useEffect(() => {
     async function resolveActiveStudentSession() {
       try {
@@ -693,7 +704,6 @@ export default function RevisionNotesTree({
     resolveActiveStudentSession();
   }, []);
 
-  // 2. Hydrate user progress strictly matching the authenticated student identifier
   useEffect(() => {
     const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
     const savedProgress = localStorage.getItem(trackingStorageKey);
@@ -704,7 +714,6 @@ export default function RevisionNotesTree({
         console.error(e);
       }
     } else {
-      // Clear or reset context out cleanly if student session alternates
       setCompletedTopics({});
     }
   }, [studentId]);
@@ -762,8 +771,6 @@ export default function RevisionNotesTree({
     e.stopPropagation();
     const updatedProgress = { ...completedTopics, [topicId]: !completedTopics[topicId] };
     setCompletedTopics(updatedProgress);
-    
-    // Write out dynamically using the explicit unique student identifier storage key link
     const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
     localStorage.setItem(trackingStorageKey, JSON.stringify(updatedProgress));
   };
@@ -796,17 +803,40 @@ export default function RevisionNotesTree({
   }
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-4 gap-3 items-stretch w-full transition-all duration-300 ${
-      isFullscreenMode ? "fixed inset-2 z-50 bg-[#FDFBF7] p-3 rounded-2xl border shadow-2xl h-[calc(100vh-16px)]" : "h-[calc(100vh-140px)]"
+    <div className={`grid grid-cols-1 gap-3 items-stretch w-full transition-all duration-300 ${
+      isFullscreenMode 
+        ? "fixed inset-2 z-50 bg-[#FDFBF7] p-3 rounded-2xl border shadow-2xl h-[calc(100vh-16px)] lg:grid-cols-4" 
+        : "h-[calc(100vh-140px)] lg:grid-cols-4"
     }`}>
-      <div className="lg:col-span-3 overflow-hidden h-full flex flex-col space-y-2">
-        <CourseSwitcher 
-          courseContentTree={courseContentTree} 
-          activeSectionId={activeSectionId} 
-          setActiveSectionId={setActiveSectionId} 
-          isFullscreenMode={isFullscreenMode} 
-          setIsFullscreenMode={setIsFullscreenMode} 
-        />
+      {/* Notes Canvas Container Layout Grid Adjuster */}
+      <div className={`overflow-hidden h-full flex flex-col space-y-2 transition-all duration-300 ${
+        isFullscreenMode 
+          ? isAiOpenInFocus ? "lg:col-span-3" : "lg:col-span-4" 
+          : "lg:col-span-3"
+      }`}>
+        <div className="flex flex-col gap-2">
+          <CourseSwitcher 
+            courseContentTree={courseContentTree} 
+            activeSectionId={activeSectionId} 
+            setActiveSectionId={setActiveSectionId} 
+            isFullscreenMode={isFullscreenMode} 
+            setIsFullscreenMode={setIsFullscreenMode} 
+          />
+          
+          {/* Small Option to trigger AI-Guruji when hidden in Focus mode */}
+          {isFullscreenMode && !isAiOpenInFocus && (
+            <div className="flex justify-end pr-1">
+              <button
+                onClick={() => setIsAiOpenInFocus(true)}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-3 py-1 rounded-lg transition-all shadow-3xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                <span>Ask AI-Guruji</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {currentActiveSection && (
           <div className="flex-grow overflow-y-auto pr-0.5 space-y-4 scrollbar-thin">
             <MilestoneDashboard currentActiveSection={currentActiveSection} theme={theme} metrics={metrics} />
@@ -834,6 +864,7 @@ export default function RevisionNotesTree({
                         isSidebarOpen={isSidebarOpen}
                         setIsSidebarOpen={setIsSidebarOpen}
                         imageMap={imageMap}
+                        studentPlan={studentPlan}
                       />
                     ))}
                   </div>
@@ -844,7 +875,21 @@ export default function RevisionNotesTree({
         )}
       </div>
 
-      <div className="lg:col-span-1 h-full min-h-[480px]">
+      {/* AI Guruji Right Hand Sidebar Grid System Column */}
+      <div className={`h-full min-h-[480px] relative transition-all duration-300 ${
+        isFullscreenMode 
+          ? isAiOpenInFocus ? "lg:col-span-1 block" : "hidden" 
+          : "lg:col-span-1 block"
+      }`}>
+        {/* Compact close overlay option inside Focus Canvas view */}
+        {isFullscreenMode && isAiOpenInFocus && (
+          <button
+            onClick={() => setIsAiOpenInFocus(false)}
+            className="absolute top-3 left-3 z-40 bg-stone-900/90 text-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest hover:bg-stone-800 shadow-sm transition-all"
+          >
+            &times; Hide AI
+          </button>
+        )}
         <StudyDesk currentSection={currentActiveSection?.name || "the current topic"} />
       </div>
     </div>
