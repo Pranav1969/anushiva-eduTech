@@ -66,6 +66,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = { 
-  // Make sure matcher includes both the admin routes AND the admin login page
-  matcher: ['/admin/:path*', '/admin_login'] 
+  /*
+   * Matches your admin panel and login screen exactly as before, 
+   * while safely ensuring that Next.js/Turbopack internal file routing maps 
+   * and your backend Cron routes are fully exempted from interception.
+   */
+  matcher: [
+    '/admin/:path*', 
+    '/admin_login',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)'
+  ] 
 }
