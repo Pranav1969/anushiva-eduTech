@@ -93,8 +93,15 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
 }
 
 export async function GET(request: Request) {
+  
     console.log("Crawler API route hit!");
   // 1. Cron Security Authorization Gatekeeper Checks
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    console.error("Unauthorized cron access attempt blocked.");
+    return new NextResponse("Unauthorized Access Attempt", { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const bypassParam = searchParams.get("bypass");
   
