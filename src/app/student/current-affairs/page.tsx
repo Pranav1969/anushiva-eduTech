@@ -12,13 +12,14 @@ async function triggerBackgroundCrawlSilently(host: string) {
   const targetUrl = `${protocol}://${host}/api/cron/fetch-news?bypass=true`;
 
   try {
-    // Fire-and-forget execution
     fetch(targetUrl, {
       method: "GET",
       cache: "no-store",
+      headers: {
+        // Pass the secret here so the route allows the request
+        "Authorization": `Bearer ${process.env.CRON_SECRET}` 
+      }
     }).catch((err) => console.error("Async fetch tracking error:", err));
-    
-    console.log(`[Autonomous Engine] Background crawl silently initiated targeting: ${targetUrl}`);
   } catch (err) {
     console.error("Silent background crawl failed to execute:", err);
   }

@@ -104,13 +104,13 @@ export async function GET(request: Request) {
   const bypassParam = searchParams.get("bypass");
 
   // 3. Unified Security Gatekeeper
-  // If bypass is "true", skip the auth check. Otherwise, enforce it.
-  if (bypassParam !== "true") {
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-      console.error("Unauthorized cron access attempt blocked. Received header:", authHeader);
-      return new NextResponse("Unauthorized Access Attempt", { status: 401 });
-    }
-  }
+const isVercelCron = request.headers.get("x-vercel-cron") === "1"; // Vercel's internal check
+const isAuthorized = authHeader === `Bearer ${cronSecret}`;
+
+if (bypassParam !== "true" && !isVercelCron && !isAuthorized) {
+  console.error("Unauthorized access attempt blocked.");
+  return new NextResponse("Unauthorized Access Attempt", { status: 401 });
+}
 
   // 4. Validate Environment Credentials
   if (!supabaseUrl || !supabaseServiceKey) {
