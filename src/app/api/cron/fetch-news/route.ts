@@ -105,11 +105,15 @@ export async function GET(request: Request) {
 
   // 3. Unified Security Gatekeeper
   // Check if it's a Vercel-automated cron job, a valid Bearer token, or a manual bypass
-  const isVercelCron = request.headers.get("x-vercel-cron") === "1"; 
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
   const isAuthorized = authHeader === `Bearer ${cronSecret}`;
+  const isBypass = bypassParam === "true";
 
-  if (bypassParam !== "true" && !isVercelCron && !isAuthorized) {
-    console.error("Unauthorized access attempt blocked.");
+  if (!isVercelCron && !isAuthorized && !isBypass) {
+    console.error("Unauthorized access attempt blocked. Headers received:", {
+      authHeader,
+      isVercelCron,
+    });
     return new NextResponse("Unauthorized Access Attempt", { status: 401 });
   }
 
