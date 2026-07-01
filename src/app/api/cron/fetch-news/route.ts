@@ -93,27 +93,29 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
 }
 
 export async function GET(request: Request) {
-  
-    console.log("Crawler API route hit!");
-  // 1. Cron Security Authorization Gatekeeper Checks
+  console.log("Crawler API route hit!");
+
+  // 1. Retrieve the header (handling both case scenarios)
   const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
   const cronSecret = process.env.CRON_SECRET;
+  
+  // 2. Setup bypass parameter for manual testing
   const { searchParams } = new URL(request.url);
   const bypassParam = searchParams.get("bypass");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    console.error("Unauthorized cron access attempt blocked.");
-    return new NextResponse("Unauthorized Access Attempt", { status: 401 });
-  }
+
+  // 3. Unified Security Gatekeeper
+  // If bypass is "true", skip the auth check. Otherwise, enforce it.
   if (bypassParam !== "true") {
     if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-      console.error("Unauthorized cron access attempt blocked.");
+      console.error("Unauthorized cron access attempt blocked. Received header:", authHeader);
       return new NextResponse("Unauthorized Access Attempt", { status: 401 });
     }
   }
+
+  // 4. Validate Environment Credentials
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
   }
-
   if (!GEMINI_API_KEY) {
     return NextResponse.json({ success: false, error: "Missing Gemini API Key Environment Variable" }, { status: 500 });
   }
