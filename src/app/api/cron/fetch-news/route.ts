@@ -96,22 +96,20 @@ export async function GET(request: Request) {
   
     console.log("Crawler API route hit!");
   // 1. Cron Security Authorization Gatekeeper Checks
-  const authHeader = request.headers.get("authorization");
+  const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
   const cronSecret = process.env.CRON_SECRET;
+  const { searchParams } = new URL(request.url);
+  const bypassParam = searchParams.get("bypass");
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     console.error("Unauthorized cron access attempt blocked.");
     return new NextResponse("Unauthorized Access Attempt", { status: 401 });
   }
-  const { searchParams } = new URL(request.url);
-  const bypassParam = searchParams.get("bypass");
-  
   if (bypassParam !== "true") {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      console.error("Unauthorized cron access attempt blocked.");
       return new NextResponse("Unauthorized Access Attempt", { status: 401 });
     }
   }
-
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
   }
