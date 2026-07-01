@@ -104,19 +104,23 @@ export async function GET(request: Request) {
   const bypassParam = searchParams.get("bypass");
 
   // 3. Unified Security Gatekeeper
-const isVercelCron = request.headers.get("x-vercel-cron") === "1"; // Vercel's internal check
-const isAuthorized = authHeader === `Bearer ${cronSecret}`;
+  // Check if it's a Vercel-automated cron job, a valid Bearer token, or a manual bypass
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1"; 
+  const isAuthorized = authHeader === `Bearer ${cronSecret}`;
 
-if (bypassParam !== "true" && !isVercelCron && !isAuthorized) {
-  console.error("Unauthorized access attempt blocked.");
-  return new NextResponse("Unauthorized Access Attempt", { status: 401 });
-}
+  if (bypassParam !== "true" && !isVercelCron && !isAuthorized) {
+    console.error("Unauthorized access attempt blocked.");
+    return new NextResponse("Unauthorized Access Attempt", { status: 401 });
+  }
 
   // 4. Validate Environment Credentials
   if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing Supabase Environment Credentials");
     return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
   }
+
   if (!GEMINI_API_KEY) {
+    console.error("Missing Gemini API Key Environment Variable");
     return NextResponse.json({ success: false, error: "Missing Gemini API Key Environment Variable" }, { status: 500 });
   }
 
