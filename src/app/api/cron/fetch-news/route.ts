@@ -46,7 +46,7 @@ function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): R
 
   // Parse up to 5 latest articles per source to keep runtimes fast and cost-effective
  // const targetItems = itemMatches.slice(0, 5);
-  const targetItems = itemMatches.slice(0, 20); // Check the top 20 items instead
+  const targetItems = itemMatches.slice(0, 5); // Check the top 20 items instead
   for (const item of targetItems) {
     const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
     const linkMatch = item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || item.match(/<link>([\s\S]*?)<\/link>/);
