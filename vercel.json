@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/fetch-news?bypass=true",
+      "path": "/api/cron/fetch-news",
       "schedule": "0 * * * *"
     }
   ]
