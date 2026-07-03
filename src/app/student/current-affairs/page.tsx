@@ -1,11 +1,18 @@
+// src/app/student/current-affairs/page.tsx
+
 import { headers } from "next/headers";
 import { supabase } from "@/utils/supabase";
 import NewsFeedClientWrapper from "./components/NewsFeedClientWrapper";
 
 export const dynamic = "force-dynamic";
 
+function todayISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
 /**
- * Fires a silent, non-blocking background crawler request to populate the database
+ * Fires a silent, non-blocking background crawler request to populate the database.
+ * Unchanged from the original implementation.
  */
 async function triggerBackgroundCrawlSilently(host: string) {
   const protocol = host.includes("localhost") ? "http" : "https";
@@ -16,9 +23,8 @@ async function triggerBackgroundCrawlSilently(host: string) {
       method: "GET",
       cache: "no-store",
       headers: {
-        // Pass the secret here so the route allows the request
-        "Authorization": `Bearer ${process.env.CRON_SECRET}` 
-      }
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
     }).catch((err) => console.error("Async fetch tracking error:", err));
   } catch (err) {
     console.error("Silent background crawl failed to execute:", err);
@@ -26,15 +32,17 @@ async function triggerBackgroundCrawlSilently(host: string) {
 }
 
 /**
- * Fetches news without delay and triggers self-healing crawl if DB is empty.
+ * Fetches news scoped to a single `original_date`. If the requested date is
+ * today's date and the database has nothing yet, kicks off the self-healing
+ * crawl exactly as before. Past dates are never crawled on-demand since the
+ * source RSS feeds don't carry historical items.
  */
-async function fetchAutomatedNews(host: string) {
+async function fetchNewsForDate(host: string, date: string) {
   try {
-    // 1. Fetch news immediately without time-based filters
-    // Using { cache: "no-store" } via the underlying fetch behavior in Supabase/Next.js
     const { data: newsData, error: newsError } = await supabase
       .from("current_affairs_capsules")
       .select("*")
+      .eq("original_date", date)
       .order("created_at", { ascending: false });
 
     if (newsError) {
@@ -42,9 +50,8 @@ async function fetchAutomatedNews(host: string) {
       return [];
     }
 
-    // 2. Self-healing check: If data is empty, trigger the crawl
-    if (!newsData || newsData.length === 0) {
-      console.log("[Autonomous Engine] Database is empty. Triggering crawl...");
+    if ((!newsData || newsData.length === 0) && date === todayISO()) {
+      console.log("[Autonomous Engine] Database is empty for today. Triggering crawl...");
       triggerBackgroundCrawlSilently(host);
     }
 
@@ -55,38 +62,49 @@ async function fetchAutomatedNews(host: string) {
   }
 }
 
-export default async function CurrentAffairsPage() {
+interface CurrentAffairsPageProps {
+  searchParams: Promise<{ date?: string }>;
+}
+
+export default async function CurrentAffairsPage({ searchParams }: CurrentAffairsPageProps) {
   const headersList = await headers();
   const host = headersList.get("host") || "localhost:3000";
 
-  const freshNewsFeed = await fetchAutomatedNews(host);
+  const { date } = await searchParams;
+  const selectedDate = date || todayISO();
 
-  // Map DB schema to UI translation shape
+  const freshNewsFeed = await fetchNewsForDate(host, selectedDate);
+
+  // Map DB schema to UI translation shape (unchanged)
   const formattedNews = freshNewsFeed.map((item: any) => ({
     id: item.id,
     source_type: item.source_type,
     category_tag: item.category_tag,
-    original_date: item.original_date 
+    original_date: item.original_date
       ? new Date(item.original_date).toLocaleDateString("en-US", {
           month: "long",
           day: "numeric",
           year: "numeric",
-        }) 
-      : new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+        })
+      : new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
     source_url: item.source_url,
     read_time: item.read_time || "2 min read",
     required_plan: item.required_plan || "free",
-    title: { 
-      en: item.title_en || "", 
-      hi: item.title_hi || item.title_en || "", 
-      mr: item.title_mr || item.title_en || "" 
+    title: {
+      en: item.title_en || "",
+      hi: item.title_hi || item.title_en || "",
+      mr: item.title_mr || item.title_en || "",
     },
-    summary: { 
-      en: item.summary_en || "", 
-      hi: item.summary_hi || item.summary_en || "", 
-      mr: item.summary_mr || item.summary_en || "" 
-    }
+    summary: {
+      en: item.summary_en || "",
+      hi: item.summary_hi || item.summary_en || "",
+      mr: item.summary_mr || item.summary_en || "",
+    },
   }));
 
-  return <NewsFeedClientWrapper initialFeed={formattedNews} />;
+  return <NewsFeedClientWrapper initialFeed={formattedNews} selectedDate={selectedDate} />;
 }
