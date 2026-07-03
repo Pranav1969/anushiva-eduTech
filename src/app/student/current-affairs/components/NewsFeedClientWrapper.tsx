@@ -12,7 +12,16 @@ import NewsCalendar from "./NewsCalendar";
 import DailyDoseCarousel from "./DailyDoseCarousel";
 import FilterSidebar from "./FilterSidebar";
 import NewsCard from "./NewsCard";
-import { NewsCapsule, LanguageCode, PLAN_HIERARCHY_MAP, SourceType } from "./types";
+import DigestCallout from "./DigestCallout";
+import NotesDrawer from "./NotesDrawer";
+import {
+  NewsCapsule,
+  LanguageCode,
+  PLAN_HIERARCHY_MAP,
+  SourceType,
+  DailyDoseDigest,
+  QuizQuestion,
+} from "./types";
 
 interface NewsFeedClientWrapperProps {
   initialFeed: NewsCapsule[];
@@ -39,6 +48,14 @@ export default function NewsFeedClientWrapper({
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocusMode, setIsFocusMode] = useState(false);
 
+  // Daily Dose digest: ONE per date, fetched once per date change and shared
+  // between the DigestCallout summary card and the NotesDrawer itself.
+  const [digest, setDigest] = useState<DailyDoseDigest | null>(null);
+  const [digestQuiz, setDigestQuiz] = useState<QuizQuestion[]>([]);
+  const [isDigestLoading, setIsDigestLoading] = useState(false);
+  const [digestError, setDigestError] = useState<string | null>(null);
+  const [isDigestDrawerOpen, setIsDigestDrawerOpen] = useState(false);
+
   // Upgrade modal tracking
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [selectedRequiredPlan, setSelectedRequiredPlan] = useState("premium");
@@ -55,6 +72,32 @@ export default function NewsFeedClientWrapper({
       return () => clearInterval(interval);
     }
   }, [initialFeed, isViewingToday, router]);
+
+  // Fetch the digest for whichever date is currently loaded. One digest
+  // covers the WHOLE day, so this runs once per date change, not per card.
+  useEffect(() => {
+    let cancelled = false;
+    setIsDigestLoading(true);
+    setDigestError(null);
+
+    fetch(`/api/current-affairs/digest?date=${selectedDate}`)
+      .then((res) => res.json())
+      .then((json: { success: boolean; digest: DailyDoseDigest | null; quiz: QuizQuestion[] }) => {
+        if (cancelled) return;
+        setDigest(json.digest);
+        setDigestQuiz(json.quiz || []);
+      })
+      .catch(() => {
+        if (!cancelled) setDigestError("Couldn't load this day's digest right now.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsDigestLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
 
   useEffect(() => {
     const session = authManager.getSession();
@@ -188,6 +231,14 @@ export default function NewsFeedClientWrapper({
           onToggleBookmark={handleToggleBookmark}
         />
 
+        <DigestCallout
+          digest={digest}
+          quizCount={digestQuiz.length}
+          isLoading={isDigestLoading}
+          isToday={isViewingToday}
+          onOpen={() => setIsDigestDrawerOpen(true)}
+        />
+
         <div
           className={`grid grid-cols-1 gap-8 ${
             isFocusMode ? "" : "lg:grid-cols-12"
@@ -280,6 +331,17 @@ export default function NewsFeedClientWrapper({
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
         requiredPlan={selectedRequiredPlan}
+      />
+
+      <NotesDrawer
+        isOpen={isDigestDrawerOpen}
+        date={selectedDate}
+        digest={digest}
+        quiz={digestQuiz}
+        isLoading={isDigestLoading}
+        error={digestError}
+        language={selectedLanguage}
+        onClose={() => setIsDigestDrawerOpen(false)}
       />
     </main>
   );

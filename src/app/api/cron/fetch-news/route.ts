@@ -1,3 +1,5 @@
+// src/app/api/cron/fetch-news/route.ts
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -7,23 +9,17 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "");
 
-// Setup the stable Google Gemini API Endpoint (Migrated from discontinued preview model)
+// Setup the stable Google Gemini API Endpoint
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // Define RSS source targets
 const FEED_SOURCES = [
-  {
-    type: "rbi",
-    url: "https://rbi.org.in/Pressreleases_RSS.xml",
-  },
-  {
-    type: "pib",
-    url: "https://pib.gov.in/RssMain.aspx?MinId=18", // Ministry of Finance RSS
-  },
+  { type: "rbi", url: "https://rbi.org.in/Pressreleases_RSS.xml" },
+  { type: "pib", url: "https://pib.gov.in/RssMain.aspx?MinId=18" }, // Ministry of Finance RSS
   {
     type: "economy",
-    url: "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms", // Economy RSS
+    url: "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms",
   },
 ];
 
@@ -44,13 +40,15 @@ function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): R
 
   if (!itemMatches) return [];
 
-  // Parse up to 5 latest articles per source to keep runtimes fast and cost-effective
- // const targetItems = itemMatches.slice(0, 5);
-  const targetItems = itemMatches.slice(0, 5); // Check the top 20 items instead
+  const targetItems = itemMatches.slice(0, 5);
   for (const item of targetItems) {
-    const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
-    const linkMatch = item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || item.match(/<link>([\s\S]*?)<\/link>/);
-    const descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || item.match(/<description>([\s\S]*?)<\/description>/);
+    const titleMatch =
+      item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
+    const linkMatch =
+      item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || item.match(/<link>([\s\S]*?)<\/link>/);
+    const descMatch =
+      item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
+      item.match(/<description>([\s\S]*?)<\/description>/);
     const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
 
     const title = titleMatch ? titleMatch[1].trim() : "";
@@ -58,17 +56,10 @@ function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): R
     const rawDesc = descMatch ? descMatch[1].trim() : "";
     const pubDate = dateMatch ? dateMatch[1].trim() : new Date().toUTCString();
 
-    // Clean description HTML tags
     const description = rawDesc.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 
     if (title && link) {
-      articles.push({
-        source_type: sourceType,
-        title,
-        link,
-        description,
-        pubDate,
-      });
+      articles.push({ source_type: sourceType, title, link, description, pubDate });
     }
   }
 
@@ -78,7 +69,12 @@ function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): R
 /**
  * Exponential backoff helper for resilient external API connections
  */
-async function fetchWithRetry(url: string, options: RequestInit, retries = 5, delay = 1000): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 5,
+  delay = 1000
+): Promise<Response> {
   try {
     const response = await fetch(url, options);
     if (!response.ok && retries > 0) {
@@ -91,20 +87,18 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
     return fetchWithRetry(url, options, retries - 1, delay * 2);
   }
 }
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   console.log("Crawler API route hit!");
 
-  // 1. Retrieve the header (handling both case scenarios)
   const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
   const cronSecret = process.env.CRON_SECRET;
-  
-  // 2. Setup bypass parameter for manual testing
+
   const { searchParams } = new URL(request.url);
   const bypassParam = searchParams.get("bypass");
 
-  // 3. Unified Security Gatekeeper
-  // Check if it's a Vercel-automated cron job, a valid Bearer token, or a manual bypass
   const isVercelCron = request.headers.get("x-vercel-cron") === "1";
   const isAuthorized = authHeader === `Bearer ${cronSecret}`;
   const isBypass = bypassParam === "true";
@@ -114,26 +108,30 @@ export async function GET(request: Request) {
     return new NextResponse("Unauthorized Access Attempt", { status: 401 });
   }
 
-  // 4. Validate Environment Credentials
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Missing Supabase Environment Credentials");
-    return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Missing Supabase Environment Credentials" },
+      { status: 500 }
+    );
   }
-  
 
   if (!GEMINI_API_KEY) {
     console.error("Missing Gemini API Key Environment Variable");
-    return NextResponse.json({ success: false, error: "Missing Gemini API Key Environment Variable" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Missing Gemini API Key Environment Variable" },
+      { status: 500 }
+    );
   }
 
   const scrapedList: RawArticle[] = [];
   const processedRecords: string[] = [];
 
-  // 2. Automated Aggregation Phase (RSS Scrapers)
+  // 1. Automated Aggregation Phase (RSS Scrapers)
   for (const feed of FEED_SOURCES) {
     try {
       const response = await fetch(feed.url, {
-        next: { revalidate: 0 }, // Prevent Next.js cache layers from blocking new updates
+        next: { revalidate: 0 },
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
       });
       if (!response.ok) continue;
@@ -146,38 +144,37 @@ export async function GET(request: Request) {
     }
   }
 
-  // 3. AI Categorization, Translation, and Gating Phase
+  // 2. AI Categorization & Translation Phase (per-article summary only --
+  //    deep notes and quizzes are generated separately, once per DAY, by the
+  //    generate-daily-digest cron. See that route for the "why".)
   for (const article of scrapedList) {
     try {
-      // Avoid parsing duplicates by checking if the source URL already exists in Supabase
       const { data: existingRecord } = await supabase
         .from("current_affairs_capsules")
         .select("id")
         .eq("source_url", article.link)
         .maybeSingle();
 
-      if (existingRecord) {
-        continue; // Skip already ingested articles
-      }
+      if (existingRecord) continue;
 
-      // Instruct Gemini to filter, categorize, translate, and assign target student tiers
       const systemInstruction = `
         You are a distinguished faculty member specializing in Indian Banking Exams (RBI Grade B, SBI PO, IBPS, NABARD).
         Your task is to analyze the raw news payload and determine its relevance to banking exam syllabus topics.
-        
-        Syllabus topics of interest: Monetary Policy updates, Government schemes, Union Ministry allocations, bilateral payments, UPI node expansions, banking regulations, SEBI/RBI regulations.
-        
+
+        Syllabus topics of interest: Monetary Policy updates, Government schemes, Union Ministry allocations,
+        bilateral payments, UPI node expansions, banking regulations, SEBI/RBI regulations.
+
         Strict Validation:
         1. If NOT relevant to banking exam preparation, set "is_relevant" to false.
         2. If highly relevant, set "is_relevant" to true and return a comprehensive summary tailored for students.
-        
+
         Provide high-fidelity translations into Hindi (hi) and Marathi (mr).
         Assign a dynamic subscription required_plan matching the criteria density:
         - "free": Standard notifications, general updates.
         - "silver": Specialized banking regulations, minor policy shifts.
         - "gold": Key economic reviews, crucial budget segments.
         - "premium": Complex regulatory amendments or structural policy analysis (highly exclusive content).
-        
+
         Response MUST be raw JSON matching this structure:
         {
           "is_relevant": boolean,
@@ -199,14 +196,11 @@ export async function GET(request: Request) {
         Raw Scraped Title: ${article.title}
         Raw Scraped Content: ${article.description}
       `;
-await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Request structured output from Gemini using Schema constraints
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       const payload = {
-        contents: [
-          {
-            parts: [{ text: `${systemInstruction}\n\nArticle Data:\n${promptPayload}` }],
-          },
-        ],
+        contents: [{ parts: [{ text: `${systemInstruction}\n\nArticle Data:\n${promptPayload}` }] }],
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -256,10 +250,9 @@ await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const evaluatedData = JSON.parse(rawText);
 
-      // 4. Persistence Phase
       if (evaluatedData.is_relevant) {
-        const originalDateFormatted = article.pubDate 
-          ? new Date(article.pubDate).toISOString().split("T")[0] 
+        const originalDateFormatted = article.pubDate
+          ? new Date(article.pubDate).toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0];
 
         const { error: dbError } = await supabase.from("current_affairs_capsules").insert({
