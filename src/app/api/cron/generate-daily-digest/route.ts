@@ -59,10 +59,21 @@ interface DigestPayload {
   quiz: QuizQuestionPayload[];
 }
 
+/**
+ * Returns "yesterday" as an IST calendar date, e.g. "2026-07-03".
+ *
+ * Why not just `new Date(); d.setDate(d.getDate() - 1)`: Vercel's serverless
+ * functions run in UTC. IST is UTC+5:30, so for the first 5.5 hours after
+ * IST midnight, the UTC calendar date hasn't rolled over yet -- a naive
+ * "subtract one day" would land one day too early. Shifting to IST wall-clock
+ * time before doing the date math makes this correct no matter what minute
+ * the cron actually fires.
+ */
 function yesterdayISO() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split("T")[0];
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+  nowIST.setUTCDate(nowIST.getUTCDate() - 1);
+  return nowIST.toISOString().split("T")[0];
 }
 
 async function fetchWithRetry(
@@ -102,9 +113,9 @@ function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
     ${articlesBlock}
 
     Produce:
-    1. "pillar_breakdown": an object counting how many articles fall under each of
-       "RBI Circulars", "Government Schemes", "Economic Reports", "Banking Regulations".
-       Omit pillars with zero articles.
+    1. "pillar_breakdown": an object with a count for EACH of "RBI Circulars",
+       "Government Schemes", "Economic Reports", "Banking Regulations" -- use 0
+       for any pillar with no articles today. Every key must be present.
     2. "notes_en"/"notes_hi"/"notes_mr": ONE simplified, exam-oriented set of notes
        covering the full day, organized by pillar (use short headers per pillar, then
        bullet-style lines). For each item, explain WHAT happened, WHY it matters for
@@ -145,7 +156,20 @@ function buildResponseSchema() {
   return {
     type: "OBJECT",
     properties: {
-      pillar_breakdown: { type: "OBJECT", properties: {}, nullable: false },
+      // Gemini's structured-output schema requires OBJECT types to declare
+      // their properties explicitly -- an "open" object with no properties
+      // (as this used to be) gets rejected by the API with a 400 on every
+      // single call, which is why nothing was ever reaching the database.
+      // Since there are only 4 known pillars, declare them by name instead.
+      pillar_breakdown: {
+        type: "OBJECT",
+        properties: {
+          "RBI Circulars": { type: "INTEGER" },
+          "Government Schemes": { type: "INTEGER" },
+          "Economic Reports": { type: "INTEGER" },
+          "Banking Regulations": { type: "INTEGER" },
+        },
+      },
       notes_en: { type: "STRING" },
       notes_hi: { type: "STRING" },
       notes_mr: { type: "STRING" },
