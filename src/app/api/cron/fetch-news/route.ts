@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { logCronRun } from "@/lib/cronLogger";
 
 // Initialize Supabase with Service Role Key to bypass Row-Level Security (RLS) for cron insertions
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -108,6 +109,9 @@ export async function GET(request: Request) {
     return new NextResponse("Unauthorized Access Attempt", { status: 401 });
   }
 
+  const startedAt = new Date();
+  const feedErrors: { feed: string; message: string }[] = [];
+
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Missing Supabase Environment Credentials");
     return NextResponse.json(
@@ -126,6 +130,7 @@ export async function GET(request: Request) {
 
   const scrapedList: RawArticle[] = [];
   const processedRecords: string[] = [];
+  const articleErrors: { title: string; message: string }[] = [];
 
   // 1. Automated Aggregation Phase (RSS Scrapers)
   for (const feed of FEED_SOURCES) {
@@ -141,6 +146,7 @@ export async function GET(request: Request) {
       scrapedList.push(...parsed);
     } catch (err: any) {
       console.error(`Scrape failure on ${feed.type}:`, err.message);
+      feedErrors.push({ feed: feed.type, message: err.message });
     }
   }
 
@@ -240,7 +246,12 @@ export async function GET(request: Request) {
       });
 
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
         console.error(`Gemini evaluation failed with status ${response.status} for: ${article.title}`);
+        articleErrors.push({
+          title: article.title,
+          message: `Gemini status ${response.status}: ${errorBody.slice(0, 300)}`,
+        });
         continue;
       }
 
@@ -272,14 +283,24 @@ export async function GET(request: Request) {
 
         if (dbError) {
           console.error("Supabase Injection Error:", dbError.message);
+          articleErrors.push({ title: article.title, message: `Supabase insert: ${dbError.message}` });
         } else {
           processedRecords.push(article.title);
         }
       }
     } catch (err: any) {
       console.error(`Error processing capsule [${article.title}]:`, err.message);
+      articleErrors.push({ title: article.title, message: err.message });
     }
   }
+
+  await logCronRun("fetch-news", articleErrors.length > 0 || feedErrors.length > 0 ? "error" : "success", startedAt, {
+    scraped_count: scrapedList.length,
+    processed_count: processedRecords.length,
+    processed_titles: processedRecords,
+    feed_errors: feedErrors,
+    article_errors: articleErrors,
+  });
 
   return NextResponse.json({
     success: true,

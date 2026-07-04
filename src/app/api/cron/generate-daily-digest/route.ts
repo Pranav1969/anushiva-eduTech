@@ -16,6 +16,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { logCronRun } from "@/lib/cronLogger";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -226,6 +227,8 @@ export async function GET(request: Request) {
     return new NextResponse("Unauthorized Access Attempt", { status: 401 });
   }
 
+  const startedAt = new Date();
+
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
       { success: false, error: "Missing Supabase Environment Credentials" },
@@ -249,6 +252,10 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (existingDigest && !forceParam) {
+    await logCronRun("generate-daily-digest", "skipped", startedAt, {
+      digest_date: targetDate,
+      reason: "Digest already exists for this date. Pass force=true to regenerate.",
+    });
     return NextResponse.json({
       success: true,
       skipped: true,
@@ -265,10 +272,19 @@ export async function GET(request: Request) {
 
   if (capsulesError) {
     console.error("Failed to fetch capsules for digest:", capsulesError.message);
+    await logCronRun("generate-daily-digest", "error", startedAt, {
+      digest_date: targetDate,
+      error_source: "supabase",
+      error_message: capsulesError.message,
+    });
     return NextResponse.json({ success: false, error: capsulesError.message }, { status: 500 });
   }
 
   if (!capsules || capsules.length === 0) {
+    await logCronRun("generate-daily-digest", "skipped", startedAt, {
+      digest_date: targetDate,
+      reason: "No capsules found for this date -- nothing to synthesize.",
+    });
     return NextResponse.json({
       success: true,
       skipped: true,
@@ -293,8 +309,16 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      console.error(`Gemini request failed with status ${response.status}:`, errorBody);
+      await logCronRun("generate-daily-digest", "error", startedAt, {
+        digest_date: targetDate,
+        error_source: "gemini",
+        error_message: `Gemini request failed with status ${response.status}`,
+        raw_response: errorBody.slice(0, 2000),
+      });
       return NextResponse.json(
-        { success: false, error: `Gemini request failed with status ${response.status}` },
+        { success: false, error: `Gemini request failed with status ${response.status}`, details: errorBody },
         { status: 502 }
       );
     }
@@ -302,6 +326,12 @@ export async function GET(request: Request) {
     const rawResult = await response.json();
     const rawText = rawResult.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) {
+      await logCronRun("generate-daily-digest", "error", startedAt, {
+        digest_date: targetDate,
+        error_source: "gemini",
+        error_message: "Empty Gemini response",
+        raw_response: JSON.stringify(rawResult).slice(0, 2000),
+      });
       return NextResponse.json({ success: false, error: "Empty Gemini response" }, { status: 502 });
     }
 
@@ -326,6 +356,11 @@ export async function GET(request: Request) {
 
     if (digestError || !upsertedDigest) {
       console.error("Digest upsert failed:", digestError?.message);
+      await logCronRun("generate-daily-digest", "error", startedAt, {
+        digest_date: targetDate,
+        error_source: "supabase",
+        error_message: digestError?.message || "Digest upsert returned no row",
+      });
       return NextResponse.json({ success: false, error: digestError?.message }, { status: 500 });
     }
 
@@ -355,6 +390,12 @@ export async function GET(request: Request) {
       }
     }
 
+    await logCronRun("generate-daily-digest", "success", startedAt, {
+      digest_date: targetDate,
+      capsules_synthesized: capsules.length,
+      questions_generated: digestData.quiz?.length || 0,
+    });
+
     return NextResponse.json({
       success: true,
       digest_date: targetDate,
@@ -363,6 +404,11 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error("Digest generation failed:", err.message);
+    await logCronRun("generate-daily-digest", "error", startedAt, {
+      digest_date: targetDate,
+      error_source: "unknown",
+      error_message: err.message,
+    });
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
