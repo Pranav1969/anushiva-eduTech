@@ -2,6 +2,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link"; // [!code ++]
 
 export default function AdminHeader() {
   const router = useRouter();
@@ -11,6 +12,13 @@ export default function AdminHeader() {
       <div>
         <h1 className="text-2xl font-black text-white tracking-tight">Admin Operation Control Center</h1>
         <p className="text-slate-400 text-xs mt-1">Manage credential provisioning, clustering, assignments, and audit ledgers.</p>
+        
+        {/* Added System Status Link */} {/* [!code ++] */}
+        <div className="mt-2"> {/* [!code ++] */}
+          <Link href="/admin/system-status" className="text-xs font-medium text-slate-400 hover:text-indigo-400 transition-colors"> {/* [!code ++] */}
+            System Status → {/* [!code ++] */}
+          </Link> {/* [!code ++] */}
+        </div> {/* [!code ++] */}
       </div>
       <button 
         onClick={() => router.push("/admin/numerical-ability")} 
