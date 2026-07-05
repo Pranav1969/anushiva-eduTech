@@ -105,11 +105,19 @@ function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
        "Government Schemes", "Economic Reports", "Banking Regulations" -- use 0
        for any pillar with no articles today. Every key must be present.
     2. "notes_en"/"notes_hi"/"notes_mr": ONE simplified, exam-oriented set of notes
-       covering the full day, organized by pillar (use short headers per pillar, then
-       bullet-style lines). For each item, explain WHAT happened, WHY it matters for
-       the exam, and which static syllabus topic it connects to (e.g. "Links to:
-       Monetary Policy -> Repo Rate Transmission"). Use plain language suitable for
-       aspirants from diverse educational backgrounds.
+       covering the full day, organized by pillar. Use EXACTLY this formatting, since
+       it is parsed by the app -- do not deviate:
+         - Start each pillar section with a line beginning "## " followed by the
+           pillar name, e.g. "## RBI Circulars". Nothing else on that line.
+         - Every point under a pillar is its own line starting with "- ".
+         - Do not write freeform paragraphs outside of "## " headers and "- " bullets.
+         - Use "**term**" sparingly to bold only key terms/figures within a bullet.
+       For each bullet, explain WHAT happened, WHY it matters for the exam, and which
+       static syllabus topic it connects to (e.g. "Links to: Monetary Policy -> Repo
+       Rate Transmission"). Use plain language suitable for aspirants from diverse
+       educational backgrounds. notes_hi and notes_mr must follow the identical "## "/"- "
+       structure, just with the prose translated -- do not add or drop sections between
+       the three languages.
     3. "quiz": 6-10 multiple-choice questions spanning the day's articles, testing
        LOGIC and UNDERSTANDING, not fact-retrieval.
          BAD (do not write like this): "When was this scheme launched?"
@@ -121,11 +129,16 @@ function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
        explanation, question_type ("concept" | "static_link" | "numerical"), and
        source_tag (a short label naming which pillar or article topic the question
        draws from, e.g. "RBI Circulars" or "UPI-Nepal Linkage").
+       IMPORTANT: write question_text, option_a, option_b, option_c, option_d, and
+       explanation for EVERY quiz question in ENGLISH ONLY, regardless of what
+       language notes_hi/notes_mr above were written in. The quiz is English-only by
+       design -- do not translate or switch languages partway through the quiz array.
 
     Response MUST be raw JSON matching this structure:
     {
       "pillar_breakdown": { "RBI Circulars": 2, "Government Schemes": 1 },
-      "notes_en": string, "notes_hi": string, "notes_mr": string,
+      "notes_en": "## RBI Circulars\n- point one\n- point two",
+      "notes_hi": string, "notes_mr": string,
       "quiz": [
         {
           "question_text": string,

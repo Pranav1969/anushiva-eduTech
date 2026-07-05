@@ -9,6 +9,7 @@ import { QuizQuestion, OptionLetter } from "./types";
 
 interface QuizWidgetProps {
   questions: QuizQuestion[];
+  studentId: string;
 }
 
 const OPTION_LETTERS: OptionLetter[] = ["a", "b", "c", "d"];
@@ -19,7 +20,7 @@ const QUESTION_TYPE_LABEL: Record<QuizQuestion["question_type"], string> = {
   numerical: "Numerical",
 };
 
-export default function QuizWidget({ questions }: QuizWidgetProps) {
+export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<OptionLetter | null>(null);
   const [answers, setAnswers] = useState<Record<number, OptionLetter>>({});
@@ -46,6 +47,20 @@ export default function QuizWidget({ questions }: QuizWidgetProps) {
     if (hasAnswered) return;
     setSelected(letter);
     setAnswers((prev) => ({ ...prev, [index]: letter }));
+
+    // Fire-and-forget: record this answer immediately rather than waiting
+    // for the quiz to finish, so a student closing the drawer mid-quiz still
+    // has their answered questions saved.
+    fetch("/api/current-affairs/quiz-attempts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        question_id: question.id,
+        selected_option: letter,
+        is_correct: letter === question.correct_option,
+      }),
+    }).catch((err) => console.error("Failed to save quiz attempt:", err));
   };
 
   const handleNext = () => {

@@ -105,6 +105,34 @@ export default function NewsFeedClientWrapper({
     }
   }, [router]);
 
+  // Load this student's persisted read/bookmark state for the current feed.
+  // Runs whenever the student or the visible date's capsule set changes.
+  useEffect(() => {
+    if (!student || initialFeed.length === 0) return;
+
+    const capsuleIds = initialFeed.map((c) => c.id).join(",");
+    let cancelled = false;
+
+    fetch(`/api/current-affairs/progress?student_id=${student.id}&capsule_ids=${capsuleIds}`)
+      .then((res) => res.json())
+      .then((json: { success: boolean; progress: Record<string, { is_read: boolean; is_bookmarked: boolean }> }) => {
+        if (cancelled || !json.success) return;
+        const read: string[] = [];
+        const bookmarked: string[] = [];
+        for (const [capsuleId, state] of Object.entries(json.progress)) {
+          if (state.is_read) read.push(capsuleId);
+          if (state.is_bookmarked) bookmarked.push(capsuleId);
+        }
+        setReadIds(read);
+        setBookmarkedIds(bookmarked);
+      })
+      .catch((err) => console.error("Failed to load reading progress:", err));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [student, initialFeed]);
+
   const checkIsLocked = (requiredPlan: NewsCapsule["required_plan"]) => {
     if (!student) return true;
 
@@ -118,11 +146,25 @@ export default function NewsFeedClientWrapper({
     return studentWeight < requiredWeight;
   };
 
+  const persistProgress = (capsuleId: string, isRead: boolean, isBookmarked: boolean) => {
+    if (!student) return;
+    fetch("/api/current-affairs/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: student.id,
+        capsule_id: capsuleId,
+        is_read: isRead,
+        is_bookmarked: isBookmarked,
+      }),
+    }).catch((err) => console.error("Failed to persist reading progress:", err));
+  };
+
   const handleToggleBookmark = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setBookmarkedIds((prev) =>
-      prev.includes(id) ? prev.filter((bId) => bId !== id) : [...prev, id]
-    );
+    const nextBookmarked = !bookmarkedIds.includes(id);
+    setBookmarkedIds((prev) => (nextBookmarked ? [...prev, id] : prev.filter((bId) => bId !== id)));
+    persistProgress(id, readIds.includes(id), nextBookmarked);
   };
 
   const handleCardInteraction = (capsule: NewsCapsule) => {
@@ -134,9 +176,9 @@ export default function NewsFeedClientWrapper({
       return;
     }
 
-    setReadIds((prev) =>
-      prev.includes(capsule.id) ? prev.filter((rId) => rId !== capsule.id) : [...prev, capsule.id]
-    );
+    const nextRead = !readIds.includes(capsule.id);
+    setReadIds((prev) => (nextRead ? [...prev, capsule.id] : prev.filter((rId) => rId !== capsule.id)));
+    persistProgress(capsule.id, nextRead, bookmarkedIds.includes(capsule.id));
   };
 
   const handleSelectDate = (date: string) => {
@@ -338,6 +380,7 @@ export default function NewsFeedClientWrapper({
         isLoading={isDigestLoading}
         error={digestError}
         language={selectedLanguage}
+        studentId={student.id}
         onClose={() => setIsDigestDrawerOpen(false)}
       />
     </main>
