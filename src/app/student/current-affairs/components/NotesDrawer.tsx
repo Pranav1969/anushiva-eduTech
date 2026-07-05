@@ -5,6 +5,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Compass } from "lucide-react";
 import QuizWidget from "./QuizWidget";
+import { formatISTDateLabel } from "@/utils/istDate";
 import { DailyDoseDigest, QuizQuestion, LanguageCode, PILLAR_META } from "./types";
 
 interface NotesDrawerProps {
@@ -63,11 +64,7 @@ export default function NotesDrawer({
                   Daily Dose &middot; Digest
                 </span>
                 <p className="font-serif text-sm font-bold text-[#1B2430]">
-                  {new Date(date).toLocaleDateString("en-IN", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  })}
+                  {formatISTDateLabel(date, { weekday: "long", month: "long", day: "numeric" })}
                 </p>
               </div>
               <button

@@ -3,12 +3,9 @@
 import { headers } from "next/headers";
 import { supabase } from "@/utils/supabase";
 import NewsFeedClientWrapper from "./components/NewsFeedClientWrapper";
+import { todayIST, formatISTDateLabel } from "@/utils/istDate";
 
 export const dynamic = "force-dynamic";
-
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
 
 /**
  * Fires a silent, non-blocking background crawler request to populate the database.
@@ -50,7 +47,7 @@ async function fetchNewsForDate(host: string, date: string) {
       return [];
     }
 
-    if ((!newsData || newsData.length === 0) && date === todayISO()) {
+    if ((!newsData || newsData.length === 0) && date === todayIST()) {
       console.log("[Autonomous Engine] Database is empty for today. Triggering crawl...");
       triggerBackgroundCrawlSilently(host);
     }
@@ -71,7 +68,7 @@ export default async function CurrentAffairsPage({ searchParams }: CurrentAffair
   const host = headersList.get("host") || "localhost:3000";
 
   const { date } = await searchParams;
-  const selectedDate = date || todayISO();
+  const selectedDate = date || todayIST();
 
   const freshNewsFeed = await fetchNewsForDate(host, selectedDate);
 
@@ -80,17 +77,7 @@ export default async function CurrentAffairsPage({ searchParams }: CurrentAffair
     id: item.id,
     source_type: item.source_type,
     category_tag: item.category_tag,
-    original_date: item.original_date
-      ? new Date(item.original_date).toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })
-      : new Date(selectedDate).toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        }),
+    original_date: formatISTDateLabel(item.original_date || selectedDate),
     source_url: item.source_url,
     read_time: item.read_time || "2 min read",
     required_plan: item.required_plan || "free",

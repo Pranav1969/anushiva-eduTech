@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Loader2, Sparkles, Compass } from "lucide-react";
 import { authManager, StudentSession } from "@/utils/auth";
+import { todayIST } from "@/utils/istDate";
 import PlanUpgradeModal from "../../components/PlanUpgradeModal";
 import NewsCalendar from "./NewsCalendar";
 import DailyDoseCarousel from "./DailyDoseCarousel";
@@ -27,10 +28,6 @@ interface NewsFeedClientWrapperProps {
   initialFeed: NewsCapsule[];
   /** The original_date currently loaded by the server (YYYY-MM-DD) */
   selectedDate: string;
-}
-
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
 }
 
 export default function NewsFeedClientWrapper({
@@ -60,7 +57,7 @@ export default function NewsFeedClientWrapper({
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [selectedRequiredPlan, setSelectedRequiredPlan] = useState("premium");
 
-  const isViewingToday = selectedDate === todayISO();
+  const isViewingToday = selectedDate === todayIST();
 
   // Self-healing poll: only meaningful for today's feed, where the crawler
   // is actively populating data. Past dates with no data are simply empty.

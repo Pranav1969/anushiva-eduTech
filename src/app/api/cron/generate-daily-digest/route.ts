@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { logCronRun } from "@/lib/cronLogger";
+import { todayIST, shiftISODate } from "@/utils/istDate";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,22 +61,8 @@ interface DigestPayload {
   quiz: QuizQuestionPayload[];
 }
 
-/**
- * Returns "yesterday" as an IST calendar date, e.g. "2026-07-03".
- *
- * Why not just `new Date(); d.setDate(d.getDate() - 1)`: Vercel's serverless
- * functions run in UTC. IST is UTC+5:30, so for the first 5.5 hours after
- * IST midnight, the UTC calendar date hasn't rolled over yet -- a naive
- * "subtract one day" would land one day too early. Shifting to IST wall-clock
- * time before doing the date math makes this correct no matter what minute
- * the cron actually fires.
- */
-function yesterdayISO() {
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
-  nowIST.setUTCDate(nowIST.getUTCDate() - 1);
-  return nowIST.toISOString().split("T")[0];
-}
+// "Yesterday" is now computed via the shared todayIST()/shiftISODate() helpers
+// in src/utils/istDate.ts -- see that file for why raw `new Date()` math is unsafe here.
 
 async function fetchWithRetry(
   url: string,
@@ -242,7 +229,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const targetDate = dateParam || yesterdayISO();
+  const targetDate = dateParam || shiftISODate(todayIST(), -1);
 
   // Idempotency: don't regenerate a digest that already exists unless forced.
   const { data: existingDigest } = await supabase

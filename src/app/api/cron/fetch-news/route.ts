@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { logCronRun } from "@/lib/cronLogger";
+import { toISTDateString, todayIST } from "@/utils/istDate";
 
 // Initialize Supabase with Service Role Key to bypass Row-Level Security (RLS) for cron insertions
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -263,8 +264,8 @@ export async function GET(request: Request) {
 
       if (evaluatedData.is_relevant) {
         const originalDateFormatted = article.pubDate
-          ? new Date(article.pubDate).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0];
+          ? toISTDateString(new Date(article.pubDate))
+          : todayIST();
 
         const { error: dbError } = await supabase.from("current_affairs_capsules").insert({
           source_type: article.source_type,
