@@ -50,16 +50,22 @@ export interface DailyDoseDigest {
   notes_mr: string;
 }
 
+export interface TrilingualText {
+  en: string;
+  hi: string;
+  mr: string;
+}
+
 export interface QuizQuestion {
   id: string;
   digest_id: string;
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
+  question_text: TrilingualText;
+  option_a: TrilingualText;
+  option_b: TrilingualText;
+  option_c: TrilingualText;
+  option_d: TrilingualText;
   correct_option: OptionLetter;
-  explanation: string;
+  explanation: TrilingualText;
   question_type: QuestionType;
   source_tag: string;
   sequence_order: number;

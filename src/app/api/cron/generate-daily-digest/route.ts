@@ -1,15 +1,21 @@
 // src/app/api/cron/generate-daily-digest/route.ts
 //
-// Runs ONCE PER DAY (schedule it for shortly after midnight IST), and turns
-// the previous day's current_affairs_capsules rows into ONE consolidated
-// Daily Dose digest + ONE quiz covering that whole day.
+// Runs ONCE PER DAY, and turns the previous day's current_affairs_capsules
+// rows into ONE consolidated Daily Dose digest + ONE quiz covering that
+// whole day.
 //
-// Why a separate cron from fetch-news: fetch-news runs frequently through the
-// day as news breaks, so a given date's capsule set isn't "final" until the
-// day is over. Generating notes/quiz per-article (the old design) meant a
-// student saw a fresh quiz on every single card, which fragments revision
-// instead of reinforcing the day as a whole. This route waits for the day to
-// close, then makes one high-quality pass over everything that happened.
+// IMPORTANT: notes and quiz are now generated via TWO SEPARATE Gemini calls,
+// not one. Originally this was a single call producing everything at once,
+// but as the amount of requested content grew (3 languages of notes + a full
+// quiz), that single response became large enough to risk truncation --
+// Gemini 2.5 Flash is a "thinking" model, and its internal reasoning tokens
+// count against the same output budget as the visible JSON answer, so a
+// response that runs long can get cut off mid-JSON and fail to parse. That
+// produced exactly the symptom reported: quiz rows appearing without the
+// digest looking right, because the two were coupled into one all-or-nothing
+// call. Splitting them means each call is smaller (less truncation risk),
+// and -- more importantly -- if the quiz call fails, the notes still save
+// successfully instead of losing everything.
 //
 // Today therefore naturally has no digest yet -- it isn't over. Past dates
 // always have exactly one, generated the night after they closed.
@@ -41,28 +47,34 @@ interface CapsuleForDigest {
   summary_en: string;
 }
 
+interface TrilingualText {
+  en: string;
+  hi: string;
+  mr: string;
+}
+
 interface QuizQuestionPayload {
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
+  question_text: TrilingualText;
+  option_a: TrilingualText;
+  option_b: TrilingualText;
+  option_c: TrilingualText;
+  option_d: TrilingualText;
+  explanation: TrilingualText;
   correct_option: "a" | "b" | "c" | "d";
-  explanation: string;
   question_type: "concept" | "static_link" | "numerical";
   source_tag: string;
 }
 
-interface DigestPayload {
+interface NotesPayload {
   pillar_breakdown: Record<string, number>;
   notes_en: string;
   notes_hi: string;
   notes_mr: string;
-  quiz: QuizQuestionPayload[];
 }
 
-// "Yesterday" is now computed via the shared todayIST()/shiftISODate() helpers
-// in src/utils/istDate.ts -- see that file for why raw `new Date()` math is unsafe here.
+interface QuizPayload {
+  quiz: QuizQuestionPayload[];
+}
 
 async function fetchWithRetry(
   url: string,
@@ -83,14 +95,18 @@ async function fetchWithRetry(
   }
 }
 
-function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
-  const articlesBlock = capsules
+function articlesBlockFor(capsules: CapsuleForDigest[]): string {
+  return capsules
     .map(
       (c, i) =>
         `Article ${i + 1} [${c.source_type.toUpperCase()} | ${c.category_tag}]\nTitle: ${c.title_en}\nSummary: ${c.summary_en}`
     )
     .join("\n\n");
+}
 
+// ---- Call 1: notes only ----------------------------------------------------
+
+function buildNotesInstruction(capsules: CapsuleForDigest[]): string {
   return `
     You are a distinguished faculty member specializing in Indian Banking Exams
     (RBI Grade B, SBI PO, IBPS, NABARD). Below are ALL the banking-relevant news
@@ -98,7 +114,7 @@ function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
     Daily Dose digest for that day -- do not treat them as separate items.
 
     ARTICLES FOR THE DAY:
-    ${articlesBlock}
+    ${articlesBlockFor(capsules)}
 
     Produce:
     1. "pillar_breakdown": an object with a count for EACH of "RBI Circulars",
@@ -118,50 +134,21 @@ function buildSystemInstruction(capsules: CapsuleForDigest[]): string {
        educational backgrounds. notes_hi and notes_mr must follow the identical "## "/"- "
        structure, just with the prose translated -- do not add or drop sections between
        the three languages.
-    3. "quiz": 6-10 multiple-choice questions spanning the day's articles, testing
-       LOGIC and UNDERSTANDING, not fact-retrieval.
-         BAD (do not write like this): "When was this scheme launched?"
-         GOOD (write like this): "What is the primary objective and beneficiary
-         group of this scheme?"
-       Distribute questions across the day's different pillars/articles rather than
-       clustering on one. Each question needs: question_text, option_a..option_d
-       (plausible, non-trivial distractors), correct_option ("a"|"b"|"c"|"d"), a short
-       explanation, question_type ("concept" | "static_link" | "numerical"), and
-       source_tag (a short label naming which pillar or article topic the question
-       draws from, e.g. "RBI Circulars" or "UPI-Nepal Linkage").
-       IMPORTANT: write question_text, option_a, option_b, option_c, option_d, and
-       explanation for EVERY quiz question in ENGLISH ONLY, regardless of what
-       language notes_hi/notes_mr above were written in. The quiz is English-only by
-       design -- do not translate or switch languages partway through the quiz array.
 
-    Response MUST be raw JSON matching this structure:
+    Response MUST be raw JSON matching this structure, and NOTHING else:
     {
       "pillar_breakdown": { "RBI Circulars": 2, "Government Schemes": 1 },
-      "notes_en": "## RBI Circulars\n- point one\n- point two",
-      "notes_hi": string, "notes_mr": string,
-      "quiz": [
-        {
-          "question_text": string,
-          "option_a": string, "option_b": string, "option_c": string, "option_d": string,
-          "correct_option": "a" | "b" | "c" | "d",
-          "explanation": string,
-          "question_type": "concept" | "static_link" | "numerical",
-          "source_tag": string
-        }
-      ]
+      "notes_en": "## RBI Circulars\\n- point one\\n- point two",
+      "notes_hi": string,
+      "notes_mr": string
     }
   `;
 }
 
-function buildResponseSchema() {
+function buildNotesResponseSchema() {
   return {
     type: "OBJECT",
     properties: {
-      // Gemini's structured-output schema requires OBJECT types to declare
-      // their properties explicitly -- an "open" object with no properties
-      // (as this used to be) gets rejected by the API with a 400 on every
-      // single call, which is why nothing was ever reaching the database.
-      // Since there are only 4 known pillars, declare them by name instead.
       pillar_breakdown: {
         type: "OBJECT",
         properties: {
@@ -174,18 +161,94 @@ function buildResponseSchema() {
       notes_en: { type: "STRING" },
       notes_hi: { type: "STRING" },
       notes_mr: { type: "STRING" },
+    },
+    required: ["pillar_breakdown", "notes_en", "notes_hi", "notes_mr"],
+  };
+}
+
+// ---- Call 2: quiz only, trilingual -----------------------------------------
+
+function buildQuizInstruction(capsules: CapsuleForDigest[]): string {
+  return `
+    You are a distinguished faculty member specializing in Indian Banking Exams
+    (RBI Grade B, SBI PO, IBPS, NABARD). Below are ALL the banking-relevant news
+    articles for a single day. Write ONE quiz spanning all of them.
+
+    ARTICLES FOR THE DAY:
+    ${articlesBlockFor(capsules)}
+
+    Write 6-10 multiple-choice questions testing LOGIC and UNDERSTANDING, not
+    fact-retrieval.
+      BAD (do not write like this): "When was this scheme launched?"
+      GOOD (write like this): "What is the primary objective and beneficiary
+      group of this scheme?"
+    Distribute questions across the day's different pillars/articles rather than
+    clustering on one.
+
+    Every question's question_text, option_a, option_b, option_c, option_d, and
+    explanation MUST be provided as an object with THREE translations:
+    { "en": "...", "hi": "...", "mr": "..." }. All three must express the exact
+    same question/option/explanation -- translations, not different content.
+    correct_option, question_type, and source_tag are language-independent and
+    given once per question, not per language.
+
+    Each question needs:
+    - question_text: {en, hi, mr}
+    - option_a, option_b, option_c, option_d: each {en, hi, mr} (plausible,
+      non-trivial distractors)
+    - correct_option: "a" | "b" | "c" | "d"
+    - explanation: {en, hi, mr}
+    - question_type: "concept" | "static_link" | "numerical"
+    - source_tag: a short label naming which pillar or article topic the
+      question draws from, e.g. "RBI Circulars" or "UPI-Nepal Linkage"
+
+    Response MUST be raw JSON matching this structure, and NOTHING else:
+    {
+      "quiz": [
+        {
+          "question_text": { "en": string, "hi": string, "mr": string },
+          "option_a": { "en": string, "hi": string, "mr": string },
+          "option_b": { "en": string, "hi": string, "mr": string },
+          "option_c": { "en": string, "hi": string, "mr": string },
+          "option_d": { "en": string, "hi": string, "mr": string },
+          "correct_option": "a" | "b" | "c" | "d",
+          "explanation": { "en": string, "hi": string, "mr": string },
+          "question_type": "concept" | "static_link" | "numerical",
+          "source_tag": string
+        }
+      ]
+    }
+  `;
+}
+
+function trilingualSchema() {
+  return {
+    type: "OBJECT",
+    properties: {
+      en: { type: "STRING" },
+      hi: { type: "STRING" },
+      mr: { type: "STRING" },
+    },
+    required: ["en", "hi", "mr"],
+  };
+}
+
+function buildQuizResponseSchema() {
+  return {
+    type: "OBJECT",
+    properties: {
       quiz: {
         type: "ARRAY",
         items: {
           type: "OBJECT",
           properties: {
-            question_text: { type: "STRING" },
-            option_a: { type: "STRING" },
-            option_b: { type: "STRING" },
-            option_c: { type: "STRING" },
-            option_d: { type: "STRING" },
+            question_text: trilingualSchema(),
+            option_a: trilingualSchema(),
+            option_b: trilingualSchema(),
+            option_c: trilingualSchema(),
+            option_d: trilingualSchema(),
             correct_option: { type: "STRING", enum: ["a", "b", "c", "d"] },
-            explanation: { type: "STRING" },
+            explanation: trilingualSchema(),
             question_type: { type: "STRING", enum: ["concept", "static_link", "numerical"] },
             source_tag: { type: "STRING" },
           },
@@ -203,8 +266,47 @@ function buildResponseSchema() {
         },
       },
     },
-    required: ["pillar_breakdown", "notes_en", "notes_hi", "notes_mr", "quiz"],
+    required: ["quiz"],
   };
+}
+
+async function callGemini(prompt: string, schema: object) {
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      // Explicit ceiling so a response that's running long fails loudly and
+      // fast (a plain JSON-parse error we catch and log) rather than
+      // silently truncating mid-JSON. Generous enough for either call's
+      // actual content, small enough to fail fast if something runs away.
+      maxOutputTokens: 8192,
+    },
+  };
+
+  const response = await fetchWithRetry(GEMINI_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`Gemini request failed with status ${response.status}: ${errorBody.slice(0, 500)}`);
+  }
+
+  const rawResult = await response.json();
+  const finishReason = rawResult.candidates?.[0]?.finishReason;
+  const rawText = rawResult.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (finishReason === "MAX_TOKENS") {
+    throw new Error("Gemini response was truncated (hit MAX_TOKENS) before completing valid JSON.");
+  }
+  if (!rawText) {
+    throw new Error(`Empty Gemini response (finishReason: ${finishReason || "unknown"})`);
+  }
+
+  return JSON.parse(rawText);
 }
 
 export const dynamic = "force-dynamic";
@@ -215,8 +317,8 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const bypassParam = searchParams.get("bypass");
-  const dateParam = searchParams.get("date"); // optional backfill target, YYYY-MM-DD
-  const forceParam = searchParams.get("force") === "true"; // regenerate even if a digest exists
+  const dateParam = searchParams.get("date");
+  const forceParam = searchParams.get("force") === "true";
 
   const isVercelCron = request.headers.get("x-vercel-cron") === "1";
   const isAuthorized = authHeader === `Bearer ${cronSecret}`;
@@ -230,21 +332,14 @@ export async function GET(request: Request) {
   const startedAt = new Date();
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json(
-      { success: false, error: "Missing Supabase Environment Credentials" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
   }
   if (!GEMINI_API_KEY) {
-    return NextResponse.json(
-      { success: false, error: "Missing Gemini API Key Environment Variable" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Missing Gemini API Key Environment Variable" }, { status: 500 });
   }
 
   const targetDate = dateParam || shiftISODate(todayIST(), -1);
 
-  // Idempotency: don't regenerate a digest that already exists unless forced.
   const { data: existingDigest } = await supabase
     .from("daily_dose_digests")
     .select("id")
@@ -264,14 +359,12 @@ export async function GET(request: Request) {
     });
   }
 
-  // Pull the full day's capsules -- this is the raw material for synthesis.
   const { data: capsules, error: capsulesError } = await supabase
     .from("current_affairs_capsules")
     .select("id, source_type, category_tag, title_en, summary_en")
     .eq("original_date", targetDate);
 
   if (capsulesError) {
-    console.error("Failed to fetch capsules for digest:", capsulesError.message);
     await logCronRun("generate-daily-digest", "error", startedAt, {
       digest_date: targetDate,
       error_source: "supabase",
@@ -293,122 +386,115 @@ export async function GET(request: Request) {
     });
   }
 
+  // ---- Call 1: notes. Must succeed before we touch quiz at all. ----
+  let notesData: NotesPayload;
   try {
-    const payload = {
-      contents: [{ parts: [{ text: buildSystemInstruction(capsules as CapsuleForDigest[]) }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: buildResponseSchema(),
-      },
-    };
-
-    const response = await fetchWithRetry(GEMINI_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    notesData = (await callGemini(
+      buildNotesInstruction(capsules as CapsuleForDigest[]),
+      buildNotesResponseSchema()
+    )) as NotesPayload;
+  } catch (err: any) {
+    await logCronRun("generate-daily-digest", "error", startedAt, {
+      digest_date: targetDate,
+      error_source: "gemini",
+      error_message: `Notes generation failed: ${err.message}`,
     });
+    return NextResponse.json({ success: false, error: `Notes generation failed: ${err.message}` }, { status: 502 });
+  }
 
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => "");
-      console.error(`Gemini request failed with status ${response.status}:`, errorBody);
-      await logCronRun("generate-daily-digest", "error", startedAt, {
+  const { data: upsertedDigest, error: digestError } = await supabase
+    .from("daily_dose_digests")
+    .upsert(
+      {
         digest_date: targetDate,
-        error_source: "gemini",
-        error_message: `Gemini request failed with status ${response.status}`,
-        raw_response: errorBody.slice(0, 2000),
-      });
-      return NextResponse.json(
-        { success: false, error: `Gemini request failed with status ${response.status}`, details: errorBody },
-        { status: 502 }
-      );
-    }
+        pillar_breakdown: notesData.pillar_breakdown || {},
+        capsule_ids: capsules.map((c) => c.id),
+        notes_en: notesData.notes_en,
+        notes_hi: notesData.notes_hi,
+        notes_mr: notesData.notes_mr,
+      },
+      { onConflict: "digest_date" }
+    )
+    .select("id")
+    .single();
 
-    const rawResult = await response.json();
-    const rawText = rawResult.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      await logCronRun("generate-daily-digest", "error", startedAt, {
-        digest_date: targetDate,
-        error_source: "gemini",
-        error_message: "Empty Gemini response",
-        raw_response: JSON.stringify(rawResult).slice(0, 2000),
-      });
-      return NextResponse.json({ success: false, error: "Empty Gemini response" }, { status: 502 });
-    }
+  if (digestError || !upsertedDigest) {
+    await logCronRun("generate-daily-digest", "error", startedAt, {
+      digest_date: targetDate,
+      error_source: "supabase",
+      error_message: digestError?.message || "Digest upsert returned no row",
+    });
+    return NextResponse.json({ success: false, error: digestError?.message }, { status: 500 });
+  }
 
-    const digestData: DigestPayload = JSON.parse(rawText);
+  // ---- Call 2: quiz. Independent of notes -- if this fails, the notes we
+  // already saved above are NOT rolled back, so students still get the day's
+  // notes even without a quiz. ----
+  let quizData: QuizPayload | null = null;
+  let quizError: string | null = null;
+  try {
+    quizData = (await callGemini(
+      buildQuizInstruction(capsules as CapsuleForDigest[]),
+      buildQuizResponseSchema()
+    )) as QuizPayload;
+  } catch (err: any) {
+    quizError = err.message;
+    console.error("Quiz generation failed (notes were still saved):", err.message);
+  }
 
-    // Upsert the digest itself (unique on digest_date).
-    const { data: upsertedDigest, error: digestError } = await supabase
-      .from("daily_dose_digests")
-      .upsert(
-        {
-          digest_date: targetDate,
-          pillar_breakdown: digestData.pillar_breakdown || {},
-          capsule_ids: capsules.map((c) => c.id),
-          notes_en: digestData.notes_en,
-          notes_hi: digestData.notes_hi,
-          notes_mr: digestData.notes_mr,
-        },
-        { onConflict: "digest_date" }
-      )
-      .select("id")
-      .single();
-
-    if (digestError || !upsertedDigest) {
-      console.error("Digest upsert failed:", digestError?.message);
-      await logCronRun("generate-daily-digest", "error", startedAt, {
-        digest_date: targetDate,
-        error_source: "supabase",
-        error_message: digestError?.message || "Digest upsert returned no row",
-      });
-      return NextResponse.json({ success: false, error: digestError?.message }, { status: 500 });
-    }
-
-    // If regenerating, clear the previous quiz set for this digest first.
+  let questionsGenerated = 0;
+  if (quizData?.quiz?.length) {
     if (forceParam) {
       await supabase.from("daily_dose_quiz_questions").delete().eq("digest_id", upsertedDigest.id);
     }
 
-    if (Array.isArray(digestData.quiz) && digestData.quiz.length > 0) {
-      const quizRows = digestData.quiz.map((q, idx) => ({
-        digest_id: upsertedDigest.id,
-        question_text: q.question_text,
-        option_a: q.option_a,
-        option_b: q.option_b,
-        option_c: q.option_c,
-        option_d: q.option_d,
-        correct_option: q.correct_option,
-        explanation: q.explanation,
-        question_type: q.question_type,
-        source_tag: q.source_tag,
-        sequence_order: idx + 1,
-      }));
+    const quizRows = quizData.quiz.map((q, idx) => ({
+      digest_id: upsertedDigest.id,
+      question_text_en: q.question_text.en,
+      question_text_hi: q.question_text.hi,
+      question_text_mr: q.question_text.mr,
+      option_a_en: q.option_a.en,
+      option_a_hi: q.option_a.hi,
+      option_a_mr: q.option_a.mr,
+      option_b_en: q.option_b.en,
+      option_b_hi: q.option_b.hi,
+      option_b_mr: q.option_b.mr,
+      option_c_en: q.option_c.en,
+      option_c_hi: q.option_c.hi,
+      option_c_mr: q.option_c.mr,
+      option_d_en: q.option_d.en,
+      option_d_hi: q.option_d.hi,
+      option_d_mr: q.option_d.mr,
+      explanation_en: q.explanation.en,
+      explanation_hi: q.explanation.hi,
+      explanation_mr: q.explanation.mr,
+      correct_option: q.correct_option,
+      question_type: q.question_type,
+      source_tag: q.source_tag,
+      sequence_order: idx + 1,
+    }));
 
-      const { error: quizError } = await supabase.from("daily_dose_quiz_questions").insert(quizRows);
-      if (quizError) {
-        console.error("Quiz insertion failed:", quizError.message);
-      }
+    const { error: insertError } = await supabase.from("daily_dose_quiz_questions").insert(quizRows);
+    if (insertError) {
+      quizError = `Quiz insert failed: ${insertError.message}`;
+      console.error(quizError);
+    } else {
+      questionsGenerated = quizRows.length;
     }
-
-    await logCronRun("generate-daily-digest", "success", startedAt, {
-      digest_date: targetDate,
-      capsules_synthesized: capsules.length,
-      questions_generated: digestData.quiz?.length || 0,
-    });
-
-    return NextResponse.json({
-      success: true,
-      digest_date: targetDate,
-      capsules_synthesized: capsules.length,
-      questions_generated: digestData.quiz?.length || 0,
-    });
-  } catch (err: any) {
-    console.error("Digest generation failed:", err.message);
-    await logCronRun("generate-daily-digest", "error", startedAt, {
-      digest_date: targetDate,
-      error_source: "unknown",
-      error_message: err.message,
-    });
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
+
+  await logCronRun("generate-daily-digest", quizError ? "error" : "success", startedAt, {
+    digest_date: targetDate,
+    capsules_synthesized: capsules.length,
+    questions_generated: questionsGenerated,
+    ...(quizError ? { quiz_error: quizError, note: "Notes saved successfully despite quiz failure." } : {}),
+  });
+
+  return NextResponse.json({
+    success: true,
+    digest_date: targetDate,
+    capsules_synthesized: capsules.length,
+    questions_generated: questionsGenerated,
+    quiz_error: quizError,
+  });
 }

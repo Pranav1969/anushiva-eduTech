@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, digest: null, quiz: [] });
   }
 
-  const { data: quiz, error: quizError } = await supabase
+  const { data: quizRows, error: quizError } = await supabase
     .from("daily_dose_quiz_questions")
     .select("*")
     .eq("digest_id", digest.id)
@@ -48,5 +48,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, digest, quiz: [] });
   }
 
-  return NextResponse.json({ success: true, digest, quiz: quiz || [] });
+  // Reshape the flat _en/_hi/_mr columns into nested {en, hi, mr} objects,
+  // matching the same convention used for capsule title/summary elsewhere.
+  const quiz = (quizRows || []).map((row: any) => ({
+    id: row.id,
+    digest_id: row.digest_id,
+    question_text: { en: row.question_text_en, hi: row.question_text_hi, mr: row.question_text_mr },
+    option_a: { en: row.option_a_en, hi: row.option_a_hi, mr: row.option_a_mr },
+    option_b: { en: row.option_b_en, hi: row.option_b_hi, mr: row.option_b_mr },
+    option_c: { en: row.option_c_en, hi: row.option_c_hi, mr: row.option_c_mr },
+    option_d: { en: row.option_d_en, hi: row.option_d_hi, mr: row.option_d_mr },
+    explanation: { en: row.explanation_en, hi: row.explanation_hi, mr: row.explanation_mr },
+    correct_option: row.correct_option,
+    question_type: row.question_type,
+    source_tag: row.source_tag,
+    sequence_order: row.sequence_order,
+  }));
+
+  return NextResponse.json({ success: true, digest, quiz });
 }

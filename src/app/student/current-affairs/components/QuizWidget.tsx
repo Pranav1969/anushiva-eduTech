@@ -4,12 +4,13 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, XCircle, RotateCcw, Brain } from "lucide-react";
-import { QuizQuestion, OptionLetter } from "./types";
+import { CheckCircle2, XCircle, Brain } from "lucide-react";
+import { QuizQuestion, OptionLetter, LanguageCode } from "./types";
 
 interface QuizWidgetProps {
   questions: QuizQuestion[];
   studentId: string;
+  language: LanguageCode;
 }
 
 const OPTION_LETTERS: OptionLetter[] = ["a", "b", "c", "d"];
@@ -20,7 +21,7 @@ const QUESTION_TYPE_LABEL: Record<QuizQuestion["question_type"], string> = {
   numerical: "Numerical",
 };
 
-export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
+export default function QuizWidget({ questions, studentId, language }: QuizWidgetProps) {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<OptionLetter | null>(null);
   const [answers, setAnswers] = useState<Record<number, OptionLetter>>({});
@@ -72,13 +73,6 @@ export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
     setSelected(null);
   };
 
-  const handleRestart = () => {
-    setIndex(0);
-    setSelected(null);
-    setAnswers({});
-    setFinished(false);
-  };
-
   if (finished) {
     const pct = Math.round((score / questions.length) * 100);
     return (
@@ -100,12 +94,6 @@ export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
             ? "Decent grasp. Revisit the notes above before the next revision cycle."
             : "Worth re-reading the notes -- the static link isn't sticking yet."}
         </p>
-        <button
-          onClick={handleRestart}
-          className="mx-auto mt-4 inline-flex items-center gap-1.5 rounded-full border border-[#DCE1E8] bg-[#F9FAFB] px-4 py-2 text-xs font-semibold text-[#5B6472] transition-colors hover:text-[#1B2430]"
-        >
-          <RotateCcw className="h-3.5 w-3.5" /> Retake Quiz
-        </button>
       </motion.div>
     );
   }
@@ -136,12 +124,12 @@ export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
           transition={{ duration: 0.2 }}
         >
           <h4 className="mb-4 font-serif text-base font-bold leading-snug text-[#1B2430]">
-            {question.question_text}
+            {question.question_text[language]}
           </h4>
 
           <div className="space-y-2">
             {OPTION_LETTERS.map((letter) => {
-              const optionText = question[`option_${letter}` as const];
+              const optionText = question[`option_${letter}` as const][language];
               const isSelectedOption = selected === letter;
               const isCorrectOption = question.correct_option === letter;
 
@@ -191,7 +179,7 @@ export default function QuizWidget({ questions, studentId }: QuizWidgetProps) {
                 <span className="font-semibold text-[#1B2430]">
                   {isCorrect ? "Correct. " : "Not quite. "}
                 </span>
-                {question.explanation}
+                {question.explanation[language]}
               </p>
             </motion.div>
           )}

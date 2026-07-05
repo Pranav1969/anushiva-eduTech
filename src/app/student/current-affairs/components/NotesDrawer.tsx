@@ -11,6 +11,7 @@ import { DailyDoseDigest, QuizQuestion, LanguageCode, PILLAR_META } from "./type
 
 interface NotesDrawerProps {
   isOpen: boolean;
+  /** The date currently loaded (used for the header label only). */
   date: string;
   digest: DailyDoseDigest | null;
   quiz: QuizQuestion[];
@@ -100,6 +101,7 @@ export default function NotesDrawer({
 
               {!isLoading && !error && digest && (
                 <>
+                  {/* Pillar breakdown */}
                   {pillarEntries.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       {pillarEntries.map(([pillar, count]) => {
@@ -117,15 +119,17 @@ export default function NotesDrawer({
                     </div>
                   )}
 
+                  {/* Consolidated notes for the whole day */}
                   <div className="rounded-xl border border-[#DCE1E8] bg-white p-5">
                     <NotesRenderer text={notesText} />
                   </div>
 
+                  {/* Quiz spanning the day's news */}
                   <div>
                     <h3 className="mb-3 font-serif text-base font-bold text-[#1B2430]">
                       Test Yourself &middot; {quiz.length} Questions
                     </h3>
-                    <QuizWidget questions={quiz} studentId={studentId} />
+                    <QuizWidget questions={quiz} studentId={studentId} language={language} />
                   </div>
                 </>
               )}
