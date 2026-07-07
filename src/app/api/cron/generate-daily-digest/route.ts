@@ -29,8 +29,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "");
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const NEWS_API_KEY = process.env.NEWS_API_KEY || "";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${NEWS_API_KEY}`;
 
 const EXAM_PILLARS = [
   "RBI Circulars",
@@ -334,7 +334,7 @@ export async function GET(request: Request) {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Missing Supabase Environment Credentials" }, { status: 500 });
   }
-  if (!GEMINI_API_KEY) {
+  if (!NEWS_API_KEY) {
     return NextResponse.json({ success: false, error: "Missing Gemini API Key Environment Variable" }, { status: 500 });
   }
 

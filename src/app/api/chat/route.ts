@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // 1. SAFE INITIALIZATION
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const apiKey = process.env.AI_GURUJI_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     if (!apiKey) {
       console.error("❌ CRITICAL: No API key found!");
