@@ -31,7 +31,7 @@ export default function FormManageNotesPlans({ onUpdateComplete }: FormManageNot
       setLoading(true);
       try {
         const { data: ex } = await supabase.from("exams").select("*").order("name");
-        const { data: sec } = await supabase.from("notes_sections").select("*").order("name");
+        const { data: sec } = await supabase.from("notes_sections").select("*").order("name_en");
         const { data: ph } = await supabase.from("notes_phases").select("*").order("sequence_order");
         
         if (ex) setExams(ex);
@@ -155,7 +155,7 @@ export default function FormManageNotesPlans({ onUpdateComplete }: FormManageNot
             className="w-full bg-[#1E293B] text-slate-200 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50"
           >
             <option value="">Select Section</option>
-            {filteredSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {filteredSections.map(s => <option key={s.id} value={s.id}>{s.name_en}</option>)}
           </select>
         </div>
 
@@ -168,7 +168,7 @@ export default function FormManageNotesPlans({ onUpdateComplete }: FormManageNot
             className="w-full bg-[#1E293B] text-slate-200 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50"
           >
             <option value="">Select Phase</option>
-            {filteredPhases.map(p => <option key={p.id} value={p.id}>Seq {p.sequence_order}: {p.name}</option>)}
+            {filteredPhases.map(p => <option key={p.id} value={p.id}>Seq {p.sequence_order}: {p.name_en}</option>)}
           </select>
         </div>
       </div>
@@ -199,7 +199,7 @@ export default function FormManageNotesPlans({ onUpdateComplete }: FormManageNot
                     <span className="bg-slate-800 text-slate-400 font-mono text-[10px] px-1.5 py-0.5 rounded">
                       Idx {chapter.sequence_order}
                     </span>
-                    {chapter.name}
+                    {chapter.name_en}
                   </h4>
                   <p className="text-[10px] font-mono text-slate-500 mt-1">ID: {chapter.id}</p>
                 </div>

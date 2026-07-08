@@ -63,6 +63,18 @@ const getLocalizedParagraph = (topic: any, lang: ContentLang): string => {
   return localized && localized.trim().length > 0 ? localized : (topic.paragraph_text_en || "");
 };
 
+// Same fallback pattern as getLocalizedParagraph, but for titles
+// (section/phase/chapter/topic .name_en/.name_hi/.name_mr). Also
+// tolerates un-migrated rows that still only have a plain .name, so this
+// keeps working even mid-rollout.
+const getLocalizedLabel = (obj: any, lang: ContentLang): string => {
+  if (!obj) return "";
+  const english = obj.name_en || obj.name || "";
+  if (lang === "en") return english;
+  const localized = obj[`name_${lang}`];
+  return localized && localized.trim().length > 0 ? localized : english;
+};
+
 const getSubjectTheme = (name: string = ""): SubjectTheme => {
   const normalized = name.toLowerCase();
   if (normalized.includes("reasoning")) {
@@ -436,7 +448,7 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
               }`}
             >
               <Book className={`w-3.5 h-3.5 ${isActive ? "text-amber-400" : "text-slate-400"}`} />
-              <span>{sec.name}</span>
+              <span>{getLocalizedLabel(sec, contentLang)}</span>
             </button>
           );
         })}
@@ -577,7 +589,7 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-700 bg-white border-slate-200"}`}>
             {isChapterComplete ? "Done" : `CH ${chap.sequence_order}`}
           </span>
-          <span className="text-xs font-bold text-slate-800 truncate">{chap.name}</span>
+          <span className="text-xs font-bold text-slate-800 truncate">{getLocalizedLabel(chap, contentLang)}</span>
           <span className="text-[11px] text-slate-400 font-medium font-mono shrink-0">({doneInChapter}/{totalInChapter} Read)</span>
         </div>
         <div className="text-slate-400 shrink-0">
@@ -622,7 +634,7 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                         {isTopicDone && <Check className="w-2 h-2 stroke-[3]" />}
                       </div>
                       <span className={`truncate ${isTopicDone ? "text-slate-400 line-through font-normal" : ""}`}>
-                        {topic.sequence_order}. {topic.name}
+                        {topic.sequence_order}. {getLocalizedLabel(topic, contentLang)}
                       </span>
                     </div>
                   </button>
@@ -653,7 +665,7 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
               <div className="space-y-3 h-full flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs md:text-sm font-extrabold text-slate-900 tracking-tight">{currentActiveTopic.name}</h4>
+                    <h4 className="text-xs md:text-sm font-extrabold text-slate-900 tracking-tight">{getLocalizedLabel(currentActiveTopic, contentLang)}</h4>
                     <button
                       onClick={(e) => toggleTopicCompletion(currentActiveTopic.id, e)}
                       className={`text-[11px] px-2.5 py-1 rounded-md border font-medium flex items-center gap-1.5 transition-all ${
@@ -813,8 +825,8 @@ export default function RevisionNotesTree({
   }, [courseContentTree, activeSectionId]);
 
   const theme = useMemo(() => {
-    return getSubjectTheme(currentActiveSection?.name);
-  }, [currentActiveSection?.name]);
+    return getSubjectTheme(currentActiveSection?.name_en || currentActiveSection?.name);
+  }, [currentActiveSection?.name_en, currentActiveSection?.name]);
 
   const metrics = useMemo<MetricsType>(() => {
     if (!currentActiveSection) return { total: 0, done: 0, percentage: 0 };
@@ -911,7 +923,7 @@ export default function RevisionNotesTree({
                   <div className="flex items-center gap-1.5 px-0.5">
                     <div className="w-1 h-3 bg-indigo-500 rounded-xs"></div>
                     <span className="text-[10px] font-mono tracking-wider font-bold text-slate-400 uppercase">
-                      Phase {phase.sequence_order}: {phase.name}
+                      Phase {phase.sequence_order}: {getLocalizedLabel(phase, contentLang)}
                     </span>
                   </div>
 
@@ -956,7 +968,7 @@ export default function RevisionNotesTree({
             &times; Hide AI
           </button>
         )}
-        <StudyDesk currentSection={currentActiveSection?.name || "the current topic"} />
+        <StudyDesk currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"} />
       </div>
     </div>
   );

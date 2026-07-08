@@ -1,7 +1,7 @@
 // src/app/admin/components/FormAddNotes.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { Loader2, Save, Eye, Layers, FileText, Plus, X, FolderPlus, Trash2, Edit2, Check } from "lucide-react";
+import { Loader2, Save, Eye, Layers, FileText, Plus, X, FolderPlus, Trash2, Edit2, Check, Languages, Sparkles } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import ImageManager from "./ImageManager";
 import NotesPreviewRenderer from "./NotesPreviewRenderer";
@@ -15,6 +15,70 @@ interface DeleteModalState {
   type: "exam" | "section" | "phase" | "chapter" | "topic" | null;
   expectedName: string;
   onConfirm: () => Promise<void>;
+}
+
+interface TrilingualNameValue {
+  en: string;
+  hi: string;
+  mr: string;
+}
+
+// Compact EN/HI/MR title input used for section/phase/chapter/topic
+// create + edit forms. English drives the "Auto" translate button since
+// hi/mr are derived from it; both translated fields stay freely editable.
+function TrilingualNameFields({
+  value,
+  onChange,
+  onTranslate,
+  isTranslating,
+  placeholderPrefix,
+  accentBorderClass = "border-indigo-500/40",
+}: {
+  value: TrilingualNameValue;
+  onChange: (next: TrilingualNameValue) => void;
+  onTranslate: () => void;
+  isTranslating: boolean;
+  placeholderPrefix: string;
+  accentBorderClass?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex gap-1">
+        <input
+          type="text"
+          placeholder={`${placeholderPrefix} (English)`}
+          value={value.en}
+          onChange={(e) => onChange({ ...value, en: e.target.value })}
+          className={`flex-1 bg-[#070c19] border ${accentBorderClass} rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder:text-slate-700 outline-none`}
+        />
+        <button
+          type="button"
+          onClick={onTranslate}
+          disabled={isTranslating || !value.en.trim()}
+          title="Auto-fill Hindi + Marathi from the English title"
+          className="shrink-0 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 disabled:opacity-30 px-2 rounded-lg flex items-center justify-center transition-all"
+        >
+          {isTranslating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+        </button>
+      </div>
+      <input
+        type="text"
+        dir="auto"
+        placeholder={`${placeholderPrefix} (हिंदी) -- optional`}
+        value={value.hi}
+        onChange={(e) => onChange({ ...value, hi: e.target.value })}
+        className="bg-[#070c19] border border-slate-900 rounded-lg px-2.5 py-1 text-xs text-slate-300 placeholder:text-slate-700 outline-none focus:border-slate-800"
+      />
+      <input
+        type="text"
+        dir="auto"
+        placeholder={`${placeholderPrefix} (मराठी) -- optional`}
+        value={value.mr}
+        onChange={(e) => onChange({ ...value, mr: e.target.value })}
+        className="bg-[#070c19] border border-slate-900 rounded-lg px-2.5 py-1 text-xs text-slate-300 placeholder:text-slate-700 outline-none focus:border-slate-800"
+      />
+    </div>
+  );
 }
 
 export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
@@ -35,7 +99,16 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [selectedChapter, setSelectedChapter] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("");
   
-  const [topicContent, setTopicContent] = useState("");
+  type LangCode = "en" | "hi" | "mr";
+  const LANGS: { code: LangCode; label: string }[] = [
+    { code: "en", label: "English" },
+    { code: "hi", label: "हिंदी" },
+    { code: "mr", label: "मराठी" },
+  ];
+
+  const [topicContent, setTopicContent] = useState<Record<LangCode, string>>({ en: "", hi: "", mr: "" });
+  const [activeContentLang, setActiveContentLang] = useState<LangCode>("en");
+  const [isTranslating, setIsTranslating] = useState(false);
   const [selectedTopicTitle, setSelectedTopicTitle] = useState("");
   
   const [isCreatingExam, setIsCreatingExam] = useState(false);
@@ -44,11 +117,18 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [isCreatingChapter, setIsCreatingChapter] = useState(false);
   const [isCreatingTopic, setIsCreatingTopic] = useState(false);
   
+  interface TrilingualName {
+    en: string;
+    hi: string;
+    mr: string;
+  }
+  const EMPTY_NAME: TrilingualName = { en: "", hi: "", mr: "" };
+
   const [newExamName, setNewExamName] = useState("");
-  const [newSectionName, setNewSectionName] = useState("");
-  const [newPhaseName, setNewPhaseName] = useState("");
-  const [newChapterName, setNewChapterName] = useState("");
-  const [newTopicName, setNewTopicName] = useState("");
+  const [newSectionName, setNewSectionName] = useState<TrilingualName>(EMPTY_NAME);
+  const [newPhaseName, setNewPhaseName] = useState<TrilingualName>(EMPTY_NAME);
+  const [newChapterName, setNewChapterName] = useState<TrilingualName>(EMPTY_NAME);
+  const [newTopicName, setNewTopicName] = useState<TrilingualName>(EMPTY_NAME);
   
   const [newPhaseOrder, setNewPhaseOrder] = useState("");
   const [newChapterOrder, setNewChapterOrder] = useState("");
@@ -62,10 +142,40 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [isEditingTopicName, setIsEditingTopicName] = useState(false);
 
   const [editExamName, setEditExamName] = useState("");
-  const [editSectionName, setEditSectionName] = useState("");
-  const [editPhaseName, setEditPhaseName] = useState("");
-  const [editChapterName, setEditChapterName] = useState("");
-  const [editTopicName, setEditTopicName] = useState("");
+  const [editSectionName, setEditSectionName] = useState<TrilingualName>(EMPTY_NAME);
+  const [editPhaseName, setEditPhaseName] = useState<TrilingualName>(EMPTY_NAME);
+  const [editChapterName, setEditChapterName] = useState<TrilingualName>(EMPTY_NAME);
+  const [editTopicName, setEditTopicName] = useState<TrilingualName>(EMPTY_NAME);
+
+  // Per-level "translating" flags for the name auto-translate buttons
+  const [isTranslatingSectionName, setIsTranslatingSectionName] = useState(false);
+  const [isTranslatingPhaseName, setIsTranslatingPhaseName] = useState(false);
+  const [isTranslatingChapterName, setIsTranslatingChapterName] = useState(false);
+  const [isTranslatingTopicNameField, setIsTranslatingTopicNameField] = useState(false);
+
+  // Shared helper: calls the lightweight label-translation endpoint and
+  // returns {hi, mr}, or null (with an alert) on failure.
+  const translateLabel = async (text: string): Promise<{ hi: string; mr: string } | null> => {
+    if (!text.trim()) {
+      alert("Enter the English title first -- translation needs a source to work from.");
+      return null;
+    }
+    try {
+      const res = await fetch("/api/admin/translate-label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || `Translation request failed (${res.status})`);
+      }
+      return { hi: result.hi, mr: result.mr };
+    } catch (err: any) {
+      alert("Auto-translate failed: " + err.message);
+      return null;
+    }
+  };
 
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
     isOpen: false,
@@ -86,7 +196,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
 
   const handleExamChange = async (id: string) => {
     setSelectedExam(id);
-    setSelectedSection(""); setSelectedPhase(""); setSelectedChapter(""); setSelectedTopic(""); setTopicContent("");
+    setSelectedSection(""); setSelectedPhase(""); setSelectedChapter(""); setSelectedTopic(""); setTopicContent({ en: "", hi: "", mr: "" });
     setSections([]); setPhases([]); setChapters([]); setTopics([]);
     setIsCreatingSection(false); setIsCreatingPhase(false); setIsCreatingChapter(false); setIsCreatingTopic(false);
     setIsEditingExamName(false); setIsEditingSectionName(false); setIsEditingPhaseName(false); setIsEditingChapterName(false); setIsEditingTopicName(false);
@@ -102,13 +212,13 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
 
   const handleSectionChange = async (id: string) => {
     setSelectedSection(id);
-    setSelectedPhase(""); setSelectedChapter(""); setSelectedTopic(""); setTopicContent("");
+    setSelectedPhase(""); setSelectedChapter(""); setSelectedTopic(""); setTopicContent({ en: "", hi: "", mr: "" });
     setPhases([]); setChapters([]); setTopics([]);
     setIsCreatingPhase(false); setIsCreatingChapter(false); setIsCreatingTopic(false);
     setIsEditingSectionName(false); setIsEditingPhaseName(false); setIsEditingChapterName(false); setIsEditingTopicName(false);
     if (!id) return;
     const match = sections.find(s => s.id === id);
-    if (match) setEditSectionName(match.name);
+    if (match) setEditSectionName({ en: match.name_en || "", hi: match.name_hi || "", mr: match.name_mr || "" });
     const { data } = await supabase
       .from("notes_phases")
       .select("*")
@@ -122,13 +232,13 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
 
   const handlePhaseChange = async (id: string) => {
     setSelectedPhase(id);
-    setSelectedChapter(""); setSelectedTopic(""); setTopicContent("");
+    setSelectedChapter(""); setSelectedTopic(""); setTopicContent({ en: "", hi: "", mr: "" });
     setChapters([]); setTopics([]);
     setIsCreatingChapter(false); setIsCreatingTopic(false);
     setIsEditingPhaseName(false); setIsEditingChapterName(false); setIsEditingTopicName(false);
     if (!id) return;
     const match = phases.find(p => p.id === id);
-    if (match) setEditPhaseName(match.name);
+    if (match) setEditPhaseName({ en: match.name_en || "", hi: match.name_hi || "", mr: match.name_mr || "" });
     const { data } = await supabase
       .from("notes_chapters")
       .select("*")
@@ -142,13 +252,13 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
 
   const handleChapterChange = async (id: string) => {
     setSelectedChapter(id);
-    setSelectedTopic(""); setTopicContent("");
+    setSelectedTopic(""); setTopicContent({ en: "", hi: "", mr: "" });
     setTopics([]);
     setIsCreatingTopic(false);
     setIsEditingChapterName(false); setIsEditingTopicName(false);
     if (!id) return;
     const match = chapters.find(c => c.id === id);
-    if (match) setEditChapterName(match.name);
+    if (match) setEditChapterName({ en: match.name_en || "", hi: match.name_hi || "", mr: match.name_mr || "" });
     const { data } = await supabase
       .from("notes_topics")
       .select("*")
@@ -165,14 +275,19 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     setIsEditingTopicName(false);
     const match = topics.find(t => t.id === id);
     if (match) {
-      setTopicContent(match.paragraph_text || "");
-      setSelectedTopicTitle(match.name || "");
-      setEditTopicName(match.name || "");
+      setTopicContent({
+        en: match.paragraph_text_en || "",
+        hi: match.paragraph_text_hi || "",
+        mr: match.paragraph_text_mr || "",
+      });
+      setSelectedTopicTitle(match.name_en || "");
+      setEditTopicName({ en: match.name_en || "", hi: match.name_hi || "", mr: match.name_mr || "" });
     } else {
-      setTopicContent("");
+      setTopicContent({ en: "", hi: "", mr: "" });
       setSelectedTopicTitle("");
-      setEditTopicName("");
+      setEditTopicName(EMPTY_NAME);
     }
+    setActiveContentLang("en");
   };
 
   const handleCreateExam = async () => {
@@ -199,14 +314,16 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleCreateSection = async () => {
-    if (!newSectionName.trim() || !selectedExam) return;
+    if (!newSectionName.en.trim() || !selectedExam) return;
     try {
       setIsProcessingNewNode(true);
       const { data, error } = await supabase
         .from("notes_sections")
         .insert({
           exam_id: selectedExam,
-          name: newSectionName.trim()
+          name_en: newSectionName.en.trim(),
+          name_hi: newSectionName.hi.trim() || null,
+          name_mr: newSectionName.mr.trim() || null,
         })
         .select()
         .single();
@@ -214,7 +331,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       setSections([...sections, data]);
       setSelectedSection(data.id);
       setIsCreatingSection(false);
-      setNewSectionName("");
+      setNewSectionName(EMPTY_NAME);
       handleSectionChange(data.id);
     } catch (err: any) {
       alert("Error committing Section axis: " + err.message);
@@ -224,7 +341,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleCreatePhase = async () => {
-    if (!newPhaseName.trim() || !selectedSection) return;
+    if (!newPhaseName.en.trim() || !selectedSection) return;
     try {
       setIsProcessingNewNode(true);
       const customOrder = parseInt(newPhaseOrder, 10);
@@ -233,7 +350,9 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
         .from("notes_phases")
         .insert({
           section_id: selectedSection,
-          name: newPhaseName.trim(),
+          name_en: newPhaseName.en.trim(),
+          name_hi: newPhaseName.hi.trim() || null,
+          name_mr: newPhaseName.mr.trim() || null,
           sequence_order: targetOrder
         })
         .select()
@@ -243,7 +362,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       setPhases(updatedPhases);
       setSelectedPhase(data.id);
       setIsCreatingPhase(false);
-      setNewPhaseName("");
+      setNewPhaseName(EMPTY_NAME);
       handlePhaseChange(data.id);
     } catch (err: any) {
       alert("Error committing Phase spectrum: " + err.message);
@@ -253,7 +372,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleCreateChapter = async () => {
-    if (!newChapterName.trim() || !selectedPhase) return;
+    if (!newChapterName.en.trim() || !selectedPhase) return;
     try {
       setIsProcessingNewNode(true);
       const customOrder = parseInt(newChapterOrder, 10);
@@ -261,7 +380,9 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       const { data, error } = await supabase
         .from("notes_chapters")
         .insert({
-          name: newChapterName.trim(),
+          name_en: newChapterName.en.trim(),
+          name_hi: newChapterName.hi.trim() || null,
+          name_mr: newChapterName.mr.trim() || null,
           phase_id: selectedPhase,
           sequence_order: targetOrder
         })
@@ -272,7 +393,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       setChapters(updatedChapters);
       setSelectedChapter(data.id);
       setIsCreatingChapter(false);
-      setNewChapterName("");
+      setNewChapterName(EMPTY_NAME);
       handleChapterChange(data.id);
     } catch (err: any) {
       alert("Error committing Chapter index: " + err.message);
@@ -282,7 +403,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleCreateTopic = async () => {
-    if (!newTopicName.trim() || !selectedChapter) return;
+    if (!newTopicName.en.trim() || !selectedChapter) return;
     try {
       setIsProcessingNewNode(true);
       const customOrder = parseInt(newTopicOrder, 10);
@@ -290,10 +411,12 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       const { data, error } = await supabase
         .from("notes_topics")
         .insert({
-          name: newTopicName.trim(),
+          name_en: newTopicName.en.trim(),
+          name_hi: newTopicName.hi.trim() || null,
+          name_mr: newTopicName.mr.trim() || null,
           chapter_id: selectedChapter,
           sequence_order: targetOrder,
-          paragraph_text: ""
+          paragraph_text_en: ""
         })
         .select()
         .single();
@@ -301,10 +424,11 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       const updatedTopics = [...topics, data].sort((a, b) => a.sequence_order - b.sequence_order);
       setTopics(updatedTopics);
       setSelectedTopic(data.id);
-      setSelectedTopicTitle(data.name);
-      setTopicContent("");
+      setSelectedTopicTitle(data.name_en);
+      setTopicContent({ en: "", hi: "", mr: "" });
+      setActiveContentLang("en");
       setIsCreatingTopic(false);
-      setNewTopicName("");
+      setNewTopicName(EMPTY_NAME);
     } catch (err: any) {
       alert("Error committing Topic workspace block: " + err.message);
     } finally {
@@ -331,15 +455,24 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleUpdateSection = async () => {
-    if (!selectedSection || !editSectionName.trim()) return;
+    if (!selectedSection || !editSectionName.en.trim()) return;
     try {
       setIsProcessingNewNode(true);
       const { error } = await supabase
         .from("notes_sections")
-        .update({ name: editSectionName.trim() })
+        .update({
+          name_en: editSectionName.en.trim(),
+          name_hi: editSectionName.hi.trim() || null,
+          name_mr: editSectionName.mr.trim() || null,
+        })
         .eq("id", selectedSection);
       if (error) throw error;
-      setSections(prev => prev.map(s => s.id === selectedSection ? { ...s, name: editSectionName.trim() } : s));
+      setSections(prev => prev.map(s => s.id === selectedSection ? {
+        ...s,
+        name_en: editSectionName.en.trim(),
+        name_hi: editSectionName.hi.trim() || null,
+        name_mr: editSectionName.mr.trim() || null,
+      } : s));
       setIsEditingSectionName(false);
     } catch (err: any) {
       alert("Error updating Section: " + err.message);
@@ -349,15 +482,24 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleUpdatePhase = async () => {
-    if (!selectedPhase || !editPhaseName.trim()) return;
+    if (!selectedPhase || !editPhaseName.en.trim()) return;
     try {
       setIsProcessingNewNode(true);
       const { error } = await supabase
         .from("notes_phases")
-        .update({ name: editPhaseName.trim() })
+        .update({
+          name_en: editPhaseName.en.trim(),
+          name_hi: editPhaseName.hi.trim() || null,
+          name_mr: editPhaseName.mr.trim() || null,
+        })
         .eq("id", selectedPhase);
       if (error) throw error;
-      setPhases(prev => prev.map(p => p.id === selectedPhase ? { ...p, name: editPhaseName.trim() } : p));
+      setPhases(prev => prev.map(p => p.id === selectedPhase ? {
+        ...p,
+        name_en: editPhaseName.en.trim(),
+        name_hi: editPhaseName.hi.trim() || null,
+        name_mr: editPhaseName.mr.trim() || null,
+      } : p));
       setIsEditingPhaseName(false);
     } catch (err: any) {
       alert("Error updating Phase: " + err.message);
@@ -367,15 +509,24 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleUpdateChapter = async () => {
-    if (!selectedChapter || !editChapterName.trim()) return;
+    if (!selectedChapter || !editChapterName.en.trim()) return;
     try {
       setIsProcessingNewNode(true);
       const { error } = await supabase
         .from("notes_chapters")
-        .update({ name: editChapterName.trim() })
+        .update({
+          name_en: editChapterName.en.trim(),
+          name_hi: editChapterName.hi.trim() || null,
+          name_mr: editChapterName.mr.trim() || null,
+        })
         .eq("id", selectedChapter);
       if (error) throw error;
-      setChapters(prev => prev.map(c => c.id === selectedChapter ? { ...c, name: editChapterName.trim() } : c));
+      setChapters(prev => prev.map(c => c.id === selectedChapter ? {
+        ...c,
+        name_en: editChapterName.en.trim(),
+        name_hi: editChapterName.hi.trim() || null,
+        name_mr: editChapterName.mr.trim() || null,
+      } : c));
       setIsEditingChapterName(false);
     } catch (err: any) {
       alert("Error updating Chapter: " + err.message);
@@ -385,16 +536,25 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleUpdateTopic = async () => {
-    if (!selectedTopic || !editTopicName.trim()) return;
+    if (!selectedTopic || !editTopicName.en.trim()) return;
     try {
       setIsProcessingNewNode(true);
       const { error } = await supabase
         .from("notes_topics")
-        .update({ name: editTopicName.trim() })
+        .update({
+          name_en: editTopicName.en.trim(),
+          name_hi: editTopicName.hi.trim() || null,
+          name_mr: editTopicName.mr.trim() || null,
+        })
         .eq("id", selectedTopic);
       if (error) throw error;
-      setTopics(prev => prev.map(t => t.id === selectedTopic ? { ...t, name: editTopicName.trim() } : t));
-      setSelectedTopicTitle(editTopicName.trim());
+      setTopics(prev => prev.map(t => t.id === selectedTopic ? {
+        ...t,
+        name_en: editTopicName.en.trim(),
+        name_hi: editTopicName.hi.trim() || null,
+        name_mr: editTopicName.mr.trim() || null,
+      } : t));
+      setSelectedTopicTitle(editTopicName.en.trim());
       setIsEditingTopicName(false);
     } catch (err: any) {
       alert("Error updating Topic: " + err.message);
@@ -409,15 +569,53 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
       setIsSaving(true);
       const { error } = await supabase
         .from("notes_topics")
-        .update({ paragraph_text: topicContent })
+        .update({
+          paragraph_text_en: topicContent.en,
+          paragraph_text_hi: topicContent.hi,
+          paragraph_text_mr: topicContent.mr,
+        })
         .eq("id", selectedTopic);
       if (error) throw error;
-      setTopics(prev => prev.map(t => t.id === selectedTopic ? { ...t, paragraph_text: topicContent } : t));
+      setTopics(prev => prev.map(t => t.id === selectedTopic ? {
+        ...t,
+        paragraph_text_en: topicContent.en,
+        paragraph_text_hi: topicContent.hi,
+        paragraph_text_mr: topicContent.mr,
+      } : t));
       onSuccess();
     } catch (err: any) {
       alert("Pipeline Exception: " + err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Calls Gemini (via /api/admin/translate-topic) to auto-fill Hindi and
+  // Marathi from the current English draft. This only updates local editor
+  // state -- the admin still reviews the result and hits "Commit Changes"
+  // to persist it, same as any manual edit.
+  const handleAutoTranslate = async () => {
+    if (!topicContent.en.trim()) {
+      alert("Write the English content first -- translation needs a source to work from.");
+      return;
+    }
+    try {
+      setIsTranslating(true);
+      const res = await fetch("/api/admin/translate-topic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: topicContent.en }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || `Translation request failed (${res.status})`);
+      }
+      setTopicContent(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+      setActiveContentLang("hi");
+    } catch (err: any) {
+      alert("Auto-translate failed: " + err.message);
+    } finally {
+      setIsTranslating(false);
     }
   };
 
@@ -456,7 +654,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     setDeleteModal({
       isOpen: true,
       type: "section",
-      expectedName: target.name,
+      expectedName: target.name_en,
       onConfirm: async () => {
         try {
           setIsDeleting("section");
@@ -483,7 +681,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     setDeleteModal({
       isOpen: true,
       type: "phase",
-      expectedName: target.name,
+      expectedName: target.name_en,
       onConfirm: async () => {
         try {
           setIsDeleting("phase");
@@ -510,7 +708,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     setDeleteModal({
       isOpen: true,
       type: "chapter",
-      expectedName: target.name,
+      expectedName: target.name_en,
       onConfirm: async () => {
         try {
           setIsDeleting("chapter");
@@ -537,7 +735,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
     setDeleteModal({
       isOpen: true,
       type: "topic",
-      expectedName: target.name,
+      expectedName: target.name_en,
       onConfirm: async () => {
         try {
           setIsDeleting("topic");
@@ -545,7 +743,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
           if (error) throw error;
           setTopics(prev => prev.filter(t => t.id !== selectedTopic));
           setSelectedTopic("");
-          setTopicContent("");
+          setTopicContent({ en: "", hi: "", mr: "" });
           setSelectedTopicTitle("");
           onSuccess();
         } catch (err: any) {
@@ -685,36 +883,47 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
             ))}
           </div>
           {isCreatingSection ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Enter new section..."
+            <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-slate-900">
+              <TrilingualNameFields
                 value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
-                className="flex-1 bg-[#070c19] border border-indigo-500/40 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none"
+                onChange={setNewSectionName}
+                onTranslate={async () => {
+                  setIsTranslatingSectionName(true);
+                  const result = await translateLabel(newSectionName.en);
+                  if (result) setNewSectionName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingSectionName(false);
+                }}
+                isTranslating={isTranslatingSectionName}
+                placeholderPrefix="Section name"
               />
-              <button onClick={handleCreateSection} disabled={isProcessingNewNode} className="bg-indigo-600 hover:bg-indigo-500 rounded-xl px-2.5 flex items-center justify-center disabled:opacity-50">
-                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3 text-white" />}
+              <button onClick={handleCreateSection} disabled={isProcessingNewNode} className="bg-indigo-600 hover:bg-indigo-500 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 text-white disabled:opacity-50 py-1.5">
+                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Add Section
               </button>
             </div>
           ) : isEditingSectionName && selectedSection ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Edit section name..."
+            <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-amber-900/40">
+              <TrilingualNameFields
                 value={editSectionName}
-                onChange={(e) => setEditSectionName(e.target.value)}
-                className="flex-1 bg-[#070c19] border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none"
+                onChange={setEditSectionName}
+                onTranslate={async () => {
+                  setIsTranslatingSectionName(true);
+                  const result = await translateLabel(editSectionName.en);
+                  if (result) setEditSectionName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingSectionName(false);
+                }}
+                isTranslating={isTranslatingSectionName}
+                placeholderPrefix="Section name"
+                accentBorderClass="border-amber-500/40"
               />
-              <button onClick={handleUpdateSection} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-xl px-2.5 flex items-center justify-center disabled:opacity-50">
-                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 text-white" />}
+              <button onClick={handleUpdateSection} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 text-white disabled:opacity-50 py-1.5">
+                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
               <select value={selectedSection} onChange={(e) => handleSectionChange(e.target.value)} disabled={!selectedExam} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
                 <option value="">Select Section Axis...</option>
-                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name_en}</option>)}
               </select>
               {selectedSection && (
                 <button
@@ -754,12 +963,17 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
           </div>
           {isCreatingPhase ? (
             <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-slate-900">
-              <input
-                type="text"
-                placeholder="Phase name..."
+              <TrilingualNameFields
                 value={newPhaseName}
-                onChange={(e) => setNewPhaseName(e.target.value)}
-                className="bg-[#070c19] border border-indigo-500/40 rounded-lg px-2.5 py-1 text-xs text-slate-200 outline-none"
+                onChange={setNewPhaseName}
+                onTranslate={async () => {
+                  setIsTranslatingPhaseName(true);
+                  const result = await translateLabel(newPhaseName.en);
+                  if (result) setNewPhaseName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingPhaseName(false);
+                }}
+                isTranslating={isTranslatingPhaseName}
+                placeholderPrefix="Phase name"
               />
               <div className="flex gap-1">
                 <input
@@ -775,23 +989,29 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </div>
             </div>
           ) : isEditingPhaseName && selectedPhase ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Edit phase name..."
+            <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-amber-900/40">
+              <TrilingualNameFields
                 value={editPhaseName}
-                onChange={(e) => setEditPhaseName(e.target.value)}
-                className="flex-1 bg-[#070c19] border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none"
+                onChange={setEditPhaseName}
+                onTranslate={async () => {
+                  setIsTranslatingPhaseName(true);
+                  const result = await translateLabel(editPhaseName.en);
+                  if (result) setEditPhaseName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingPhaseName(false);
+                }}
+                isTranslating={isTranslatingPhaseName}
+                placeholderPrefix="Phase name"
+                accentBorderClass="border-amber-500/40"
               />
-              <button onClick={handleUpdatePhase} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-xl px-2.5 flex items-center justify-center disabled:opacity-50">
-                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 text-white" />}
+              <button onClick={handleUpdatePhase} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 text-white disabled:opacity-50 py-1.5">
+                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
               <select value={selectedPhase} onChange={(e) => handlePhaseChange(e.target.value)} disabled={!selectedSection} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
                 <option value="">Select Phase Milestone...</option>
-                {phases.map(p => <option key={p.id} value={p.id}>[{p.sequence_order}] {p.name}</option>)}
+                {phases.map(p => <option key={p.id} value={p.id}>[{p.sequence_order}] {p.name_en}</option>)}
               </select>
               {selectedPhase && (
                 <button
@@ -831,12 +1051,17 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
           </div>
           {isCreatingChapter ? (
             <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-slate-900">
-              <input
-                type="text"
-                placeholder="Chapter name..."
+              <TrilingualNameFields
                 value={newChapterName}
-                onChange={(e) => setNewChapterName(e.target.value)}
-                className="bg-[#070c19] border border-indigo-500/40 rounded-lg px-2.5 py-1 text-xs text-slate-200 outline-none"
+                onChange={setNewChapterName}
+                onTranslate={async () => {
+                  setIsTranslatingChapterName(true);
+                  const result = await translateLabel(newChapterName.en);
+                  if (result) setNewChapterName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingChapterName(false);
+                }}
+                isTranslating={isTranslatingChapterName}
+                placeholderPrefix="Chapter name"
               />
               <div className="flex gap-1">
                 <input
@@ -852,23 +1077,29 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </div>
             </div>
           ) : isEditingChapterName && selectedChapter ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Edit chapter name..."
+            <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-amber-900/40">
+              <TrilingualNameFields
                 value={editChapterName}
-                onChange={(e) => setEditChapterName(e.target.value)}
-                className="flex-1 bg-[#070c19] border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none"
+                onChange={setEditChapterName}
+                onTranslate={async () => {
+                  setIsTranslatingChapterName(true);
+                  const result = await translateLabel(editChapterName.en);
+                  if (result) setEditChapterName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingChapterName(false);
+                }}
+                isTranslating={isTranslatingChapterName}
+                placeholderPrefix="Chapter name"
+                accentBorderClass="border-amber-500/40"
               />
-              <button onClick={handleUpdateChapter} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-xl px-2.5 flex items-center justify-center disabled:opacity-50">
-                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 text-white" />}
+              <button onClick={handleUpdateChapter} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 text-white disabled:opacity-50 py-1.5">
+                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
               <select value={selectedChapter} onChange={(e) => handleChapterChange(e.target.value)} disabled={!selectedPhase} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
                 <option value="">Select Chapter...</option>
-                {chapters.map(c => <option key={c.id} value={c.id}>[{c.sequence_order}] {c.name}</option>)}
+                {chapters.map(c => <option key={c.id} value={c.id}>[{c.sequence_order}] {c.name_en}</option>)}
               </select>
               {selectedChapter && (
                 <button
@@ -908,12 +1139,17 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
           </div>
           {isCreatingTopic ? (
             <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-slate-900">
-              <input
-                type="text"
-                placeholder="Topic name..."
+              <TrilingualNameFields
                 value={newTopicName}
-                onChange={(e) => setNewTopicName(e.target.value)}
-                className="bg-[#070c19] border border-indigo-500/40 rounded-lg px-2.5 py-1 text-xs text-slate-200 outline-none"
+                onChange={setNewTopicName}
+                onTranslate={async () => {
+                  setIsTranslatingTopicNameField(true);
+                  const result = await translateLabel(newTopicName.en);
+                  if (result) setNewTopicName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingTopicNameField(false);
+                }}
+                isTranslating={isTranslatingTopicNameField}
+                placeholderPrefix="Topic name"
               />
               <div className="flex gap-1">
                 <input
@@ -929,23 +1165,29 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
               </div>
             </div>
           ) : isEditingTopicName && selectedTopic ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Edit topic name..."
+            <div className="flex flex-col gap-1 bg-[#050a16] p-2 rounded-xl border border-amber-900/40">
+              <TrilingualNameFields
                 value={editTopicName}
-                onChange={(e) => setEditTopicName(e.target.value)}
-                className="flex-1 bg-[#070c19] border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none"
+                onChange={setEditTopicName}
+                onTranslate={async () => {
+                  setIsTranslatingTopicNameField(true);
+                  const result = await translateLabel(editTopicName.en);
+                  if (result) setEditTopicName(prev => ({ ...prev, hi: result.hi, mr: result.mr }));
+                  setIsTranslatingTopicNameField(false);
+                }}
+                isTranslating={isTranslatingTopicNameField}
+                placeholderPrefix="Topic name"
+                accentBorderClass="border-amber-500/40"
               />
-              <button onClick={handleUpdateTopic} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-xl px-2.5 flex items-center justify-center disabled:opacity-50">
-                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 text-white" />}
+              <button onClick={handleUpdateTopic} disabled={isProcessingNewNode} className="bg-amber-600 hover:bg-amber-500 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 text-white disabled:opacity-50 py-1.5">
+                {isProcessingNewNode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
               <select value={selectedTopic} onChange={(e) => handleTopicSelect(e.target.value)} disabled={!selectedChapter} className="w-full bg-[#070c19] border border-slate-900/90 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-slate-800 disabled:opacity-40">
                 <option value="">Select Target Topic...</option>
-                {topics.map(t => <option key={t.id} value={t.id}>[{t.sequence_order}] {t.name}</option>)}
+                {topics.map(t => <option key={t.id} value={t.id}>[{t.sequence_order}] {t.name_en}</option>)}
               </select>
               {selectedTopic && (
                 <button
@@ -980,12 +1222,51 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
                   </span>
                 )}
               </div>
+
+              {/* LANGUAGE TAB SELECTOR */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-1 bg-[#090f1d] p-1 border border-slate-900 rounded-xl">
+                  {LANGS.map(({ code, label }) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => setActiveContentLang(code)}
+                      disabled={!selectedTopic}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 disabled:opacity-30 ${
+                        activeContentLang === code ? "bg-slate-800/80 text-white shadow-md" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      <Languages className="w-3 h-3" />
+                      {label}
+                      {code !== "en" && topicContent[code]?.trim() && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoTranslate}
+                  disabled={!selectedTopic || isTranslating || !topicContent.en.trim()}
+                  title="Auto-fill Hindi and Marathi from the English draft using Gemini"
+                  className="flex items-center gap-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 disabled:opacity-30 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                >
+                  {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  Auto-Translate HI + MR
+                </button>
+              </div>
+
               <textarea
-                value={topicContent}
-                onChange={(e) => setTopicContent(e.target.value)}
+                value={topicContent[activeContentLang]}
+                onChange={(e) => setTopicContent(prev => ({ ...prev, [activeContentLang]: e.target.value }))}
                 disabled={!selectedTopic}
-                placeholder="Initialize paragraph payload here (Markdown/Plain-Text formatting authorized)..."
+                placeholder={
+                  activeContentLang === "en"
+                    ? "Initialize paragraph payload here (Markdown/Plain-Text formatting authorized)..."
+                    : `Empty -- will fall back to English on the student view until filled in, or use "Auto-Translate" above.`
+                }
                 className="flex-1 min-h-[300px] bg-[#040814] border border-slate-900/90 rounded-xl p-4 text-xs text-slate-300 placeholder:text-slate-700 outline-none focus:border-slate-800 resize-none font-mono leading-relaxed disabled:opacity-30"
+                dir="auto"
               />
             </div>
             <div className="w-full md:w-80 bg-[#020408] p-6 overflow-y-auto">
@@ -995,7 +1276,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
         ) : (
           <div className="flex-1 p-6 overflow-y-auto bg-[#020408]">
             <div className="max-w-4xl mx-auto bg-[#040814] border border-slate-900/60 rounded-2xl p-8 shadow-xl">
-              <NotesPreviewRenderer content={topicContent} title={selectedTopicTitle} />
+              <NotesPreviewRenderer content={topicContent[activeContentLang]} title={selectedTopicTitle} />
             </div>
           </div>
         )}
