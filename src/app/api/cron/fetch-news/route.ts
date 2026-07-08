@@ -15,13 +15,18 @@ const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-// Define RSS source targets — PIB (Ministry of Finance) only
+// Define RSS source targets
 const FEED_SOURCES = [
+  { type: "rbi", url: "https://rbi.org.in/Pressreleases_RSS.xml" },
   { type: "pib", url: "https://pib.gov.in/RssMain.aspx?MinId=18" }, // Ministry of Finance RSS
-] as const;
+  {
+    type: "economy",
+    url: "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms",
+  },
+];
 
 interface RawArticle {
-  source_type: "pib";
+  source_type: "rbi" | "pib" | "economy";
   title: string;
   link: string;
   description: string;
@@ -29,57 +34,31 @@ interface RawArticle {
 }
 
 /**
- * Extracts the text content of a tag from an XML fragment, case-insensitively,
- * tolerating attributes on the opening tag (e.g. <title type="text">) and
- * namespace prefixes (e.g. <rss:link>).
+ * Robust, dependency-free regex XML parser to extract <item> tags from live RSS feeds
  */
-function extractTag(xml: string, tagName: string): string | null {
-  const regex = new RegExp(
-    `<(?:[\\w-]+:)?${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tagName}>`,
-    "i"
-  );
-  const match = xml.match(regex);
-  return match ? match[1].trim() : null;
-}
-
-/**
- * Strips a CDATA wrapper (if present) and any embedded HTML tags, collapsing
- * whitespace so the returned string is clean plain text.
- */
-function cleanXmlText(raw: string | null): string {
-  if (!raw) return "";
-  const cdataMatch = raw.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
-  const unwrapped = cdataMatch ? cdataMatch[1] : raw;
-  return unwrapped
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Robust, dependency-free, case-insensitive XML parser to extract <item> (or
- * <Item>/<ITEM>) tags from live RSS feeds. PIB's ASP.NET-generated feed uses
- * PascalCase/UPPERCASE element names, which the previous strict-lowercase
- * regex matchers silently failed to pick up.
- */
-function parseRssFeed(xmlText: string, sourceType: "pib"): RawArticle[] {
+function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): RawArticle[] {
   const articles: RawArticle[] = [];
-  const itemMatches = xmlText.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi);
+  const itemMatches = xmlText.match(/<item>([\s\S]*?)<\/item>/g);
 
   if (!itemMatches) return [];
 
   const targetItems = itemMatches.slice(0, 5);
   for (const item of targetItems) {
-    const title = cleanXmlText(extractTag(item, "title"));
-    const link = cleanXmlText(extractTag(item, "link"));
-    const rawDescription = cleanXmlText(extractTag(item, "description"));
-    const rawPubDate = extractTag(item, "pubDate");
-    const pubDate = rawPubDate ? cleanXmlText(rawPubDate) : new Date().toUTCString();
+    const titleMatch =
+      item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
+    const linkMatch =
+      item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || item.match(/<link>([\s\S]*?)<\/link>/);
+    const descMatch =
+      item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
+      item.match(/<description>([\s\S]*?)<\/description>/);
+    const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
 
-    // If the description is missing entirely, fall back to the title so the
-    // entry still passes downstream relevance validation instead of being
-    // silently dropped.
-    const description = rawDescription || title;
+    const title = titleMatch ? titleMatch[1].trim() : "";
+    const link = linkMatch ? linkMatch[1].trim() : "";
+    const rawDesc = descMatch ? descMatch[1].trim() : "";
+    const pubDate = dateMatch ? dateMatch[1].trim() : new Date().toUTCString();
+
+    const description = rawDesc.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 
     if (title && link) {
       articles.push({ source_type: sourceType, title, link, description, pubDate });
@@ -159,22 +138,12 @@ export async function GET(request: Request) {
     try {
       const response = await fetch(feed.url, {
         next: { revalidate: 0 },
-        headers: {
-          // Government security gateways filter out bare/automated script
-          // headers — present a real-world modern browser signature and
-          // explicitly accept XML content types.
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-          "Accept": "application/xml, text/xml, */*",
-        },
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
       });
-      if (!response.ok) {
-        feedErrors.push({ feed: feed.type, message: `HTTP status ${response.status}` });
-        continue;
-      }
+      if (!response.ok) continue;
 
       const xmlText = await response.text();
-      const parsed = parseRssFeed(xmlText, feed.type as "pib");
+      const parsed = parseRssFeed(xmlText, feed.type as "rbi" | "pib" | "economy");
       scrapedList.push(...parsed);
     } catch (err: any) {
       console.error(`Scrape failure on ${feed.type}:`, err.message);

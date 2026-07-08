@@ -1,10 +1,11 @@
+//srcappstudentcomponentsRevisionNotesTree.tsx
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Loader2, ChevronDown, ChevronRight, BookOpen, Edit3, 
   Save, CheckCircle, Trash2, Check, 
   Trophy, Book, FileText, CheckCircle2, Maximize2, Minimize2,
-  ChevronLeft, Sparkles, ExternalLink, Lock // Added Lock icon
+  ChevronLeft, Sparkles, ExternalLink, Lock, Languages // Added Lock + Languages icons
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk";
@@ -42,6 +43,24 @@ const PLAN_HIERARCHY: Record<string, number> = {
   silver: 2,
   gold: 3,
   premium: 4,
+};
+
+// Supported note languages. "en" is always the source of truth --
+// hi/mr are optional per-topic and fall back to English wherever a
+// translation hasn't been filled in yet by the admin.
+export type ContentLang = "en" | "hi" | "mr";
+
+const LANGUAGE_OPTIONS: { code: ContentLang; label: string }[] = [
+  { code: "en", label: "EN" },
+  { code: "hi", label: "हिं" },
+  { code: "mr", label: "मरा" },
+];
+
+const getLocalizedParagraph = (topic: any, lang: ContentLang): string => {
+  if (!topic) return "";
+  if (lang === "en") return topic.paragraph_text_en || "";
+  const localized = topic[`paragraph_text_${lang}`];
+  return localized && localized.trim().length > 0 ? localized : (topic.paragraph_text_en || "");
 };
 
 const getSubjectTheme = (name: string = ""): SubjectTheme => {
@@ -390,6 +409,8 @@ interface CourseSwitcherProps {
   setActiveSectionId: (id: string) => void;
   isFullscreenMode: boolean;
   setIsFullscreenMode: (val: boolean) => void;
+  contentLang: ContentLang;
+  setContentLang: (lang: ContentLang) => void;
 }
 
 const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
@@ -397,7 +418,9 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
   activeSectionId,
   setActiveSectionId,
   isFullscreenMode,
-  setIsFullscreenMode
+  setIsFullscreenMode,
+  contentLang,
+  setContentLang
 }) => {
   return (
     <div className="flex items-center justify-between gap-4 bg-white p-1 rounded-xl border border-slate-200 sticky top-0 z-30 shrink-0 shadow-xs">
@@ -419,13 +442,31 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
         })}
       </div>
 
-      <button
-        onClick={() => setIsFullscreenMode(!isFullscreenMode)}
-        className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-lg transition-all"
-      >
-        {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        <span>{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
-      </button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* NOTES LANGUAGE TOGGLE */}
+        <div className="flex items-center gap-0.5 bg-stone-50 border border-stone-200 rounded-lg p-0.5">
+          <Languages className="w-3 h-3 text-slate-400 ml-1 mr-0.5" />
+          {LANGUAGE_OPTIONS.map(({ code, label }) => (
+            <button
+              key={code}
+              onClick={() => setContentLang(code)}
+              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                contentLang === code ? "bg-stone-950 text-white shadow-sm" : "text-slate-500 hover:text-stone-900"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setIsFullscreenMode(!isFullscreenMode)}
+          className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-lg transition-all"
+        >
+          {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          <span>{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
+        </button>
+      </div>
     </div>
   );
 };
@@ -481,6 +522,7 @@ interface ChapterAccordionUnitProps {
   setIsSidebarOpen: (val: boolean) => void;
   imageMap: Record<string, string>;
   studentPlan: string;
+  contentLang: ContentLang;
 }
 
 const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
@@ -494,7 +536,8 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   isSidebarOpen,
   setIsSidebarOpen,
   imageMap,
-  studentPlan
+  studentPlan,
+  contentLang
 }) => {
   const totalTopics = chap.notes_topics || [];
   const totalInChapter = totalTopics.length;
@@ -622,8 +665,14 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                     </button>
                   </div>
                   
-                  <div className="text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide bg-stone-50/30 p-4 rounded-xl border border-stone-100/60 select-text">
-                    {renderNarrativeWithImages(currentActiveTopic.paragraph_text, imageMap)}
+                  {contentLang !== "en" && !currentActiveTopic[`paragraph_text_${contentLang}`]?.trim() && (
+                    <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 w-fit">
+                      <Languages className="w-3 h-3" />
+                      Translation not available yet -- showing English
+                    </div>
+                  )}
+                  <div dir="auto" className="text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide bg-stone-50/30 p-4 rounded-xl border border-stone-100/60 select-text">
+                    {renderNarrativeWithImages(getLocalizedParagraph(currentActiveTopic, contentLang), imageMap)}
                   </div>
 
                   {currentActiveTopic.test_id && (
@@ -682,6 +731,20 @@ export default function RevisionNotesTree({
   
   // New state to toggle AI Guruji layout dynamically inside Focus Canvas mode
   const [isAiOpenInFocus, setIsAiOpenInFocus] = useState<boolean>(false);
+
+  // Preferred notes language -- persisted so it sticks across sessions.
+  const [contentLang, setContentLang] = useState<ContentLang>("en");
+
+  useEffect(() => {
+    const savedLang = localStorage.getItem("notes_language_preference") as ContentLang | null;
+    if (savedLang === "en" || savedLang === "hi" || savedLang === "mr") {
+      setContentLang(savedLang);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("notes_language_preference", contentLang);
+  }, [contentLang]);
 
   useEffect(() => {
     if (expandedChapters) {
@@ -821,6 +884,8 @@ export default function RevisionNotesTree({
             setActiveSectionId={setActiveSectionId} 
             isFullscreenMode={isFullscreenMode} 
             setIsFullscreenMode={setIsFullscreenMode} 
+            contentLang={contentLang}
+            setContentLang={setContentLang}
           />
           
           {/* Small Option to trigger AI-Guruji when hidden in Focus mode */}
@@ -865,6 +930,7 @@ export default function RevisionNotesTree({
                         setIsSidebarOpen={setIsSidebarOpen}
                         imageMap={imageMap}
                         studentPlan={studentPlan}
+                        contentLang={contentLang}
                       />
                     ))}
                   </div>
