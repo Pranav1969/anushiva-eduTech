@@ -78,31 +78,41 @@ export default function StudentDashboard() {
   const fetchStructuredNotesTree = async (examId?: string) => {
     setLoadingNotes(true);
     try {
-      let query = supabase
-        .from("notes_sections")
-        .select(`
+let query = supabase
+  .from("notes_sections")
+  .select(`
+    id,
+    name_en,
+    name_hi,
+    name_mr,
+    exam_id,
+    exams ( name ),
+    notes_phases (
+      id,
+      name_en,
+      name_hi,
+      name_mr,
+      sequence_order,
+      notes_chapters (
+        id,
+        name_en,
+        name_hi,
+        name_mr,
+        sequence_order,
+        required_plan,
+        notes_topics (
           id,
-          name,
-          exam_id,
-          exams ( name ),
-          notes_phases (
-            id,
-            name,
-            sequence_order,
-            notes_chapters (
-              id,
-              name,
-              sequence_order,
-              required_plan,
-              notes_topics (
-                id,
-                name,
-                sequence_order,
-                paragraph_text
-              )
-            )
-          )
-        `);
+          name_en,
+          name_hi,
+          name_mr,
+          sequence_order,
+          paragraph_text_en,
+          paragraph_text_hi,
+          paragraph_text_mr
+        )
+      )
+    )
+  `);
       
       // ✅ Filter notes sections by the student's registered exam ID
       if (examId) {
