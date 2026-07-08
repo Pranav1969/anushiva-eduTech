@@ -51,9 +51,9 @@ const PLAN_HIERARCHY: Record<string, number> = {
 export type ContentLang = "en" | "hi" | "mr";
 
 const LANGUAGE_OPTIONS: { code: ContentLang; label: string }[] = [
-  { code: "en", label: "EN" },
-  { code: "hi", label: "हिं" },
-  { code: "mr", label: "मरा" },
+  { code: "en", label: "ENGLISH" },
+  { code: "hi", label: "हिन्दी " },
+  { code: "mr", label: "मराठी " },
 ];
 
 const getLocalizedParagraph = (topic: any, lang: ContentLang): string => {
