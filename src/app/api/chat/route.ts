@@ -1,5 +1,6 @@
-// FILE: src/app/api/chat/route.ts
+// src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
@@ -13,19 +14,18 @@ export async function POST(req: NextRequest) {
     // 1. SAFE INITIALIZATION
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const axonUrl = process.env.AXON_URL;
-    const axonApiKey = process.env.AXON_API_KEY;
+    const apiKey = process.env.AI_GURUJI_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
-    if (!axonUrl || !axonApiKey) {
-      console.error("❌ CRITICAL: AXON_URL or AXON_API_KEY not set!");
+    if (!apiKey) {
+      console.error("❌ CRITICAL: No API key found!");
       return NextResponse.json({ reply: "Configuration error. Please check backend API keys." }, { status: 500 });
     }
 
-    const supabase = (supabaseUrl && supabaseKey)
-      ? createClient(supabaseUrl, supabaseKey)
+    const supabase = (supabaseUrl && supabaseKey) 
+      ? createClient(supabaseUrl, supabaseKey) 
       : null;
 
-    // 2. FETCH NOTES FROM DATABASE (RAG Context) - unchanged
+    // 2. FETCH NOTES FROM DATABASE (RAG Context)
     let notesData = "";
     if (supabase) {
       const { data, error } = await supabase
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         .select('paragraph_text')
         .textSearch('fts_vector', message, { type: 'websearch', config: 'english' })
         .limit(2);
-
+      
       if (error) {
         console.error("❌ Supabase Search Error:", error);
       } else if (data && data.length > 0) {
@@ -44,10 +44,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. STUDENT IDENTITY & GENDER INFLECTION CALCULATOR - unchanged
+    // 3. STUDENT IDENTITY & GENDER INFLFCTION CALCULATOR
     const firstName = student?.firstName || "Student";
     const gender = student?.gender?.toLowerCase() || "unknown";
-
+    
+    // Select friendly, non-slang, gender-sensitive address phrases
     let dynamicAddressing = firstName;
     if (gender === "female" || gender === "girl" || gender === "f") {
       dynamicAddressing = `${firstName} beta`;
@@ -57,73 +58,92 @@ export async function POST(req: NextRequest) {
       dynamicAddressing = "dear student";
     }
 
-    // 4. SERIALIZE CHAT HISTORY AS A PLAIN TRANSCRIPT
-    // Axon Core's /v1/chat takes one flat message string (no native
-    // multi-turn array like Gemini's `contents`), so we fold prior turns
-    // into the message itself instead of a separate structured array.
-    let historyBlock = "";
-    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
-      const filteredHistory = chatHistory.filter((chatItem) => {
-        if (chatItem.text.includes("Ready to crack") || chatItem.text.includes("Ready to clear") || chatItem.text.includes("Kaisa hai")) return false;
-        if (chatItem.role === "user" && chatItem.text === message) return false; // drop duplicate of current question
-        return true;
-      });
+    // 4. DEFINE RIGOROUS GURUJI PERSONA (STRICT REVISIONS)
+    const systemInstruction = `
+      You are AI-Guruji, an elite, professional, and empathetic academic mentor guiding students for competitive exams.
+      
+      TONE & ATTITUDE:
+      - Maintain a healthy, encouraging, yet respectful and structured mentor relationship.
+      - ALWAYS address the student warmly using contextually aligned phrases like "${dynamicAddressing}".
+      - STRICTLY PROHIBITED: Never use words like "mere sher", "bhai", "dude", "yaaro", "bro", or trashy casual street slang.
+      
+      CORE METHODOLOGY:
+      - If provided with [STUDY NOTES], use them as your primary truth source to explain core concepts.
+      - Keep explanations highly concise and straight to the point. No empty fillers, long introductory scripts, or narrative fluff.
+      - NEVER reveal you are looking at notes or database vectors. Rewrite info elegantly.
 
-      if (filteredHistory.length > 0) {
-        historyBlock = filteredHistory
-          .map((chatItem) => `${chatItem.role === "ai" ? "Guruji" : "Student"}: ${chatItem.text}`)
-          .join("\n");
-      }
+      QUANTITATIVE & MATHEMATICAL PRECISION CONSTRAINTS:
+      - Solutions must be 100% accurate. You must complete calculations down to the final numeric result. Do not break off halfway.
+      - Do not merge multiple logical actions into dense paragraphs. Use distinct, line-by-line formatting separated by clear whitespace.
+      - Use this layout structure for mathematical or logic-based questions:
+        * **Given Data:** List out known variables explicitly.
+        * **Formula/Concept:** State the formula, theorem, or logical rule used.
+        * **Step-by-Step Execution:** Show clear algebraic or logical iterations line by line.
+        * **Final Answer:** Clearly bold or box the complete final numeric/structural conclusion.
+    `;
+
+    // 5. PREPARE CONTEXTUAL HISTORY (Fixes chat conversation tracking)
+    const cleanedContents: any[] = [];
+    if (Array.isArray(chatHistory)) {
+      chatHistory.forEach((chatItem) => {
+        // Skip automated welcome interface prompts or duplicate instances of the active prompt
+        if (chatItem.text.includes("Ready to crack") || chatItem.text.includes("Ready to clear") || chatItem.text.includes("Kaisa hai")) return;
+        if (chatItem.role === "user" && chatItem.text === message) return;
+        
+        const role = chatItem.role === "ai" ? "model" : "user";
+        
+        // Prevent consecutive duplicate roles which break Gemini's chat schema array layout
+        if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === role) {
+          // Append contents instead of hard-failing
+          cleanedContents[cleanedContents.length - 1].parts[0].text += `\n${chatItem.text}`;
+          return;
+        }
+        
+        cleanedContents.push({ role, parts: [{ text: chatItem.text }] });
+      });
     }
 
-    // 5. CONSTRUCT THE FULL MESSAGE SENT TO AXON CORE
-    // The static tone/formatting/methodology rules (previously Gemini's
-    // systemInstruction) now live in the persona's "System instructions"
-    // field in the Axon Dashboard - configure that ONCE there, matching
-    // the AI-Guruji rules you already had. Everything that's dynamic
-    // PER REQUEST (student's name/gender, subject, notes, history) gets
-    // folded into this message instead, since Axon personas have one
-    // fixed system prompt, not a per-request one.
-    const fullMessage = `
-[ADDRESS THE STUDENT AS]: "${dynamicAddressing}"
+    // Enforce alternate turn rules (User -> Model -> User) required by Google's client SDK
+    while (cleanedContents.length > 0 && cleanedContents[0].role === "model") {
+      cleanedContents.shift();
+    }
+    if (cleanedContents.length > 0 && cleanedContents[cleanedContents.length - 1].role === "user") {
+      cleanedContents.pop();
+    }
 
+    // 6. CONSTRUCT FINAL PROMPT PACK WITH DATA CONTEXT
+    const finalUserMessage = `
+---
 [CURRENT STUDY TOPIC MODULE]: ${currentSection || "General"}
-
-[STUDY NOTES FOR REFERENCE]:
+[STUDY NOTES FOR REFERENCE]: 
 ${notesData || "No specific custom study text found in database logs."}
+---
 
-${historyBlock ? `[CONVERSATION SO FAR]:\n${historyBlock}\n` : ""}
 [STUDENT QUESTION]: "${message}"
 
 [INSTRUCTION]: Provide a complete, fully computed explanation as AI-Guruji adhering to the quantitative layouts requested. Be concise and write a definitive answer.
-    `.trim();
+    `;
 
-    // 6. CALL AXON CORE (through the tunnel) INSTEAD OF GEMINI DIRECTLY
-    const axonRes = await fetch(`${axonUrl}/v1/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${axonApiKey}`
+    cleanedContents.push({ role: "user", parts: [{ text: finalUserMessage }] });
+
+    // 7. INITIALIZE GOOGLE GEN AI CLIENT ENGINE
+    const ai = new GoogleGenAI({ apiKey });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: cleanedContents,
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.3, // Dropped to 0.3 to ensure strict factual and mathematical calculation stability
+        maxOutputTokens: 2048, // Expanded to prevent response truncation mid-sentence
       },
-      body: JSON.stringify({ message: fullMessage })
     });
 
-    if (!axonRes.ok) {
-      const err = await axonRes.json().catch(() => ({}));
-      console.error("❌ Axon Core error:", err);
-      return NextResponse.json(
-        { reply: "An error occurred while generating the solution. Let's try this calculation once more." },
-        { status: 502 }
-      );
-    }
-
-    const axonData = await axonRes.json();
-    const replyText = axonData.reply || "I was unable to complete the calculations. Please write down the details again.";
-
-    return NextResponse.json({
+    const replyText = response.text || "I was unable to complete the calculations. Please write down the details again.";
+    
+    return NextResponse.json({ 
       reply: replyText,
-      source: notesData ? "database" : "axon",
-      model_used: axonData.model_used // e.g. "local:qwen2-math:1.5b" or "gemini" - handy for your own debugging/logs
+      source: notesData ? "database" : "gemini" 
     });
 
   } catch (error: any) {
