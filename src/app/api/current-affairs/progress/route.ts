@@ -1,30 +1,49 @@
-// src/app/api/current-affairs/progress/route.ts
-//
-// Students authenticate through the custom students/authManager system, not
-// Supabase Auth -- there is no auth.uid() for RLS to key off of here. So this
-// route uses the service-role client and trusts the student_id the client
-// sends (taken from authManager.getSession().id, which is itself only set
-// after a real login). This mirrors how the rest of the student-side app
-// already trusts that session shape.
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "");
+const supabaseAdmin = createClient(supabaseUrl || "", supabaseServiceKey || "");
 
 export const dynamic = "force-dynamic";
 
-// GET /api/current-affairs/progress?student_id=...&capsule_ids=id1,id2,id3
+// Resolves the actual logged-in student's students.id from their real session cookie —
+// never trusts anything the client sends for identity.
+async function getAuthenticatedStudentId(): Promise<string | null> {
+  const cookieStore = await cookies(); // ← add await here
+  const supabaseServer = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (name) => cookieStore.get(name)?.value } }
+  );
+
+  const { data: { user } } = await supabaseServer.auth.getUser();
+  if (!user) return null;
+
+  const { data: student } = await supabaseAdmin
+    .from("students")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  return student?.id ?? null;
+}
+// GET /api/current-affairs/progress?capsule_ids=id1,id2,id3
+// (student_id no longer needed in the query — it's derived from the session)
 export async function GET(request: Request) {
+  const studentId = await getAuthenticatedStudentId();
+  if (!studentId) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
-  const studentId = searchParams.get("student_id");
   const capsuleIdsParam = searchParams.get("capsule_ids");
 
-  if (!studentId || !capsuleIdsParam) {
+  if (!capsuleIdsParam) {
     return NextResponse.json(
-      { success: false, error: "student_id and capsule_ids are required" },
+      { success: false, error: "capsule_ids is required" },
       { status: 400 }
     );
   }
@@ -34,7 +53,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, progress: {} });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("student_capsule_progress")
     .select("capsule_id, is_read, is_bookmarked")
     .eq("student_id", studentId)
@@ -54,23 +73,27 @@ export async function GET(request: Request) {
 }
 
 // POST /api/current-affairs/progress
-// body: { student_id, capsule_id, is_read: boolean, is_bookmarked: boolean }
-// Always send BOTH flags (the client already tracks both locally) so this can
-// be a plain upsert without needing a read-modify-write round trip.
+// body: { capsule_id, is_read: boolean, is_bookmarked: boolean }
+// (student_id removed from body — server derives it from the authenticated session)
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
-  const { student_id, capsule_id, is_read, is_bookmarked } = body || {};
+  const studentId = await getAuthenticatedStudentId();
+  if (!studentId) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!student_id || !capsule_id) {
+  const body = await request.json().catch(() => null);
+  const { capsule_id, is_read, is_bookmarked } = body || {};
+
+  if (!capsule_id) {
     return NextResponse.json(
-      { success: false, error: "student_id and capsule_id are required" },
+      { success: false, error: "capsule_id is required" },
       { status: 400 }
     );
   }
 
-  const { error } = await supabase.from("student_capsule_progress").upsert(
+  const { error } = await supabaseAdmin.from("student_capsule_progress").upsert(
     {
-      student_id,
+      student_id: studentId,
       capsule_id,
       is_read: Boolean(is_read),
       is_bookmarked: Boolean(is_bookmarked),

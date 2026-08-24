@@ -1,8 +1,7 @@
-// src/app/admin/components/FormStudentOnboarding.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, UserMinus, BookOpen } from "lucide-react";
+import { UserPlus, UserMinus } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 
 interface FormProps {
@@ -21,7 +20,6 @@ interface ExamDropdownDetails {
 }
 
 export default function FormStudentOnboarding({ onSuccess }: FormProps) {
-  // Registration Form States
   const [newStudentName, setNewStudentName] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -29,36 +27,30 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
   const [district, setDistrict] = useState("");
   const [gender, setGender] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // Deletion State
   const [studentToDelete, setStudentToDelete] = useState("");
   const [students, setStudents] = useState<StudentListDetails[]>([]);
-
-  // Available Exams State
   const [exams, setExams] = useState<ExamDropdownDetails[]>([]);
 
-  // Fetch available exams from table to populate dropdown matrix
+  // Exams table isn't touched by RLS changes — this stays a direct client read
   const fetchExams = async () => {
     const { data, error } = await supabase
       .from("exams")
       .select("id, name")
       .order("name", { ascending: true });
-
-    if (!error && data) {
-      setExams(data);
-    }
+    if (!error && data) setExams(data);
   };
 
-  // Fetch student roster on initial load and whenever an action updates the database
+  // Student roster now goes through the protected admin API route
   const fetchStudents = async () => {
-    const { data, error } = await supabase
-      .from("students")
-      .select("id, name, username")
-      .order("name", { ascending: true });
-
-    if (!error && data) {
-      setStudents(data);
+    const res = await fetch("/api/admin/students");
+    if (!res.ok) {
+      console.error("Failed to load students:", await res.text());
+      return;
     }
+    const { students } = await res.json();
+    setStudents(students || []);
   };
 
   useEffect(() => {
@@ -66,7 +58,6 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
     fetchExams();
   }, []);
 
-  // 1. Handle Register Student
   const handleRegisterStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
@@ -82,21 +73,30 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       return;
     }
 
-    const { error } = await supabase.from("students").insert({
-      name: newStudentName.trim(),
-      username: newUsername.trim().toLowerCase(),
-      password: newPassword.trim(),
-      state: state.trim(),
-      district: district.trim(),
-      gender: gender,
-      exam: selectedExam, // Saves the text value from unique constraint reference row link
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newStudentName.trim(),
+          username: newUsername.trim().toLowerCase(),
+          password: newPassword.trim(),
+          state: state.trim(),
+          district: district.trim(),
+          gender,
+          exam: selectedExam,
+        }),
+      });
 
-    if (error) {
-      alert("Error adding student profile: " + error.message);
-    } else {
-      alert("New student credential profile registered successfully!");
-      // Reset form fields
+      const result = await res.json();
+
+      if (!res.ok) {
+        alert("Error adding student profile: " + result.error);
+        return;
+      }
+
+      alert("New student account registered successfully!");
       setNewStudentName("");
       setNewUsername("");
       setNewPassword("");
@@ -104,13 +104,13 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       setDistrict("");
       setGender("");
       setSelectedExam("");
-      // Refresh list and notify parent component
       fetchStudents();
       onSuccess();
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // 2. Handle Delete Student
   const handleDeleteStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentToDelete) {
@@ -118,34 +118,35 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
       return;
     }
 
-    // Find details of selected student for confirmation text
     const selectedStudent = students.find(s => s.username === studentToDelete);
     const displayName = selectedStudent ? `${selectedStudent.name} (@${selectedStudent.username})` : studentToDelete;
 
     const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete ${displayName}?`
+      `Are you sure you want to permanently delete ${displayName}? This removes their login access entirely.`
     );
     if (!confirmDelete) return;
 
-    const { error } = await supabase
-      .from("students")
-      .delete()
-      .eq("username", studentToDelete);
+    const res = await fetch("/api/admin/students", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: studentToDelete }),
+    });
 
-    if (error) {
-      alert("Error deleting student: " + error.message);
-    } else {
-      alert("Student account successfully deleted!");
-      setStudentToDelete("");
-      // Refresh list and notify parent component
-      fetchStudents();
-      onSuccess();
+    const result = await res.json();
+
+    if (!res.ok) {
+      alert("Error deleting student: " + result.error);
+      return;
     }
+
+    alert("Student account successfully deleted!");
+    setStudentToDelete("");
+    fetchStudents();
+    onSuccess();
   };
 
   return (
     <div className="space-y-8">
-      {/* SECTION 1: PROVISION STUDENT */}
       <div className="space-y-4">
         <div className="flex items-center gap-1.5 border-b border-slate-800/60 pb-2">
           <UserPlus size={14} className="text-cyan-400" />
@@ -162,6 +163,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
             onChange={(e) => setNewStudentName(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-white focus:outline-none transition-colors"
             required
+            disabled={submitting}
           />
 
           <input
@@ -171,15 +173,17 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
             onChange={(e) => setNewUsername(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-white focus:outline-none transition-colors"
             required
+            disabled={submitting}
           />
 
           <input
             type="text"
-            placeholder="Secure Password Key"
+            placeholder="Secure Password Key (min 6 characters)"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-white focus:outline-none transition-colors"
             required
+            disabled={submitting}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -190,6 +194,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
               onChange={(e) => setState(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-white focus:outline-none transition-colors"
               required
+              disabled={submitting}
             />
             <input
               type="text"
@@ -198,6 +203,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
               onChange={(e) => setDistrict(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-white focus:outline-none transition-colors"
               required
+              disabled={submitting}
             />
           </div>
 
@@ -206,46 +212,41 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
             onChange={(e) => setGender(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-slate-400 focus:text-white focus:outline-none transition-colors"
             required
+            disabled={submitting}
           >
-            <option value="" disabled hidden>
-              Select Gender
-            </option>
+            <option value="" disabled hidden>Select Gender</option>
             <option value="Male" className="text-white">Male</option>
             <option value="Female" className="text-white">Female</option>
             <option value="Other" className="text-white">Other</option>
           </select>
 
-          {/* COMPULSORY TARGET EXAM ASSIGNMENT DROPDOWN MATRIX */}
           <select
             value={selectedExam}
             onChange={(e) => setSelectedExam(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-slate-400 focus:text-white focus:outline-none transition-colors"
             required
+            disabled={submitting}
           >
-            <option value="" disabled hidden>
-              Select Compulsory Target Exam Assignment...
-            </option>
+            <option value="" disabled hidden>Select Compulsory Target Exam Assignment...</option>
             {exams.length === 0 ? (
               <option disabled value="">No active exams found inside relational schema records</option>
             ) : (
               exams.map((ex) => (
-                <option key={ex.id} value={ex.name} className="text-white">
-                  {ex.name}
-                </option>
+                <option key={ex.id} value={ex.name} className="text-white">{ex.name}</option>
               ))
             )}
           </select>
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/10"
+            disabled={submitting}
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/10"
           >
-            Save Account
+            {submitting ? "Saving..." : "Save Account"}
           </button>
         </form>
       </div>
 
-      {/* SECTION 2: DELETE STUDENT FROM DROPDOWN */}
       <div className="space-y-4 pt-2">
         <div className="flex items-center gap-1.5 border-b border-slate-800/60 pb-2">
           <UserMinus size={14} className="text-rose-400" />
@@ -262,9 +263,7 @@ export default function FormStudentOnboarding({ onSuccess }: FormProps) {
               className="flex-1 bg-slate-900 border border-slate-800/80 focus:border-rose-500 rounded-xl p-2.5 text-xs text-slate-400 focus:text-white focus:outline-none transition-colors"
               required
             >
-              <option value="" disabled hidden>
-                Select Student to Remove...
-              </option>
+              <option value="" disabled hidden>Select Student to Remove...</option>
               {students.length === 0 ? (
                 <option disabled value="">No students available</option>
               ) : (

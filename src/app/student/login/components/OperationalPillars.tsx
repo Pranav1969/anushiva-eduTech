@@ -1,3 +1,4 @@
+//src\app\student\login\components\OperationalPillars.tsx
 "use client";
 
 import { motion } from "framer-motion";

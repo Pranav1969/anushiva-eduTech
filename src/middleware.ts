@@ -1,5 +1,14 @@
+//src\middleware.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+
+const PUBLIC_STUDENT_PATHS = [
+  '/student/login',
+  '/student/signup',
+  '/student/auth', // covers /student/auth/callback
+  '/student/forgot-password',   // ← add
+  '/student/reset-password',    // ← add
+]
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } })
@@ -9,11 +18,15 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return request.cookies.getAll() },
+        getAll() {
+          return request.cookies.getAll()
+        },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value)
-            response = NextResponse.next({ request })
+          })
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options)
           })
         },
@@ -23,19 +36,27 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isGoingToAdmin = request.nextUrl.pathname.startsWith('/admin')
-  const isGoingToAdminLogin = request.nextUrl.pathname === '/admin_login'
+  const pathname = request.nextUrl.pathname
+  const isGoingToAdmin = pathname.startsWith('/admin')
+  const isGoingToAdminLogin = pathname === '/admin_login'
+  const isPublicStudentPath = PUBLIC_STUDENT_PATHS.some(p => pathname.startsWith(p))
+  const isGoingToCompleteProfile = pathname.startsWith('/student/complete-profile')
+  const isGoingToSetPassword = pathname.startsWith('/student/set-password')
+  const isGoingToStudent =
+    pathname.startsWith('/student') &&
+    !isPublicStudentPath &&
+    !isGoingToCompleteProfile &&
+    !isGoingToSetPassword
+  const isGoingToStudentLogin = pathname === '/student/login'
 
-  // 1. SAFEGUARD: If they are going to the admin login page itself, let them through!
   if (isGoingToAdminLogin) {
-    // If they are ALREADY logged in as an admin, send them to the admin dashboard instead of showing the login page again
     if (user) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
-      
+
       if (profile?.role === 'admin') {
         return NextResponse.redirect(new URL('/admin', request.url))
       }
@@ -43,14 +64,11 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // 2. PROTECT ADMIN ROUTES
   if (isGoingToAdmin) {
-    // If not logged in, redirect to login page
     if (!user) {
       return NextResponse.redirect(new URL('/admin_login', request.url))
     }
-    
-    // Check role from profiles table
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -62,18 +80,84 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Needs a logged-in user, but NOT a matching web_session_token yet —
+  // this page's entire job is to create the student row and set that token for the first time.
+  if (isGoingToCompleteProfile) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/student/login', request.url))
+    }
+    return response
+  }
+
+  // Needs a logged-in user, but NOT a matching web_session_token yet —
+  // oauth-bootstrap withholds the token until a password is set, by design.
+  if (isGoingToSetPassword) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/student/login', request.url))
+    }
+    return response
+  }
+
+  if (isGoingToStudent) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/student/login', request.url))
+    }
+
+    const { data: student } = await supabase
+      .from('students')
+      .select('web_session_token, password_set')
+      .eq('auth_id', user.id)
+      .single()
+
+    // Password not set yet (e.g. mid-way through Google signup) — send them to
+    // finish that step instead of treating this as a multi-device session mismatch.
+    if (student && student.password_set === false) {
+      return NextResponse.redirect(new URL('/student/set-password', request.url))
+    }
+
+    const cookieToken = request.cookies.get('web_session_token')?.value
+
+    if (!student || !cookieToken || student.web_session_token !== cookieToken) {
+      await supabase.auth.signOut()
+
+      const redirectUrl = new URL('/student/login', request.url)
+      redirectUrl.searchParams.set('reason', 'multi_device')
+
+      const redirectResponse = NextResponse.redirect(redirectUrl)
+      redirectResponse.cookies.delete('web_session_token')
+      return redirectResponse
+    }
+  }
+
+  if (isGoingToStudentLogin) {
+    if (user) {
+      const { data: student } = await supabase
+        .from('students')
+        .select('web_session_token, password_set')
+        .eq('auth_id', user.id)
+        .single()
+
+      if (student && student.password_set === false) {
+        return NextResponse.redirect(new URL('/student/set-password', request.url))
+      }
+
+      const cookieToken = request.cookies.get('web_session_token')?.value
+
+      if (student && cookieToken && student.web_session_token === cookieToken) {
+        return NextResponse.redirect(new URL('/student', request.url))
+      }
+    }
+    return response
+  }
+
   return response
 }
-
-export const config = { 
-  /*
-   * Matches your admin panel and login screen exactly as before, 
-   * while safely ensuring that Next.js/Turbopack internal file routing maps 
-   * and your backend Cron routes are fully exempted from interception.
-   */
+  
+export const config = {
   matcher: [
-    '/admin/:path*', 
+    '/admin/:path*',
     '/admin_login',
+    '/student/:path*',
     '/((?!api|_next/static|_next/image|favicon.ico).*)'
-  ] 
+  ]
 }

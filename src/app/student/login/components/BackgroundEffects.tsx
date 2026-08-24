@@ -1,3 +1,4 @@
+//src\app\student\login\components\BackgroundEffects.tsx
 "use client";
 
 import { motion } from "framer-motion";
@@ -28,5 +29,5 @@ export function BackgroundEffects() {
         className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-gradient-to-br from-purple-600 to-cyan-900 blur-[100px]"
       />
     </div>
-  );
+    );
 }

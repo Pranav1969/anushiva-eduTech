@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Loader2, Sparkles, Compass } from "lucide-react";
-import { authManager, StudentSession } from "@/utils/auth";
+import { useStudentSession, StudentSession } from "@/utils/auth";
 import { todayIST } from "@/utils/istDate";
 import PlanUpgradeModal from "../../components/PlanUpgradeModal";
 import NewsCalendar from "./NewsCalendar";
@@ -95,15 +95,15 @@ export default function NewsFeedClientWrapper({
       cancelled = true;
     };
   }, [selectedDate]);
-
+ const { session, loading: sessionLoading } = useStudentSession();
   useEffect(() => {
-    const session = authManager.getSession();
+     if (sessionLoading) return;
     if (!session) {
       router.push("/student/login");
     } else {
       setStudent(session);
     }
-  }, [router]);
+ }, [session, sessionLoading, router]);
 
   // Load this student's persisted read/bookmark state for the current feed.
   // Runs whenever the student or the visible date's capsule set changes.
@@ -152,7 +152,6 @@ export default function NewsFeedClientWrapper({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        student_id: student.id,
         capsule_id: capsuleId,
         is_read: isRead,
         is_bookmarked: isBookmarked,

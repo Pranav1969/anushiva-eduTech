@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, BookOpen, GraduationCap, Lock, Newspaper } from "lucide-react";// Import Lock for visual gating indicators [cite: 2]
 import { supabase } from "@/utils/supabase";
-import { authManager, StudentSession } from "@/utils/auth"; // Import Session profiles [cite: 3]
+import { useStudentSession, StudentSession } from "@/utils/auth";
 
 // Component Injections
 import DashboardHeader from "./components/DashboardHeader";
@@ -47,6 +47,7 @@ export interface ChapterAnalysis {
 
 export default function StudentDashboard() {
   const router = useRouter();
+  const { session, loading: sessionLoading, logout } = useStudentSession();
   const [student, setStudent] = useState<StudentSession | null>(null); // Validation instance references [cite: 11]
   const [tests, setTests] = useState<TestRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,13 +65,13 @@ export default function StudentDashboard() {
   const [selectedRequiredPlan, setSelectedRequiredPlan] = useState("premium");
 
   useEffect(() => {
-    const session = authManager.getSession();
+    if (sessionLoading) return;
     if (!session) {
       router.push("/student/login"); // Redirect to login fallback workspace [cite: 15]
     } else {
       setStudent(session);
     }
-  }, [router]);
+  }, [session, sessionLoading, router]);
 
   // Aggregate Knowledge Base Material Hierarchy with Phased Navigation Schema
 // Aggregate Knowledge Base Material Hierarchy with Phased Navigation Schema
@@ -170,14 +171,12 @@ let query = supabase
           id: studentProfile.id,
           name: studentProfile.name,
           username: studentProfile.username,
-          sessionToken: studentProfile.current_session_token || "",
           gender: studentProfile.gender,
           state: studentProfile.state,
           district: studentProfile.district,
           current_plan: studentProfile.current_plan 
         };
         setStudent(freshSession as any);
-        localStorage.setItem("active_student_node", JSON.stringify(freshSession));
       }
 
       if (studentProfile?.exam) {
@@ -320,10 +319,9 @@ let query = supabase
     });
   }; // Closure mapping boundary [cite: 48]
 
-  const handleLogout = () => {
-    authManager.logout();
-    router.push("/student/login");
-  };
+  const handleLogout = async () => {
+   await logout(); // hook already handles signOut + redirect to /student/login
+ };
 
   const getSectionCountsMap = () => {
     const countsMap: Record<string, number> = {}; // Storage interface map assignment [cite: 49]

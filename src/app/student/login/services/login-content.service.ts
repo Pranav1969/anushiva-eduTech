@@ -1,3 +1,4 @@
+//src\app\student\login\services\login-content.service.ts
 import { supabase } from "@/utils/supabase";
 import { LoginPageData } from "../types/login.types";
 

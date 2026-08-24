@@ -1,9 +1,10 @@
+//src\app\student\numerical-ability\page.tsx
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense, useMemo } from "react";
 import { supabase } from "@/utils/supabase";
-import { authManager } from "@/utils/auth";
+import { useStudentSession } from "@/utils/auth";
 import { Loader2, Timer, ChevronLeft, ChevronRight, Send, Globe2 } from "lucide-react";
 import AntiCheatWrapper from "../components/AntiCheatWrapper";
 import TestScorecardView from "../components/TestScorecardView";
@@ -51,16 +52,16 @@ function LiveTestEngineCore() {
   const [activeSectionIdx, setActiveSectionIdx] = useState(0);
   const [examLanguage, setExamLanguage] = useState<"english" | "hindi">("english");
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, QuestionStatus>>({});
-
+  const { session, loading: sessionLoading } = useStudentSession();
   useEffect(() => {
-    const session = authManager.getSession();
+    if (sessionLoading) return;
     if (!session) {
       router.push("/student/login");
       return;
     }
     setStudentId(session.id);
     if (session.name) setStudentName(session.name);
-  }, [router]);
+  }, [session, sessionLoading, router]);
 
   // FIXED STABLE ROUTING INTERFACE ARCHITECTURE CONTRACT TYPE GUARDS
   const uniqueSections = useMemo<string[]>(() => {

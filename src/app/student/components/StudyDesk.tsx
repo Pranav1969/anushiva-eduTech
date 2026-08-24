@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { authManager, StudentSession } from "@/utils/auth";
+import { useStudentSession, StudentSession } from "@/utils/auth";
 
 interface Message { 
   role: 'user' | 'ai'; 
@@ -24,10 +24,9 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
   const [isTyping, setIsTyping] = useState(false);
   const [student, setStudent] = useState<ExtendedStudentProfile | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
+const { session } = useStudentSession();
   useEffect(() => {
     try {
-      const session = authManager.getSession();
       if (session) {
         const extractedFirstName = session.name ? session.name.split(" ")[0] : "Student";
 
@@ -50,7 +49,7 @@ export default function StudyDesk({ currentSection }: { currentSection: string }
     } catch (err) {
       console.error("Failed to extract active session metrics for AI context:", err);
     }
-  }, [currentSection]);
+  }, [currentSection, session]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });

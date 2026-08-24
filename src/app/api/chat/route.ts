@@ -95,7 +95,7 @@ ${notesData || "No specific custom study text found in database logs."}
 ${historyBlock ? `[CONVERSATION SO FAR]:\n${historyBlock}\n` : ""}
 [STUDENT QUESTION]: "${message}"
 
-[INSTRUCTION]: Provide a complete, fully computed explanation as AI-Guruji adhering to the quantitative layouts requested. Be concise and write a definitive answer.
+[INSTRUCTION]: Respond naturally and in character as AI-Guruji. Match your reply length and depth to what the student actually asked — a short greeting or simple message deserves a short, warm reply, not a full explanation. Only give a complete, fully worked explanation when the student has asked a real question or problem.
     `.trim();
 
     // 6. CALL AXON CORE (through the tunnel) INSTEAD OF GEMINI DIRECTLY

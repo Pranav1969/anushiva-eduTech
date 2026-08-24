@@ -1,3 +1,4 @@
+//src\app\student\login\components\LoginShell.tsx
 import { ReactNode } from "react";
 import { AnimatedGrid, BackgroundEffects } from "./BackgroundEffects";
 

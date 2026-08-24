@@ -1,3 +1,4 @@
+//src\app\student\login\types\login.types.ts
 export interface HeroContent {
   title: string;
   subtitle: string;

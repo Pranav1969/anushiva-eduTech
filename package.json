@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate-students": "tsx --env-file=.env.local scripts/migrate-students.ts",
+    "verify-migration": "tsx --env-file=.env.local scripts/verify-migration.ts",
+    "test-login": "tsx --env-file=.env.local scripts/test-login.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",
@@ -38,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }
