@@ -1,3 +1,4 @@
+//src\app\api\student\resolve-login-email\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 

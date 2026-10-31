@@ -3,7 +3,8 @@
 
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import { AuthMethodTabs } from "./AuthMethodTabs";
+import { EmailLoginForm } from "./EmailLoginForm";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 export function LoginForm() {
   return (
@@ -21,7 +22,22 @@ export function LoginForm() {
         <p className="text-slate-400 text-xs font-medium">Access your personal, dedicated examination workspace board.</p>
       </div>
 
-      <AuthMethodTabs />
+      <EmailLoginForm />
+
+      <div className="flex items-center gap-3 my-5">
+        <div className="h-px flex-1 bg-slate-800" />
+        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">or</span>
+        <div className="h-px flex-1 bg-slate-800" />
+      </div>
+
+      <GoogleSignInButton />
+
+      <p className="text-center text-xs text-slate-500 mt-5">
+        New here?{" "}
+        <a href="/student/signup" className="text-blue-400 hover:text-blue-300 font-semibold">
+          Create an account
+        </a>
+      </p>
     </motion.div>
   );
 }

@@ -1,3 +1,4 @@
+//src\app\student\components\DashboardHeader.tsx
 "use client";
 import { Sparkles, UserCheck, LogOut } from "lucide-react";
 import { StudentSession } from "@/utils/auth";

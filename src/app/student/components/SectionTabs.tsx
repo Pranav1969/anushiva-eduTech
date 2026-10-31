@@ -1,3 +1,4 @@
+//C:\projects\exam-prep-platform\src\app\student\components\SectionTabs.tsx
 "use client";
 import Link from "next/link";
 import { Layers, Calculator, BookOpen, ShieldCheck, Award, HelpCircle } from "lucide-react";

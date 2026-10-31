@@ -1,4 +1,3 @@
-//src\middleware.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -6,8 +5,8 @@ const PUBLIC_STUDENT_PATHS = [
   '/student/login',
   '/student/signup',
   '/student/auth', // covers /student/auth/callback
-  '/student/forgot-password',   // ← add
-  '/student/reset-password',    // ← add
+  '/student/forgot-password',
+  '/student/reset-password',
 ]
 
 export async function middleware(request: NextRequest) {
@@ -42,11 +41,13 @@ export async function middleware(request: NextRequest) {
   const isPublicStudentPath = PUBLIC_STUDENT_PATHS.some(p => pathname.startsWith(p))
   const isGoingToCompleteProfile = pathname.startsWith('/student/complete-profile')
   const isGoingToSetPassword = pathname.startsWith('/student/set-password')
+  const isGoingToVerifyPhone = pathname.startsWith('/student/verify-phone') // ← added
   const isGoingToStudent =
     pathname.startsWith('/student') &&
     !isPublicStudentPath &&
     !isGoingToCompleteProfile &&
-    !isGoingToSetPassword
+    !isGoingToSetPassword &&
+    !isGoingToVerifyPhone // ← added
   const isGoingToStudentLogin = pathname === '/student/login'
 
   if (isGoingToAdminLogin) {
@@ -98,6 +99,16 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // Needs a logged-in user, but NOT a matching web_session_token yet —
+  // phone verification happens before the session gets fully stamped,
+  // same reasoning as set-password above.
+  if (isGoingToVerifyPhone) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/student/login', request.url))
+    }
+    return response
+  }
+
   if (isGoingToStudent) {
     if (!user) {
       return NextResponse.redirect(new URL('/student/login', request.url))
@@ -105,7 +116,7 @@ export async function middleware(request: NextRequest) {
 
     const { data: student } = await supabase
       .from('students')
-      .select('web_session_token, password_set')
+      .select('web_session_token, password_set, phone_verified') // ← added phone_verified
       .eq('auth_id', user.id)
       .single()
 
@@ -113,6 +124,14 @@ export async function middleware(request: NextRequest) {
     // finish that step instead of treating this as a multi-device session mismatch.
     if (student && student.password_set === false) {
       return NextResponse.redirect(new URL('/student/set-password', request.url))
+    }
+
+    // Phone not verified yet — required for every student before they can
+    // reach any protected page. Checked on every request, so as soon as
+    // verify-phone succeeds and phone_verified flips to true, this stops
+    // triggering automatically.
+    if (student && student.phone_verified === false) { // ← added
+      return NextResponse.redirect(new URL('/student/verify-phone', request.url))
     }
 
     const cookieToken = request.cookies.get('web_session_token')?.value
@@ -133,12 +152,16 @@ export async function middleware(request: NextRequest) {
     if (user) {
       const { data: student } = await supabase
         .from('students')
-        .select('web_session_token, password_set')
+        .select('web_session_token, password_set, phone_verified') // ← added phone_verified
         .eq('auth_id', user.id)
         .single()
 
       if (student && student.password_set === false) {
         return NextResponse.redirect(new URL('/student/set-password', request.url))
+      }
+
+      if (student && student.phone_verified === false) { // ← added
+        return NextResponse.redirect(new URL('/student/verify-phone', request.url))
       }
 
       const cookieToken = request.cookies.get('web_session_token')?.value
@@ -152,7 +175,7 @@ export async function middleware(request: NextRequest) {
 
   return response
 }
-  
+
 export const config = {
   matcher: [
     '/admin/:path*',
