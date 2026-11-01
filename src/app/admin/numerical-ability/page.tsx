@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Clock, Layers, HelpCircle, Save, Plus, Trash2, ArrowLeft, 
-  Braces, FileText, Hourglass, Sparkles, FolderOpen, TextQuote, Tag 
+  Braces, FileText, Hourglass, Sparkles, FolderOpen, TextQuote, Tag, Bookmark 
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 
@@ -13,7 +13,8 @@ interface SubQuestion {
   a: string; b: string; c: string; d: string; e: string;
   correct: string;
   explanation: string;
-  chapter: string;  
+  chapter: string;  // CHAPTER NAME  -> questions.chapter
+  topic: string;    // TOPIC NAME (NEW) -> questions.topic_name
 }
 
 interface QuestionGroup {
@@ -43,12 +44,13 @@ export default function AdminNumericalManager() {
   // Base configuration settings if the test is a single topic/chapter configuration
   const [globalDurationMinutes, setGlobalDurationMinutes] = useState("45");
   const [globalChapterTag, setGlobalChapterTag] = useState("General Setup");
+  const [globalTopicTag, setGlobalTopicTag] = useState(""); // NEW: optional fallback topic name
   const [perQuestionSeconds, setPerQuestionSeconds] = useState("60");
 
   const [loading, setLoading] = useState(false);
   const [existingSectionIds, setExistingSectionIds] = useState<string[]>([]);
   const [isCustomSectionId, setIsCustomSectionId] = useState(false);
-useEffect(() => {
+  useEffect(() => {
     async function fetchUniqueSectionIds() {
       try {
         // Querying the tests table for existing routes
@@ -87,14 +89,15 @@ useEffect(() => {
           paragraph_text: "",
           image_url: "",
           input_mode: "form",
-          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: "Syllogism" }],
+          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: "Syllogism", topic: "" }],
           json_paste: JSON.stringify([
             { 
               "question": "Sample Question Text?", 
               "options": { "A": "Option 1", "B": "Option 2", "C": "Option 3", "D": "Option 4", "E": "Option 5" }, 
               "correctOption": "A", 
               "explanation": "Logic breakdown",
-              "chapter": "Syllogism"
+              "chapter": "Syllogism",
+              "topic": "Statement and Conclusion"
             }
           ], null, 2)
         }
@@ -115,7 +118,7 @@ useEffect(() => {
           paragraph_text: "",
           image_url: "",
           input_mode: "form",
-          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: "General" }],
+          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: "General", topic: "" }],
           json_paste: "[\n\n]"
         }
       ]
@@ -144,7 +147,7 @@ useEffect(() => {
           paragraph_text: "",
           image_url: "",
           input_mode: "form",
-          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: globalChapterTag || "General" }],
+          sub_questions: [{ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: globalChapterTag || "General", topic: globalTopicTag || "" }],
           json_paste: "[\n\n]"
         }]
       };
@@ -178,7 +181,7 @@ useEffect(() => {
           if (g.id !== groupId) return g;
           return {
             ...g,
-            sub_questions: [...g.sub_questions, { question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: globalChapterTag || "General" }]
+            sub_questions: [...g.sub_questions, { question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "a", explanation: "", chapter: globalChapterTag || "General", topic: globalTopicTag || "" }]
           };
         })
       };
@@ -307,7 +310,9 @@ useEffect(() => {
                 test_id: deployedTestId,
                 block_id: databaseBlockId,
                 section: activeSectionTitle,
-                chapter: item.chapter || globalChapterTag || "General Layout Breakdown"
+                chapter: item.chapter || globalChapterTag || "General Layout Breakdown",
+                // NEW: topic name (accepts "topic", "topic_name" or "topicName" in the JSON)
+                topic_name: String(item.topic || item.topic_name || item.topicName || globalTopicTag || "").trim() || null
               };
             });
           } else {
@@ -324,7 +329,9 @@ useEffect(() => {
               test_id: deployedTestId,
               block_id: databaseBlockId,
               section: activeSectionTitle,
-              chapter: q.chapter.trim() || globalChapterTag || "General Layout Breakdown"
+              chapter: q.chapter.trim() || globalChapterTag || "General Layout Breakdown",
+              // NEW: topic name
+              topic_name: (q.topic || "").trim() || globalTopicTag.trim() || null
             }));
           }
 
@@ -373,61 +380,66 @@ useEffect(() => {
                   <input type="text" value={testName} onChange={(e) => setTestName(e.target.value)} className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:outline-none" placeholder="e.g. SBI PO Mock Exam #4" />
                 </div>
                 <div className="space-y-1.5">
-  <div className="flex justify-between items-center">
-    <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2">
-      <FolderOpen size={14} /> Deployment Route Hub
-    </label>
-    <button
-      type="button"
-      onClick={() => {
-        setIsCustomSectionId(!isCustomSectionId);
-        setSectionId(""); // Reset value when switching modes
-      }}
-      className="text-[10px] font-bold text-purple-600 hover:underline bg-purple-50 px-2 py-0.5 rounded"
-    >
-      {isCustomSectionId ? "Select Existing" : "+ Create New Route ID"}
-    </button>
-  </div>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2">
+                      <FolderOpen size={14} /> Deployment Route Hub
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomSectionId(!isCustomSectionId);
+                        setSectionId(""); // Reset value when switching modes
+                      }}
+                      className="text-[10px] font-bold text-purple-600 hover:underline bg-purple-50 px-2 py-0.5 rounded"
+                    >
+                      {isCustomSectionId ? "Select Existing" : "+ Create New Route ID"}
+                    </button>
+                  </div>
 
-  {isCustomSectionId ? (
-    <input
-      type="text"
-      value={sectionId}
-      onChange={(e) => setSectionId(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-      className="w-full p-3 bg-white border-2 border-purple-200 rounded-xl font-bold text-slate-800 text-sm focus:outline-none focus:border-purple-500"
-      placeholder="e.g. general-awareness-mock"
-    />
-  ) : (
-    <select
-      value={sectionId}
-      onChange={(e) => setSectionId(e.target.value)}
-      className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-700 text-sm focus:bg-white focus:outline-none cursor-pointer"
-    >
-      <option value="">-- Choose Deployment Target Route --</option>
-      {/* Dynamic unique values pulled from database */}
-      {existingSectionIds.map((id) => (
-        <option key={id} value={id}>
-          {id}
-        </option>
-      ))}
-      {/* Fallback baseline options if DB is empty */}
-      {existingSectionIds.length === 0 && (
-        <>
-          <option value="combine-test">Combined Full-Scale Test Engine</option>
-          <option value="numerical-ability">Isolated - Quantitative Aptitude</option>
-          <option value="reasoning-ability">Isolated - Reasoning Ability</option>
-          <option value="english-language">Isolated - English Language</option>
-        </>
-      )}
-    </select>
-  )}
-</div>
+                  {isCustomSectionId ? (
+                    <input
+                      type="text"
+                      value={sectionId}
+                      onChange={(e) => setSectionId(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                      className="w-full p-3 bg-white border-2 border-purple-200 rounded-xl font-bold text-slate-800 text-sm focus:outline-none focus:border-purple-500"
+                      placeholder="e.g. general-awareness-mock"
+                    />
+                  ) : (
+                    <select
+                      value={sectionId}
+                      onChange={(e) => setSectionId(e.target.value)}
+                      className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-700 text-sm focus:bg-white focus:outline-none cursor-pointer"
+                    >
+                      <option value="">-- Choose Deployment Target Route --</option>
+                      {/* Dynamic unique values pulled from database */}
+                      {existingSectionIds.map((id) => (
+                        <option key={id} value={id}>
+                          {id}
+                        </option>
+                      ))}
+                      {/* Fallback baseline options if DB is empty */}
+                      {existingSectionIds.length === 0 && (
+                        <>
+                          <option value="combine-test">Combined Full-Scale Test Engine</option>
+                          <option value="numerical-ability">Isolated - Quantitative Aptitude</option>
+                          <option value="reasoning-ability">Isolated - Reasoning Ability</option>
+                          <option value="english-language">Isolated - English Language</option>
+                        </>
+                      )}
+                    </select>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                 <div className="space-y-1.5">
                   <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2"><Tag size={14} /> Global/Fallback Chapter Tag Designation</label>
                   <input type="text" value={globalChapterTag} onChange={(e) => setGlobalChapterTag(e.target.value)} className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:outline-none" placeholder="e.g. Simplification Sets, Puzzles Core" />
+                </div>
+                {/* NEW: optional fallback topic name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2"><Bookmark size={14} /> Global/Fallback Topic Name (optional)</label>
+                  <input type="text" value={globalTopicTag} onChange={(e) => setGlobalTopicTag(e.target.value)} className="w-full p-3 bg-purple-50/40 border border-purple-100 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:outline-none" placeholder="e.g. Letter Coding, Word-to-Number" />
                 </div>
               </div>
             </div>
@@ -516,6 +528,7 @@ useEffect(() => {
                         {group.input_mode === "json" ? (
                           <div className="bg-slate-950 rounded-xl p-3 border border-slate-900 shadow-inner">
                             <div className="text-[10px] font-mono text-slate-400 mb-1.5">// Normalized engine maps properties automatically. Keys are auto-sorted under section: <span className="text-purple-400 font-bold">"{section.sectionName}"</span></div>
+                            <div className="text-[10px] font-mono text-slate-500 mb-1.5">// Per question you can set: "chapter" (chapter name) and "topic" (topic name). Both optional.</div>
                             <textarea rows={8} value={group.json_paste} onChange={(e) => updateGroupMeta(section.id, group.id, "json_paste", e.target.value)} className="w-full bg-transparent text-emerald-400 font-mono text-xs focus:outline-none leading-relaxed" />
                           </div>
                         ) : (
@@ -529,11 +542,17 @@ useEffect(() => {
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                   <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1.5 rounded-md border text-[11px]">
                                     <Layers size={12} className="text-indigo-600" />
-                                    <span className="font-bold text-slate-500 mr-1">Chapter Target Topic:</span>
-                                    <input type="text" value={q.chapter} onChange={(e) => updateQuestionFields(section.id, group.id, qIdx, "chapter", e.target.value)} className="w-full bg-transparent font-bold text-slate-700 placeholder-slate-400 focus:outline-none" placeholder="Topic name tag override..." />
+                                    <span className="font-bold text-slate-500 mr-1 whitespace-nowrap">Chapter Name:</span>
+                                    <input type="text" value={q.chapter} onChange={(e) => updateQuestionFields(section.id, group.id, qIdx, "chapter", e.target.value)} className="w-full bg-transparent font-bold text-slate-700 placeholder-slate-400 focus:outline-none" placeholder="Chapter name tag override..." />
+                                  </div>
+                                  {/* NEW: per-question topic name */}
+                                  <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1.5 rounded-md border text-[11px]">
+                                    <Bookmark size={12} className="text-purple-600" />
+                                    <span className="font-bold text-slate-500 mr-1 whitespace-nowrap">Topic Name:</span>
+                                    <input type="text" value={q.topic} onChange={(e) => updateQuestionFields(section.id, group.id, qIdx, "topic", e.target.value)} className="w-full bg-transparent font-bold text-slate-700 placeholder-slate-400 focus:outline-none" placeholder="Topic name (optional)..." />
                                   </div>
                                 </div>
 
