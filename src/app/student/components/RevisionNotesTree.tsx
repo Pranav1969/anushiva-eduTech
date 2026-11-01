@@ -105,7 +105,407 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
   };
 };
 
-const processInlineStyles = (text: string): React.ReactNode => {
+// ==========================================================================
+// 🎨 NEW STYLE SYSTEM (ADDITIVE ONLY)
+// Everything in this section is NEW. The old syntax (==highlight==, **bold**,
+// $latex$, `code`, [EXAMPLE], [QUESTION], [MOTIVATION], tables, lists, ---, >,
+// **Header**, [img:name]) is untouched and renders exactly as before.
+//
+// HOW TO ADD YOUR OWN STYLE LATER:
+//   - New colour        -> add one line in ACCENTS
+//   - New box (callout) -> add one entry in CALLOUTS
+//   - New inline tag    -> add a case in renderInlineTag + its name in INLINE_TAG_NAMES
+//   - New line style    -> add a case in renderNewLineStyle
+// ==========================================================================
+
+type AccentStyle = {
+  text: string;   // coloured text
+  bar: string;    // solid bar / dot colour
+  border: string; // border colour
+  hl: string;     // highlight (marker pen)
+  badge: string;  // pill badge
+};
+
+// NOTE: Tailwind needs full class names written out, so do not build these dynamically.
+const ACCENTS: Record<string, AccentStyle> = {
+  red:    { text: "text-red-600",    bar: "bg-red-500",    border: "border-red-300",    hl: "bg-red-100 text-red-950 border-b border-red-200",       badge: "bg-red-50 text-red-700 border-red-200" },
+  green:  { text: "text-emerald-600",bar: "bg-emerald-500",border: "border-emerald-300",hl: "bg-emerald-100 text-emerald-950 border-b border-emerald-200", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  blue:   { text: "text-blue-600",   bar: "bg-blue-500",   border: "border-blue-300",   hl: "bg-blue-100 text-blue-950 border-b border-blue-200",     badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  purple: { text: "text-purple-600", bar: "bg-purple-500", border: "border-purple-300", hl: "bg-purple-100 text-purple-950 border-b border-purple-200", badge: "bg-purple-50 text-purple-700 border-purple-200" },
+  orange: { text: "text-orange-600", bar: "bg-orange-500", border: "border-orange-300", hl: "bg-orange-100 text-orange-950 border-b border-orange-200", badge: "bg-orange-50 text-orange-700 border-orange-200" },
+  pink:   { text: "text-pink-600",   bar: "bg-pink-500",   border: "border-pink-300",   hl: "bg-pink-100 text-pink-950 border-b border-pink-200",     badge: "bg-pink-50 text-pink-700 border-pink-200" },
+  teal:   { text: "text-teal-600",   bar: "bg-teal-500",   border: "border-teal-300",   hl: "bg-teal-100 text-teal-950 border-b border-teal-200",     badge: "bg-teal-50 text-teal-700 border-teal-200" },
+  indigo: { text: "text-indigo-600", bar: "bg-indigo-500", border: "border-indigo-300", hl: "bg-indigo-100 text-indigo-950 border-b border-indigo-200", badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  amber:  { text: "text-amber-600",  bar: "bg-amber-500",  border: "border-amber-300",  hl: "bg-amber-100 text-amber-950 border-b border-amber-200",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  gray:   { text: "text-slate-500",  bar: "bg-slate-400",  border: "border-slate-300",  hl: "bg-slate-200 text-slate-900 border-b border-slate-300",   badge: "bg-slate-100 text-slate-700 border-slate-200" },
+};
+
+const ACCENT_NAMES = Object.keys(ACCENTS);
+
+// ---- Inline tags:  {red}text{/red}  {hl-green}text{/hl-green}  {u}text{/u} ...
+const INLINE_TAG_NAMES: string[] = [
+  ...ACCENT_NAMES,
+  ...ACCENT_NAMES.map((c) => `hl-${c}`),
+  ...ACCENT_NAMES.map((c) => `badge-${c}`),
+  "badge", "u", "wavy", "s", "sub", "sup", "small", "big", "xl", "xxl", "kbd",
+];
+// Backreference \1 makes sure the closing tag matches the opening tag, so tags of
+// different names can be nested. Unknown tags (e.g. maths like {x}) are left untouched.
+const INLINE_TAG_REGEX = new RegExp(`\\{(${INLINE_TAG_NAMES.join("|")})\\}([\\s\\S]*?)\\{\\/\\1\\}`, "g");
+
+// ---- Callout boxes:  [NOTE] ... [/NOTE]   or with custom title  [NOTE: My title] ... [/NOTE]
+type CalloutConfig = {
+  icon: string;
+  label: string;
+  box: string;
+  title: string;
+  body?: string;
+  center?: boolean;
+};
+
+const CALLOUTS: Record<string, CalloutConfig> = {
+  NOTE:       { icon: "📝", label: "NOTE",               box: "bg-slate-50/70 border-slate-200 border-l-slate-500",     title: "text-slate-600" },
+  TIP:        { icon: "💡", label: "PRO TIP",            box: "bg-emerald-50/60 border-emerald-200 border-l-emerald-500", title: "text-emerald-700" },
+  WARNING:    { icon: "⚠️", label: "WARNING",            box: "bg-rose-50/60 border-rose-200 border-l-rose-500",         title: "text-rose-700" },
+  IMPORTANT:  { icon: "❗", label: "IMPORTANT",          box: "bg-orange-50/60 border-orange-200 border-l-orange-500",   title: "text-orange-700" },
+  FORMULA:    { icon: "🧮", label: "FORMULA",            box: "bg-indigo-50/60 border-indigo-200 border-l-indigo-500",   title: "text-indigo-700", body: "font-serif italic text-[15px] font-medium", center: true },
+  TRICK:      { icon: "⚡", label: "SHORTCUT TRICK",     box: "bg-teal-50/60 border-teal-200 border-l-teal-500",         title: "text-teal-700" },
+  REMEMBER:   { icon: "📌", label: "REMEMBER",           box: "bg-yellow-50/70 border-yellow-200 border-l-yellow-500",   title: "text-yellow-700" },
+  DEFINITION: { icon: "📖", label: "DEFINITION",         box: "bg-cyan-50/60 border-cyan-200 border-l-cyan-500",         title: "text-cyan-700" },
+  MNEMONIC:   { icon: "🧠", label: "MEMORY TRICK",       box: "bg-fuchsia-50/60 border-fuchsia-200 border-l-fuchsia-500", title: "text-fuchsia-700" },
+  PYQ:        { icon: "🎯", label: "PREVIOUS YEAR QUESTION", box: "bg-stone-100/80 border-stone-300 border-l-stone-800", title: "text-stone-700" },
+  SUMMARY:    { icon: "✅", label: "QUICK REVISION",     box: "bg-sky-50/60 border-sky-200 border-l-sky-500",            title: "text-sky-700" },
+  KEYPOINTS:  { icon: "🔑", label: "KEY POINTS",         box: "bg-blue-50/60 border-blue-200 border-l-blue-500",         title: "text-blue-700" },
+  SOLUTION:   { icon: "✔️", label: "SOLUTION",           box: "bg-green-50/60 border-green-200 border-l-green-500",      title: "text-green-700" },
+  MISTAKE:    { icon: "❌", label: "COMMON MISTAKE",     box: "bg-red-50/60 border-red-200 border-l-red-500",            title: "text-red-700" },
+  FUN:        { icon: "✨", label: "DID YOU KNOW?",      box: "bg-violet-50/60 border-violet-200 border-l-violet-500",   title: "text-violet-700" },
+};
+
+// Blocks that have their own special layout (not a plain coloured box)
+const SPECIAL_BLOCKS = ["STEPS", "TIMELINE", "CHECKLIST", "TOGGLE", "COLUMNS", "QUOTE"];
+const NEW_BLOCK_NAMES = [...Object.keys(CALLOUTS), ...SPECIAL_BLOCKS];
+
+// Splits text into [normal text][block][normal text]... Old 3 blocks are kept exactly as before.
+const OLD_BLOCK_ALTERNATIVES = [
+  "\\[EXAMPLE\\][\\s\\S]*?\\[\\/EXAMPLE\\]",
+  "\\[QUESTION\\][\\s\\S]*?\\[\\/QUESTION\\]",
+  "\\[MOTIVATION\\][\\s\\S]*?\\[\\/MOTIVATION\\]",
+];
+const NEW_BLOCK_ALTERNATIVES = NEW_BLOCK_NAMES.map(
+  (n) => `\\[${n}(?::[^\\]\\n]*)?\\][\\s\\S]*?\\[\\/${n}\\]`
+);
+const ALL_BLOCK_REGEX = new RegExp(`(${[...OLD_BLOCK_ALTERNATIVES, ...NEW_BLOCK_ALTERNATIVES].join("|")})`, "g");
+const NEW_BLOCK_PARSE_REGEX = new RegExp(`^\\[(${NEW_BLOCK_NAMES.join("|")})(?::([^\\]\\n]*))?\\]([\\s\\S]*?)\\[\\/\\1\\]$`);
+
+const bodyLines = (body: string): string[] =>
+  body.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+// ---- Collapsible block (for answers / hidden hints)
+const CollapsibleNote: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="my-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left bg-slate-50 hover:bg-slate-100 transition-colors text-[12px] font-bold text-slate-800"
+      >
+        <span className="flex items-center gap-1.5"><span>👁️</span>{title}</span>
+        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="p-3 border-t border-slate-100">{children}</div>}
+    </div>
+  );
+};
+
+// Inline tag renderer ------------------------------------------------------
+const renderInlineTag = (name: string, inner: string, key: string): React.ReactNode => {
+  const content = processInlineStyles(inner);
+
+  if (ACCENTS[name]) {
+    return <span key={key} className={`${ACCENTS[name].text} font-semibold`}>{content}</span>;
+  }
+  if (name.startsWith("hl-") && ACCENTS[name.slice(3)]) {
+    return (
+      <mark key={key} className={`${ACCENTS[name.slice(3)].hl} font-bold px-1 py-0.5 rounded-xs mx-0.5 antialiased text-[12px]`}>
+        {content}
+      </mark>
+    );
+  }
+  if (name === "badge" || (name.startsWith("badge-") && ACCENTS[name.slice(6)])) {
+    const cls = name === "badge" ? ACCENTS.gray.badge : ACCENTS[name.slice(6)].badge;
+    return (
+      <span key={key} className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border mx-0.5 align-middle ${cls}`}>
+        {content}
+      </span>
+    );
+  }
+  switch (name) {
+    case "u":     return <span key={key} className="underline decoration-2 underline-offset-4 decoration-amber-400">{content}</span>;
+    case "wavy":  return <span key={key} className="underline decoration-wavy decoration-rose-400 underline-offset-4">{content}</span>;
+    case "s":     return <span key={key} className="line-through text-slate-400">{content}</span>;
+    case "sub":   return <sub key={key} className="text-[10px]">{content}</sub>;
+    case "sup":   return <sup key={key} className="text-[10px]">{content}</sup>;
+    case "small": return <span key={key} className="text-[11px] text-slate-500">{content}</span>;
+    case "big":   return <span key={key} className="text-[16px] font-bold">{content}</span>;
+    case "xl":    return <span key={key} className="text-[19px] font-extrabold tracking-tight">{content}</span>;
+    case "xxl":   return <span key={key} className="text-[24px] font-black tracking-tight">{content}</span>;
+    case "kbd":
+      return (
+        <kbd key={key} className="px-1.5 py-0.5 mx-0.5 rounded border border-b-2 border-slate-300 bg-slate-50 font-mono text-[11px] font-semibold text-slate-800">
+          {content}
+        </kbd>
+      );
+    default:
+      return <React.Fragment key={key}>{content}</React.Fragment>;
+  }
+};
+
+// Line-level new styles ------------------------------------------------------
+// Returns null when the line is NOT a new style, so old behaviour continues untouched.
+const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode | null => {
+  // Headings with different sizes:  [H1] Title   [H2:blue] Title   (H1 biggest ... H4 smallest)
+  const hMatch = trimmedLine.match(/^\[H([1-4])(?::([a-z]+))?\]\s*(.*)$/i);
+  if (hMatch) {
+    const level = hMatch[1];
+    const accent = ACCENTS[(hMatch[2] || "amber").toLowerCase()] || ACCENTS.amber;
+    const text = processInlineStyles(hMatch[3]);
+    if (level === "1") {
+      return (
+        <h3 key={`nh1-${keyId}`} className="mt-6 mb-3 text-[22px] leading-tight font-black tracking-tight text-slate-900 flex items-center gap-2.5">
+          <span className={`w-1.5 h-7 rounded-full inline-block shrink-0 ${accent.bar}`}></span>
+          {text}
+        </h3>
+      );
+    }
+    if (level === "2") {
+      return (
+        <h4 key={`nh2-${keyId}`} className={`mt-5 mb-2.5 pb-1 text-[18px] leading-snug font-extrabold tracking-tight text-slate-900 border-b-2 ${accent.border}`}>
+          {text}
+        </h4>
+      );
+    }
+    if (level === "3") {
+      return (
+        <h5 key={`nh3-${keyId}`} className={`mt-4 mb-2 text-[15px] font-extrabold tracking-tight flex items-center gap-2 ${accent.text}`}>
+          <span className={`w-2 h-2 rounded-full inline-block shrink-0 ${accent.bar}`}></span>
+          {text}
+        </h5>
+      );
+    }
+    return (
+      <h6 key={`nh4-${keyId}`} className={`mt-3 mb-1.5 text-[11px] font-black uppercase tracking-widest ${accent.text}`}>
+        {text}
+      </h6>
+    );
+  }
+
+  // Paragraph size / alignment:  [LEAD] [LARGE] [SMALL] [CENTER] [RIGHT]
+  const pMatch = trimmedLine.match(/^\[(LEAD|LARGE|SMALL|CENTER|RIGHT)\]\s*(.*)$/);
+  if (pMatch) {
+    const kind = pMatch[1];
+    const content = processInlineStyles(pMatch[2]);
+    const cls: Record<string, string> = {
+      LEAD:   "mb-3 text-[15px] leading-loose font-medium text-slate-800",
+      LARGE:  "mb-2 text-[16px] leading-relaxed font-semibold text-slate-800",
+      SMALL:  "mb-2 text-[11px] leading-relaxed text-slate-500",
+      CENTER: "mb-2 text-[13px] leading-relaxed text-center text-slate-700",
+      RIGHT:  "mb-2 text-[13px] leading-relaxed text-right text-slate-700",
+    };
+    return <p key={`np-${keyId}`} className={`font-sans antialiased tracking-wide ${cls[kind]}`}>{content}</p>;
+  }
+
+  // Dividers:  [DIVIDER]  [DIVIDER:dots]  [DIVIDER:dashed]  [DIVIDER:thick]  [DIVIDER:gradient]  [DIVIDER:stars]
+  const dMatch = trimmedLine.match(/^\[DIVIDER(?::([a-z]+))?\]$/i);
+  if (dMatch) {
+    const kind = (dMatch[1] || "line").toLowerCase();
+    if (kind === "stars") {
+      return <div key={`nd-${keyId}`} className="my-4 text-center text-amber-400 tracking-[0.5em] text-[12px] select-none">✦ ✦ ✦</div>;
+    }
+    if (kind === "gradient") {
+      return <div key={`nd-${keyId}`} className="my-4 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>;
+    }
+    const map: Record<string, string> = {
+      line:   "border-t border-slate-300",
+      dots:   "border-t-2 border-dotted border-slate-300",
+      dashed: "border-t-2 border-dashed border-slate-300",
+      thick:  "border-t-4 border-slate-200 rounded-full",
+    };
+    return <hr key={`nd-${keyId}`} className={`my-4 ${map[kind] || map.line}`} />;
+  }
+
+  // Spacer:  [SPACE]  [SPACE:sm|md|lg|xl]
+  const sMatch = trimmedLine.match(/^\[SPACE(?::(sm|md|lg|xl))?\]$/i);
+  if (sMatch) {
+    const size = (sMatch[1] || "md").toLowerCase();
+    const map: Record<string, string> = { sm: "h-2", md: "h-4", lg: "h-8", xl: "h-12" };
+    return <div key={`nsp-${keyId}`} className={map[size]} aria-hidden="true"></div>;
+  }
+
+  // Icon bullets:  [+] good   [-] bad   [>] arrow   [*] star
+  const bMatch = trimmedLine.match(/^\[([+>*-])\]\s+(.*)$/);
+  if (bMatch) {
+    const sym = bMatch[1];
+    const map: Record<string, { icon: string; cls: string }> = {
+      "+": { icon: "+", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      "-": { icon: "−", cls: "bg-rose-100 text-rose-700 border-rose-200" },
+      ">": { icon: "→", cls: "bg-blue-100 text-blue-700 border-blue-200" },
+      "*": { icon: "★", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    };
+    const cfg = map[sym];
+    return (
+      <div key={`nb-${keyId}`} className="flex items-start gap-2 mb-1.5 text-[13px] leading-relaxed text-slate-700 font-sans antialiased">
+        <span className={`shrink-0 w-4 h-4 mt-0.5 rounded-full border text-[9px] font-black flex items-center justify-center ${cfg.cls}`}>{cfg.icon}</span>
+        <span>{processInlineStyles(bMatch[2])}</span>
+      </div>
+    );
+  }
+
+  // Checkbox lines:  [ ] to do   [x] done
+  const cMatch = trimmedLine.match(/^\[( |x|X)\]\s+(.*)$/);
+  if (cMatch) {
+    const checked = cMatch[1].toLowerCase() === "x";
+    return (
+      <div key={`nc-${keyId}`} className="flex items-start gap-2 mb-1.5 text-[13px] leading-relaxed font-sans antialiased">
+        <span className={`shrink-0 w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${checked ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"}`}>
+          {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+        </span>
+        <span className={checked ? "text-slate-400 line-through" : "text-slate-700"}>{processInlineStyles(cMatch[2])}</span>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// Block-level new styles --------------------------------------------------------
+const renderNewBlock = (
+  trimmedSection: string,
+  secIndex: number,
+  imageMap: Record<string, string>
+): React.ReactNode | null => {
+  const m = trimmedSection.match(NEW_BLOCK_PARSE_REGEX);
+  if (!m) return null;
+
+  const name = m[1];
+  const customTitle = (m[2] || "").trim();
+  const body = m[3].trim();
+  const key = `nblk-${name}-${secIndex}`;
+
+  // Plain coloured callout boxes (config driven)
+  const cfg = CALLOUTS[name];
+  if (cfg) {
+    return (
+      <div key={key} className={`my-3 p-3.5 rounded-xl border border-l-4 text-[13px] leading-relaxed ${cfg.box}`}>
+        <div className={`text-[10px] font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1.5 select-none ${cfg.title}`}>
+          <span>{cfg.icon}</span> {customTitle || cfg.label}
+        </div>
+        <div className={`text-slate-800 ${cfg.center ? "text-center" : ""} ${cfg.body || ""}`}>
+          {renderNarrativeWithImages(body, imageMap)}
+        </div>
+      </div>
+    );
+  }
+
+  // Numbered step cards
+  if (name === "STEPS") {
+    const lines = bodyLines(body);
+    return (
+      <div key={key} className="my-3 space-y-2">
+        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 select-none">{customTitle}</div>}
+        {lines.map((line, idx) => (
+          <div key={`${key}-s${idx}`} className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-200 bg-white shadow-3xs">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-stone-950 text-amber-400 text-[11px] font-black flex items-center justify-center">{idx + 1}</span>
+            <span className="text-[13px] leading-relaxed text-slate-700 pt-0.5">{processInlineStyles(line.replace(/^(\d+[.)]|[-*•])\s+/, ""))}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Vertical timeline (each line:  label | text)
+  if (name === "TIMELINE") {
+    const lines = bodyLines(body);
+    return (
+      <div key={key} className="my-3">
+        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-2 select-none">{customTitle}</div>}
+        <div className="border-l-2 border-amber-300 ml-1.5 space-y-3">
+          {lines.map((line, idx) => {
+            const pipe = line.indexOf("|");
+            const label = pipe > -1 ? line.slice(0, pipe).trim() : "";
+            const text = pipe > -1 ? line.slice(pipe + 1).trim() : line;
+            return (
+              <div key={`${key}-t${idx}`} className="relative pl-4">
+                <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-amber-500"></span>
+                {label && <div className="text-[11px] font-black text-amber-700 tracking-wide">{processInlineStyles(label)}</div>}
+                <div className="text-[13px] leading-relaxed text-slate-700">{processInlineStyles(text)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Tick list
+  if (name === "CHECKLIST") {
+    const lines = bodyLines(body);
+    return (
+      <div key={key} className="my-3 p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 space-y-1.5">
+        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 select-none">{customTitle}</div>}
+        {lines.map((line, idx) => (
+          <div key={`${key}-c${idx}`} className="flex items-start gap-2 text-[13px] leading-relaxed text-slate-700">
+            <span className="shrink-0 w-4 h-4 mt-0.5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+              <Check className="w-2.5 h-2.5 stroke-[3]" />
+            </span>
+            <span>{processInlineStyles(line.replace(/^[-*•]\s+/, ""))}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Click-to-reveal (great for answers)
+  if (name === "TOGGLE") {
+    return (
+      <CollapsibleNote key={key} title={customTitle || "Click to reveal"}>
+        {renderNarrativeWithImages(body, imageMap)}
+      </CollapsibleNote>
+    );
+  }
+
+  // Side-by-side columns, separated by a line containing only |||
+  if (name === "COLUMNS") {
+    const cols = body.split(/\r?\n\s*\|\|\|\s*\r?\n/).map((c) => c.trim()).filter(Boolean);
+    const grid = cols.length >= 3 ? "md:grid-cols-3" : cols.length === 2 ? "md:grid-cols-2" : "md:grid-cols-1";
+    return (
+      <div key={key} className={`my-3 grid grid-cols-1 gap-3 ${grid}`}>
+        {cols.map((col, idx) => (
+          <div key={`${key}-col${idx}`} className="p-3 rounded-xl border border-slate-200 bg-white">
+            {renderNarrativeWithImages(col, imageMap)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Quote with author:  [QUOTE: Author] text [/QUOTE]
+  if (name === "QUOTE") {
+    return (
+      <figure key={key} className="my-4 pl-4 pr-3 py-2 border-l-4 border-amber-400 bg-amber-50/30 rounded-r-xl">
+        <blockquote className="text-[14px] leading-relaxed italic font-medium text-slate-800">{processInlineStyles(body)}</blockquote>
+        {customTitle && <figcaption className="mt-1 text-[11px] font-bold text-amber-700">— {customTitle}</figcaption>}
+      </figure>
+    );
+  }
+
+  return null;
+};
+
+// ==========================================================================
+// ORIGINAL INLINE STYLES (UNCHANGED)
+// ==========================================================================
+const processBaseInline = (text: string): React.ReactNode => {
   if (!text) return "";
   const renderTextNodes = (rawStr: string): React.ReactNode[] => {
     const highlightRegex = /==([\s\S]*?)==/g;
@@ -160,11 +560,33 @@ const processInlineStyles = (text: string): React.ReactNode => {
   });
 };
 
-const renderNarrativeWithImages = (text: string, imageMap: Record<string, string>) => {
+// NEW wrapper: handles {tag}...{/tag} first, then hands everything else to the
+// original renderer above. If a text has no new tags the output is identical to before.
+const processInlineStyles = (text: string): React.ReactNode => {
+  if (!text) return "";
+  if (!text.includes("{")) return processBaseInline(text);
+
+  const parts = text.split(INLINE_TAG_REGEX);
+  if (parts.length === 1) return processBaseInline(text);
+
+  const out: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    if (parts[i]) {
+      out.push(<React.Fragment key={`it-${i}`}>{processBaseInline(parts[i])}</React.Fragment>);
+    }
+    const tagName = parts[i + 1];
+    if (tagName !== undefined) {
+      out.push(renderInlineTag(tagName, parts[i + 2] || "", `itag-${i}`));
+    }
+  }
+  return out;
+};
+
+const renderNarrativeWithImages = (text: string, imageMap: Record<string, string>): React.ReactNode => {
   if (!text) return null;
 
-  const blockRegex = /(\[EXAMPLE\][\s\S]*?\[\/EXAMPLE\]|\[QUESTION\][\s\S]*?\[\/QUESTION\]|\[MOTIVATION\][\s\S]*?\[\/MOTIVATION\])/g;
-  const sections = text.split(blockRegex).filter(Boolean);
+  // Same split as before, but now also recognises the new block names.
+  const sections = text.split(ALL_BLOCK_REGEX).filter(Boolean);
 
   return sections.map((section, secIndex) => {
     const trimmedSection = section.trim();
@@ -204,6 +626,10 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         </div>
       );
     }
+
+    // ✨ NEW blocks ([NOTE], [TIP], [STEPS], [TOGGLE] ...)
+    const newBlock = renderNewBlock(trimmedSection, secIndex, imageMap);
+    if (newBlock) return newBlock;
 
     const lines = section.split(/\r?\n/);
     let lastRenderedHeader = "";
@@ -309,6 +735,15 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         renderedElements.push(
           <hr key={`hr-${secIndex}-${i}`} className="my-4 border-t border-slate-200/80" />
         );
+        continue;
+      }
+
+      // ✨ NEW line styles ([H1]..[H4], [LEAD], [CENTER], [DIVIDER], [+] ...)
+      const newLineStyle = renderNewLineStyle(trimmedLine, `${secIndex}-${i}`);
+      if (newLineStyle) {
+        flushOL(`${secIndex}-${i}`);
+        flushUL(`${secIndex}-${i}`);
+        renderedElements.push(newLineStyle);
         continue;
       }
 
