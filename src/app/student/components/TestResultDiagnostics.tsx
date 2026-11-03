@@ -1,3 +1,4 @@
+//src\app\student\components\TestResultDiagnostics.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, 
   ResponsiveContainer, Bar, ComposedChart, XAxis, YAxis, Tooltip, Area
 } from "recharts";
+import { getVerdict, resolveTaxonomy } from "./resultMeta";
 
 interface Question {
   id: string;
@@ -24,12 +26,20 @@ interface Question {
   explanation: string | null;
   section: string; 
   chapter: string; 
+  topic_name?: string | null;
+  section_id?: string | null;
+  chapter_id?: string | null;
+  topic_id?: string | null;
 }
 
 interface TestResultDiagnosticsProps {
   questions: Question[];
   answersMatrix: Record<string, string>;
 }
+
+type Counter = { total: number; correct: number; wrong: number; skipped: number };
+const mkCounter = (): Counter => ({ total: 0, correct: 0, wrong: 0, skipped: 0 });
+const accOf = (c: Counter) => (c.total > 0 ? Math.round((c.correct / c.total) * 100) : 0);
 
 function AnalyticMetricCard({ title, value, subtext, icon: Icon, colorClass, delay }: {
   title: string; value: string | number; subtext: string; icon: any; colorClass: string; delay: number;
@@ -62,53 +72,115 @@ export default function TestResultDiagnostics({
   answersMatrix = {},
 }: TestResultDiagnosticsProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "radar" | "chapters" | "all_topics">("overview");
+  const [chapterFilter, setChapterFilter] = useState<string>("all"); // chapter key
+  const [sectionFilter, setSectionFilter] = useState<string>("all");
 
   const diagnostics = useMemo(() => {
-    const sectionStats: Record<string, { total: number; correct: number }> = {};
-    const chapterStats: Record<string, { total: number; correct: number }> = {};
-    
-    let totalCorrect = 0;
-    let totalUnattempted = 0;
-
     const safeAnswersMatrix = answersMatrix || {};
     const safeQuestions = questions || [];
+    const taxonomy = resolveTaxonomy(safeQuestions);
 
-    safeQuestions.forEach((q) => {
+    const sectionStats: Record<string, Counter> = {};
+    const chapterMap = new Map<string, {
+      key: string; name: string; tagged: boolean; sections: Set<string>;
+      c: Counter; topics: Map<string, { key: string; name: string; tagged: boolean; c: Counter }>;
+    }>();
+
+    const overall = mkCounter();
+
+    safeQuestions.forEach((q, i) => {
       if (!q) return;
-      const subjectName = q.section || "General Subject";
-      const topicName = q.chapter || "General Topic";
-      
-      const userAns = safeAnswersMatrix[q.id];
-      const isUnattempted = !userAns || userAns.trim() === "";
+      const tx = taxonomy[i];
+      const sectionName = (q.section || "").trim() || "General Subject";
+      const verdict = getVerdict(safeAnswersMatrix[q.id], q.correct_option);
 
-      if (isUnattempted) totalUnattempted++;
-      
-      const isCorrect = !isUnattempted && q.correct_option && userAns.trim().toLowerCase() === q.correct_option.trim().toLowerCase();
+      const bump = (c: Counter) => {
+        c.total += 1;
+        if (verdict === "correct") c.correct += 1;
+        else if (verdict === "wrong") c.wrong += 1;
+        else c.skipped += 1;
+      };
 
-      if (isCorrect) totalCorrect++;
+      bump(overall);
 
-      if (!sectionStats[subjectName]) sectionStats[subjectName] = { total: 0, correct: 0 };
-      sectionStats[subjectName].total += 1;
-      if (isCorrect) sectionStats[subjectName].correct += 1;
+      if (!sectionStats[sectionName]) sectionStats[sectionName] = mkCounter();
+      bump(sectionStats[sectionName]);
 
-      if (!chapterStats[topicName]) chapterStats[topicName] = { total: 0, correct: 0 };
-      chapterStats[topicName].total += 1;
-      if (isCorrect) chapterStats[topicName].correct += 1;
+      let ch = chapterMap.get(tx.chapterKey);
+      if (!ch) {
+        ch = {
+          key: tx.chapterKey, name: tx.chapterName, tagged: tx.chapterTagged,
+          sections: new Set<string>(), c: mkCounter(), topics: new Map(),
+        };
+        chapterMap.set(tx.chapterKey, ch);
+      }
+      ch.sections.add(sectionName);
+      bump(ch.c);
+
+      let tp = ch.topics.get(tx.topicKey);
+      if (!tp) {
+        tp = { key: tx.topicKey, name: tx.topicName, tagged: tx.topicTagged, c: mkCounter() };
+        ch.topics.set(tx.topicKey, tp);
+      }
+      bump(tp.c);
     });
 
-    const formatMetrics = (record: Record<string, { total: number; correct: number }>) =>
-      Object.entries(record).map(([name, stats]) => ({
-        name,
-        total: stats.total,
-        correct: stats.correct,
-        accuracy: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
-      })).sort((a, b) => b.accuracy - a.accuracy);
+    const totalCorrect = overall.correct;
+    const totalWrong = overall.wrong;
+    const totalUnattempted = overall.skipped;
+    const attempted = totalCorrect + totalWrong;
+    const attemptedAccuracy = attempted > 0 ? Math.round((totalCorrect / attempted) * 100) : 0;
 
-    const formattedSections = formatMetrics(sectionStats);
-    const formattedChapters = formatMetrics(chapterStats);
+    const sectionMetrics = Object.entries(sectionStats)
+      .map(([name, c]) => ({ name, total: c.total, correct: c.correct, accuracy: accOf(c) }))
+      .sort((a, b) => b.accuracy - a.accuracy);
 
-    const strongArea = formattedChapters[0]?.name || "N/A";
-    const weakArea = formattedChapters[formattedChapters.length - 1]?.name || "N/A";
+    const allChapters = Array.from(chapterMap.values()).map((ch) => ({
+      key: ch.key,
+      name: ch.name,
+      tagged: ch.tagged,
+      sections: Array.from(ch.sections),
+      total: ch.c.total,
+      correct: ch.c.correct,
+      wrong: ch.c.wrong,
+      skipped: ch.c.skipped,
+      accuracy: accOf(ch.c),
+      topics: Array.from(ch.topics.values())
+        .map((t) => ({
+          key: t.key, name: t.name, tagged: t.tagged,
+          total: t.c.total, correct: t.c.correct, wrong: t.c.wrong, skipped: t.c.skipped,
+          accuracy: accOf(t.c),
+        }))
+        // untagged topic last, then weakest first
+        .sort((a, b) => Number(!a.tagged) - Number(!b.tagged) || a.accuracy - b.accuracy),
+    }));
+
+    // Chapters used for the "Top Scoring Chapters" tab and the coach advice:
+    // only real (tagged) chapters; fall back to everything if nothing is tagged.
+    const taggedChapters = allChapters.filter((c) => c.tagged);
+    const rankedChapters = (taggedChapters.length > 0 ? taggedChapters : allChapters)
+      .slice()
+      .sort((a, b) => b.accuracy - a.accuracy || b.total - a.total);
+
+    // Breakdown tab: weakest first, untagged last
+    const chapterTree = allChapters
+      .slice()
+      .sort((a, b) => Number(!a.tagged) - Number(!b.tagged) || a.accuracy - b.accuracy);
+
+    // Weakest real topic (has at least one miss)
+    const weak: { topic: { name: string; chapter: string; accuracy: number } | null } = { topic: null };
+    taggedChapters.forEach((ch) => {
+      ch.topics.forEach((t) => {
+        if (!t.tagged || t.wrong + t.skipped === 0) return;
+        if (!weak.topic || t.accuracy < weak.topic.accuracy) {
+          weak.topic = { name: t.name, chapter: ch.name, accuracy: t.accuracy };
+        }
+      });
+    });
+    const weakTopic = weak.topic;
+
+    const strongArea = rankedChapters[0]?.name || "N/A";
+    const weakArea = rankedChapters[rankedChapters.length - 1]?.name || "N/A";
     const overallAccuracy = safeQuestions.length > 0 ? Math.round((totalCorrect / safeQuestions.length) * 100) : 0;
 
     let strategicInsight = "Keep track of how much time you spend on each section to improve your speed.";
@@ -119,16 +191,24 @@ export default function TestResultDiagnostics({
     } else if (safeQuestions.length > 0) {
       strategicInsight = `Your current score is a bit lower than the standard exam cutoffs. Don't worry! Start by clearing your basic concepts in '${weakArea}' first, and then practice short, timed quizzes every day to build your speed.`;
     }
+    if (weakTopic) {
+      strategicInsight += ` Within it, begin with the topic '${weakTopic.name}' (${weakTopic.chapter}) — you scored ${weakTopic.accuracy}% there.`;
+    }
+
+    const sectionNames = Array.from(new Set(allChapters.flatMap((c) => c.sections)));
 
     return {
-      sectionMetrics: formattedSections,
-      chapterMetrics: formattedChapters,
+      sectionMetrics,
+      chapterMetrics: rankedChapters,
+      chapterTree,
+      sectionNames,
       totalCorrect,
-      totalWrong: safeQuestions.length - totalCorrect - totalUnattempted,
+      totalWrong,
       totalUnattempted,
+      attemptedAccuracy,
       strategicInsight,
       strongArea,
-      weakArea
+      weakArea,
     };
   }, [questions, answersMatrix]);
 
@@ -148,7 +228,7 @@ export default function TestResultDiagnostics({
     if (active && payload && payload.length) {
       return (
         <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 shadow-xl backdrop-blur-md">
-          <p className="text-xs font-bold text-slate-200 mb-1">{payload[0].name}</p>
+          <p className="text-xs font-bold text-slate-200 mb-1">{payload[0].payload.name}</p>
           <div className="space-y-0.5 text-[11px] font-mono">
             <p className="text-cyan-400">Accuracy: <span className="font-bold">{payload[0].value}%</span></p>
             <p className="text-slate-400">Correct: {payload[0].payload.correct} / {payload[0].payload.total}</p>
@@ -159,6 +239,15 @@ export default function TestResultDiagnostics({
     return null;
   };
 
+  const visibleTree = diagnostics.chapterTree.filter(
+    (c) =>
+      (chapterFilter === "all" || c.key === chapterFilter) &&
+      (sectionFilter === "all" || c.sections.includes(sectionFilter))
+  );
+  const chapterFilterOptions = diagnostics.chapterTree.filter(
+    (c) => sectionFilter === "all" || c.sections.includes(sectionFilter)
+  );
+
   return (
     <div className="space-y-6 antialiased">
       {/* Counters Tiles */}
@@ -166,7 +255,7 @@ export default function TestResultDiagnostics({
         <AnalyticMetricCard 
           title="Overall Accuracy" 
           value={`${Math.round((diagnostics.totalCorrect / questions.length) * 100)}%`}
-          subtext={`Anushiva Performance Rating`}
+          subtext={`Of attempted questions: ${diagnostics.attemptedAccuracy}%`}
           icon={Target}
           colorClass="from-cyan-500 to-blue-600"
           delay={0.05}
@@ -219,7 +308,7 @@ export default function TestResultDiagnostics({
           </div>
           <div className="flex gap-1.5 flex-wrap text-[10px] font-mono font-bold mt-2 md:mt-0">
             <span className="bg-emerald-950/50 text-emerald-400 px-2 py-0.5 rounded border border-emerald-900/30">
-              Your Strongest Topic: {diagnostics.strongArea}
+              Your Strongest Chapter: {diagnostics.strongArea}
             </span>
             <span className="bg-rose-950/50 text-rose-400 px-2 py-0.5 rounded border border-rose-900/30">
               Needs Improvement: {diagnostics.weakArea}
@@ -236,8 +325,8 @@ export default function TestResultDiagnostics({
           {[
             { id: "overview", label: "Section Progress", desc: "Compare accuracy across subjects", icon: BarChart3 },
             { id: "radar", label: "Subject Balance Tracker", desc: "Check if your layout is balanced", icon: Target },
-            { id: "chapters", label: "Top Scoring Chapters", desc: "Your highest performing topics", icon: Activity },
-            { id: "all_topics", label: "Anushiva Syllabus Breakdown", desc: "Detailed status of every single topic", icon: Sparkles }
+            { id: "chapters", label: "Top Scoring Chapters", desc: "Your highest performing chapters", icon: Activity },
+            { id: "all_topics", label: "Chapter → Topic Breakdown", desc: "Every chapter with its topics inside", icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
@@ -319,7 +408,7 @@ export default function TestResultDiagnostics({
             <div className="w-full h-full flex flex-col flex-1 space-y-3">
               <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Top Performing Topics
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Top Performing Chapters
                 </h4>
               </div>
               
@@ -340,7 +429,7 @@ export default function TestResultDiagnostics({
 
                   return (
                     <motion.div 
-                      key={item.name} variants={itemVariants}
+                      key={item.key} variants={itemVariants}
                       className="p-3 rounded-lg border border-slate-800 bg-slate-950/50 flex flex-col justify-between space-y-2"
                     >
                       <div className="flex justify-between items-start gap-2">
@@ -358,7 +447,7 @@ export default function TestResultDiagnostics({
                         </div>
                         <div className="text-[10px] font-mono text-slate-500 flex justify-between">
                           <span>Correct: <strong className="text-slate-300">{item.correct}</strong> / {item.total}</span>
-                          <span>{item.total - item.correct} Wrong</span>
+                          <span>{item.wrong} Wrong · {item.skipped} Left</span>
                         </div>
                       </div>
                     </motion.div>
@@ -368,36 +457,94 @@ export default function TestResultDiagnostics({
             </div>
           )}
 
-          {/* Optimized Sub-Topic Area Embedding */}
+          {/* Chapter -> Topic hierarchy */}
           {activeTab === "all_topics" && (
             <div className="w-full h-full flex flex-col flex-1 space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-1">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-1 gap-2 flex-wrap">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Syllabus Progress Metrics Field
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Chapters & Topics (weakest first)
                 </h4>
-              </div>
-              <motion.div 
-                variants={containerVariants} initial="hidden" animate="show"
-                className="grid gap-2 grid-cols-1 sm:grid-cols-2 overflow-y-auto max-h-[260px] pr-1 scrollbar-thin scrollbar-thumb-slate-800 text-[11px]"
-              >
-                {diagnostics.chapterMetrics.map((item) => (
-                  <motion.div 
-                    key={item.name} variants={itemVariants}
-                    className="p-2 rounded-lg bg-slate-950/40 border border-slate-900 flex items-center justify-between gap-3 hover:border-slate-800 transition-colors"
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {diagnostics.sectionNames.length > 1 && (
+                    <select
+                      value={sectionFilter}
+                      onChange={(e) => { setSectionFilter(e.target.value); setChapterFilter("all"); }}
+                      className="bg-slate-950 border border-slate-800 text-slate-300 text-[11px] font-mono rounded px-2 py-1 outline-none"
+                    >
+                      <option value="all">All sections</option>
+                      {diagnostics.sectionNames.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  )}
+                  <select
+                    value={chapterFilter}
+                    onChange={(e) => setChapterFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 text-slate-300 text-[11px] font-mono rounded px-2 py-1 outline-none max-w-[200px]"
                   >
-                    <div className="flex items-center gap-2 truncate max-w-[55%]">
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.accuracy >= 75 ? 'bg-emerald-500' : item.accuracy >= 50 ? 'bg-amber-400' : 'bg-rose-500'}`} />
-                      <span className="font-bold text-slate-300 truncate">{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 font-mono shrink-0 text-slate-400">
-                      <span>{item.correct}/{item.total} Qs</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black border ${
-                        item.accuracy >= 75 ? 'text-emerald-400 border-emerald-950 bg-emerald-950/20' :
-                        item.accuracy >= 50 ? 'text-amber-400 border-amber-950 bg-amber-950/20' : 'text-rose-400 border-rose-950 bg-rose-950/20'
-                      }`}>{item.accuracy}%</span>
-                    </div>
-                  </motion.div>
-                ))}
+                    <option value="all">All chapters</option>
+                    {chapterFilterOptions.map((c) => (
+                      <option key={c.key} value={c.key}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-slate-500">
+                A <span className="text-slate-300 font-bold">chapter</span> is the big unit; the <span className="text-slate-300 font-bold">topics</span> listed under it are its smaller parts. Same chapter / topic is always counted together.
+              </p>
+
+              <motion.div
+                variants={containerVariants} initial="hidden" animate="show"
+                className="space-y-3 overflow-y-auto max-h-[260px] pr-1 scrollbar-thin scrollbar-thumb-slate-800"
+              >
+                {visibleTree.length === 0 && (
+                  <div className="text-[11px] text-slate-500 italic">No chapters match this filter.</div>
+                )}
+                {visibleTree.map((c) => {
+                  const tone =
+                    c.accuracy >= 75 ? "text-emerald-400 border-emerald-900/40 bg-emerald-950/20"
+                    : c.accuracy >= 50 ? "text-amber-400 border-amber-900/40 bg-amber-950/20"
+                    : "text-rose-400 border-rose-900/40 bg-rose-950/20";
+                  return (
+                    <motion.div
+                      key={c.key} variants={itemVariants}
+                      className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[9px] font-mono uppercase tracking-widest text-slate-500 flex items-center gap-1.5 flex-wrap">
+                            <span>Chapter</span>
+                            {c.sections.map((s) => (
+                              <span key={s} className="normal-case tracking-normal text-slate-400 bg-slate-900 border border-slate-800 px-1 rounded">{s}</span>
+                            ))}
+                          </div>
+                          <div className="text-xs font-bold text-slate-200 truncate">{c.name}</div>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5 shrink-0">
+                          <span className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded border ${tone}`}>
+                            {c.correct}/{c.total} · {c.accuracy}%
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-500">✗{c.wrong} · –{c.skipped}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1 pl-3 border-l border-slate-800">
+                        {c.topics.map((t) => (
+                          <div key={t.key} className="flex items-center justify-between gap-3 text-[11px]">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.accuracy >= 75 ? "bg-emerald-500" : t.accuracy >= 50 ? "bg-amber-400" : "bg-rose-500"}`} />
+                              <span className={`truncate ${t.tagged ? "text-slate-300" : "text-slate-500 italic"}`}>{t.name}</span>
+                            </div>
+                            <span className="font-mono text-slate-400 shrink-0">
+                              {t.correct}/{t.total} · {t.accuracy}%
+                              <span className="ml-1.5 text-[9px] text-slate-600">✗{t.wrong} –{t.skipped}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </div>
           )}

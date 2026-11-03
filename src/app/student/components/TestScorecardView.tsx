@@ -1,8 +1,10 @@
+//src\app\student\components\TestScorecardView.tsx
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, XCircle, ArrowLeft, ShieldCheck, Check, X } from "lucide-react";
+import { CheckCircle2, XCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import TestResultDiagnostics from "./TestResultDiagnostics";
+import SolutionReviewExamView from "./SolutionReviewExamView";
 
 interface Question {
   id: string;
@@ -17,6 +19,11 @@ interface Question {
   explanation: string | null;
   section: string;
   chapter: string;
+  topic_name?: string | null;
+  section_id?: string | null;
+  chapter_id?: string | null;
+  topic_id?: string | null;
+  content_blocks?: { title: string; paragraph_text: string; image_url: string | null } | null;
 }
 
 interface TestScorecardViewProps {
@@ -26,6 +33,8 @@ interface TestScorecardViewProps {
   testId: string | null;
   isUrlViewMode: boolean;
   onReturnToDashboard: () => void;
+  sectionOrder?: string[];
+  testName?: string;
 }
 
 export default function TestScorecardView({
@@ -35,6 +44,8 @@ export default function TestScorecardView({
   testId,
   isUrlViewMode,
   onReturnToDashboard,
+  sectionOrder,
+  testName,
 }: TestScorecardViewProps) {
   const accuracyPercentage = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
   const isPassed = accuracyPercentage >= 50;
@@ -163,85 +174,18 @@ export default function TestScorecardView({
           answersMatrix={selectedAnswers} 
         />
 
-        {/* Question review lists section */}
+        {/* Solution review - same screen as the exam */}
         <div className="space-y-3">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono pl-0.5 flex items-center gap-1.5">
             <span className="h-1 w-1 bg-indigo-500 rounded-full" />
-            Question-by-Question Solution Review Logs
+            Question-by-Question Solution Review
           </div>
-          
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {questions.map((q, idx) => {
-              const userAnsRaw = selectedAnswers[q.id] || "";
-              const userAns = userAnsRaw.trim().toLowerCase();
-              const correctAns = q.correct_option.trim().toLowerCase();
-              const isSkipped = userAns === "";
-              const isCorrect = !isSkipped && userAns === correctAns;
-
-              const renderingOptions = [
-                { key: "a", text: q.option_a },
-                { key: "b", text: q.option_b },
-                { key: "c", text: q.option_c },
-                { key: "d", text: q.option_d },
-                { key: "e", text: q.option_e },
-              ];
-
-              return (
-                <div 
-                  key={q.id} 
-                  className="p-5 rounded-xl border border-slate-800 bg-slate-900/20 backdrop-blur-md flex flex-col justify-between hover:border-slate-700 transition-colors space-y-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-[10px] font-mono font-bold tracking-wider uppercase border-b border-slate-900 pb-1.5">
-                      <span className="text-slate-500">{q.section} &gt; <span className="text-indigo-400">{q.chapter}</span></span>
-                      <span className={isSkipped ? "text-amber-500" : isCorrect ? "text-emerald-400" : "text-rose-400"}>
-                        {isSkipped ? "SKIPPED" : isCorrect ? "CORRECT" : "INCORRECT"}
-                      </span>
-                    </div>
-
-                    <div className="text-xs font-bold text-slate-200 leading-relaxed flex items-start gap-1.5">
-                      <span className="text-cyan-400 font-mono text-xs select-none">Q{idx + 1}.</span> 
-                      <span className="flex-1">{q.question_text}</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                      {renderingOptions.map((opt) => {
-                        const isCurrentCorrect = opt.key === correctAns;
-                        const isCurrentUserChoice = opt.key === userAns;
-
-                        let cardStyles = "border-slate-900 bg-slate-950/40 text-slate-400";
-                        if (isCurrentCorrect) {
-                          cardStyles = "border-emerald-500/30 bg-emerald-950/20 text-emerald-400";
-                        } else if (isCurrentUserChoice && !isCorrect) {
-                          cardStyles = "border-rose-500/30 bg-rose-950/20 text-rose-400";
-                        }
-
-                        return (
-                          <div key={opt.key} className={`p-2.5 rounded-lg border text-[11px] font-medium flex items-center gap-2 ${cardStyles}`}>
-                            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono font-bold uppercase shrink-0 ${
-                              isCurrentCorrect ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" :
-                              isCurrentUserChoice && !isCorrect ? "bg-rose-500/20 text-rose-400 border border-rose-500/40" :
-                              "bg-slate-900 text-slate-500 border border-slate-800"
-                            }`}>
-                              {isCurrentCorrect ? <Check size={10} strokeWidth={3} /> : isCurrentUserChoice && !isCorrect ? <X size={10} strokeWidth={3} /> : opt.key}
-                            </div>
-                            <span className="truncate">{opt.text}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {q.explanation && q.explanation.trim() !== "" && (
-                    <div className="text-[11px] text-slate-400 border-t border-slate-900 pt-2.5 leading-relaxed bg-slate-950/30 p-2.5 rounded-lg border border-slate-900/50">
-                      <strong className="text-indigo-400 font-mono text-[9px] uppercase tracking-wider block mb-1">Explanation / Solution:</strong>
-                      {q.explanation}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <SolutionReviewExamView
+            questions={questions}
+            selectedAnswers={selectedAnswers}
+            sectionOrder={sectionOrder}
+            testName={testName}
+          />
         </div>
 
         {/* Action Button Navigation */}

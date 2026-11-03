@@ -1,3 +1,4 @@
+//src\app\student\components\StatsCards.tsx
 "use client";
 import { CheckCircle, AlertCircle, Award, Target } from "lucide-react";
 

@@ -2,7 +2,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useMemo } from "react";
+import { useEffect, useRef, useState, Suspense, useMemo } from "react";
 import { supabase } from "@/utils/supabase";
 import { useStudentSession } from "@/utils/auth";
 import { Loader2, Timer, ChevronLeft, ChevronRight, Send, Globe2 } from "lucide-react";
@@ -20,6 +20,10 @@ interface Question {
   timer_seconds: number;
   chapter: string;
   section: string;
+  topic_name: string | null; // optional topic name inside the chapter
+  section_id: string | null;  // links to notes_sections.id
+  chapter_id: string | null;  // links to notes_chapters.id
+  topic_id: string | null;    // links to notes_topics.id
   content_blocks?: { title: string; paragraph_text: string; image_url: string | null; } | null;
 }
 
@@ -52,6 +56,13 @@ function LiveTestEngineCore() {
   const [activeSectionIdx, setActiveSectionIdx] = useState(0);
   const [examLanguage, setExamLanguage] = useState<"english" | "hindi">("english");
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, QuestionStatus>>({});
+
+  // Submission safety: one submit at a time, always read the latest answers, surface real errors
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const answersRef = useRef<Record<string, string>>({});
+  answersRef.current = selectedAnswers;
   const { session, loading: sessionLoading } = useStudentSession();
   useEffect(() => {
     if (sessionLoading) return;
@@ -98,12 +109,31 @@ function LiveTestEngineCore() {
 
         const { data: qData } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, option_e, correct_option, explanation, block_id, timer_seconds, chapter, section, content_blocks(title, paragraph_text, image_url)")
+          .select("id, question_text, option_a, option_b, option_c, option_d, option_e, correct_option, explanation, block_id, timer_seconds, chapter, section, topic_name, section_id, chapter_id, topic_id, content_blocks(title, paragraph_text, image_url)")
           .eq("test_id", testId)
           .order("created_at", { ascending: true });
 
         if (qData && qData.length > 0) {
-          setQuestions(qData as any);
+          // Use the CURRENT chapter / topic names from the notes tables when the question is
+          // linked by id, so every question of the same chapter / topic shows one identical name.
+          let finalQuestions: any[] = qData as any[];
+          try {
+            const chIds = Array.from(new Set((qData as any[]).map((q) => q.chapter_id).filter(Boolean)));
+            const tpIds = Array.from(new Set((qData as any[]).map((q) => q.topic_id).filter(Boolean)));
+            const chReq: any = chIds.length ? supabase.from("notes_chapters").select("id, name_en").in("id", chIds) : Promise.resolve({ data: [] });
+            const tpReq: any = tpIds.length ? supabase.from("notes_topics").select("id, name_en").in("id", tpIds) : Promise.resolve({ data: [] });
+            const [chRes, tpRes] = await Promise.all([chReq, tpReq]);
+            const chMap = new Map<string, string>((chRes?.data || []).map((r: any) => [r.id, r.name_en]));
+            const tpMap = new Map<string, string>((tpRes?.data || []).map((r: any) => [r.id, r.name_en]));
+            finalQuestions = (qData as any[]).map((q) => ({
+              ...q,
+              chapter: (q.chapter_id && chMap.get(q.chapter_id)) || q.chapter,
+              topic_name: (q.topic_id && tpMap.get(q.topic_id)) || q.topic_name,
+            }));
+          } catch (nameErr) {
+            console.warn("Could not load canonical chapter/topic names:", nameErr);
+          }
+          setQuestions(finalQuestions as any);
           
           const sectionSettings = testData?.section_settings as SectionSettingContract[] | undefined;
           if (testData?.timer_type === "sectional-timer" && sectionSettings && sectionSettings.length > 0) {
@@ -145,77 +175,74 @@ function LiveTestEngineCore() {
     initializeEngine();
   }, [testId, studentId, isUrlViewMode]);
 
+  // 1) Plain ticking clock (no side effects inside the state updater)
   useEffect(() => {
-    if (loading || questions.length === 0 || isExamOver || isUrlViewMode) return;
-    
+    if (loading || questions.length === 0 || isExamOver || isUrlViewMode || submitting) return;
     const clockEngineInterval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (testMeta?.timer_type === "sectional-timer") {
-            if (activeSectionIdx < uniqueSections.length - 1) {
-              const insideNextIdx = activeSectionIdx + 1;
-              const nextSectionTitleString = uniqueSections[insideNextIdx];
-              const sectionSettings = testMeta?.section_settings as SectionSettingContract[] | undefined;
-              const settingsMatchPayload = sectionSettings?.find(s => String(s.sectionName).trim() === nextSectionTitleString);
-              
-              setActiveSectionIdx(insideNextIdx);
-              setCurrentIdx(0);
-              
-              const matchQ = questions.find(q => (q.section || "").trim() === nextSectionTitleString);
-              if (matchQ) {
-                setQuestionStatuses(prevS => ({ ...prevS, [matchQ.id]: "not_answered" }));
-              }
-              
-              return (settingsMatchPayload?.durationMinutes || 20) * 60;
-            } else {
-              handleFinalSubmit(selectedAnswers);
-              clearInterval(clockEngineInterval);
-              return 0;
-            }
-          } else if (testMeta?.timer_type === "entire-test") {
-            handleFinalSubmit(selectedAnswers);
-            clearInterval(clockEngineInterval);
-            return 0;
-          } else {
-            if (globalCurrentIdx < questions.length - 1) {
-              const targetNextGlobalPos = globalCurrentIdx + 1;
-              const nextQuestionObj = questions[targetNextGlobalPos];
-              const currentQId = questions[globalCurrentIdx].id;
-              
-              setQuestionStatuses(prevStatus => {
-                const copy = { ...prevStatus };
-                if (!["answered", "marked", "marked_answered"].includes(copy[currentQId])) {
-                  copy[currentQId] = "not_answered";
-                }
-                if (copy[nextQuestionObj.id] === "not_visited") {
-                  copy[nextQuestionObj.id] = "not_answered";
-                }
-                return copy;
-              });
-
-              const targetSectionTabIdx = uniqueSections.indexOf((nextQuestionObj.section || "").trim());
-              if (targetSectionTabIdx !== -1 && targetSectionTabIdx !== activeSectionIdx) {
-                setActiveSectionIdx(targetSectionTabIdx);
-              }
-              
-              const scopedIndexMatch = questions
-                .filter(q => (q.section || "").trim() === (nextQuestionObj.section || "").trim())
-                .findIndex(q => q.id === nextQuestionObj.id);
-
-              setCurrentIdx(scopedIndexMatch !== -1 ? scopedIndexMatch : 0);
-              return nextQuestionObj?.timer_seconds || 60;
-            } else {
-              handleFinalSubmit(selectedAnswers);
-              clearInterval(clockEngineInterval);
-              return 0;
-            }
-          }
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(clockEngineInterval);
-  }, [globalCurrentIdx, activeSectionIdx, uniqueSections, loading, isExamOver, testMeta, selectedAnswers, questions, isUrlViewMode]);
+  }, [loading, questions.length, isExamOver, isUrlViewMode, submitting]);
+
+  // 2) What happens when the clock reaches zero
+  useEffect(() => {
+    if (timeLeft > 0) return;
+    if (loading || questions.length === 0 || isExamOver || isUrlViewMode || submitting || submitError) return;
+
+    if (testMeta?.timer_type === "sectional-timer") {
+      if (activeSectionIdx < uniqueSections.length - 1) {
+        const insideNextIdx = activeSectionIdx + 1;
+        const nextSectionTitleString = uniqueSections[insideNextIdx];
+        const sectionSettings = testMeta?.section_settings as SectionSettingContract[] | undefined;
+        const settingsMatchPayload = sectionSettings?.find(s => String(s.sectionName).trim() === nextSectionTitleString);
+
+        setActiveSectionIdx(insideNextIdx);
+        setCurrentIdx(0);
+
+        const matchQ = questions.find(q => (q.section || "").trim() === nextSectionTitleString);
+        if (matchQ) {
+          setQuestionStatuses(prevS => ({ ...prevS, [matchQ.id]: "not_answered" }));
+        }
+        setTimeLeft((settingsMatchPayload?.durationMinutes || 20) * 60);
+      } else {
+        handleFinalSubmit();
+      }
+    } else if (testMeta?.timer_type === "entire-test") {
+      handleFinalSubmit();
+    } else {
+      if (globalCurrentIdx < questions.length - 1) {
+        const targetNextGlobalPos = globalCurrentIdx + 1;
+        const nextQuestionObj = questions[targetNextGlobalPos];
+        const currentQId = questions[globalCurrentIdx].id;
+
+        setQuestionStatuses(prevStatus => {
+          const copy = { ...prevStatus };
+          if (!["answered", "marked", "marked_answered"].includes(copy[currentQId])) {
+            copy[currentQId] = "not_answered";
+          }
+          if (copy[nextQuestionObj.id] === "not_visited") {
+            copy[nextQuestionObj.id] = "not_answered";
+          }
+          return copy;
+        });
+
+        const targetSectionTabIdx = uniqueSections.indexOf((nextQuestionObj.section || "").trim());
+        if (targetSectionTabIdx !== -1 && targetSectionTabIdx !== activeSectionIdx) {
+          setActiveSectionIdx(targetSectionTabIdx);
+        }
+
+        const scopedIndexMatch = questions
+          .filter(q => (q.section || "").trim() === (nextQuestionObj.section || "").trim())
+          .findIndex(q => q.id === nextQuestionObj.id);
+
+        setCurrentIdx(scopedIndexMatch !== -1 ? scopedIndexMatch : 0);
+        setTimeLeft(nextQuestionObj?.timer_seconds || 60);
+      } else {
+        handleFinalSubmit();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, loading, questions, isExamOver, isUrlViewMode, submitting, submitError, testMeta, activeSectionIdx, uniqueSections, globalCurrentIdx]);
 
   const handleOptionSelect = (optionValueKey: string) => {
     if (isExamOver || !currentSectionQuestions[currentIdx]) return;
@@ -351,39 +378,72 @@ function LiveTestEngineCore() {
     setCurrentIdx(0);
   };
 
-  const handleFinalSubmit = async (answersToEvaluate: Record<string, string>, isViolationSubmit = false) => {
+  const handleFinalSubmit = async (answersToEvaluate?: Record<string, string>) => {
+    if (submittingRef.current) return;          // never submit twice at the same time
     if (!studentId || !testId) return;
-    setLoading(true);
-    
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const answers = answersToEvaluate ?? answersRef.current;
+
     let cumulativeScoreValue = 0;
     questions.forEach((q) => {
-      const givenAns = (answersToEvaluate[q.id] || "").trim().toLowerCase();
+      const givenAns = (answers[q.id] || "").trim().toLowerCase();
       const trueCorrectOption = (q.correct_option || "").trim().toLowerCase();
-      
+
       if (givenAns === trueCorrectOption && givenAns !== "") {
         cumulativeScoreValue += 1;
       } else if (givenAns !== "") {
-        cumulativeScoreValue -= 0.25; 
+        cumulativeScoreValue -= 0.25;
       }
     });
+    const finalScore = parseFloat(cumulativeScoreValue.toFixed(2));
+
+    const payload = {
+      test_id: testId,
+      student_id: studentId,
+      student_name: studentName,
+      score: finalScore,
+      total_questions: questions.length,
+      answers_matrix: answers,
+      is_active_retest_granted: false,
+    };
 
     try {
-      await supabase.from("attempts").upsert({
-        test_id: testId,
-        student_id: studentId,
-        student_name: studentName,
-        score: parseFloat(cumulativeScoreValue.toFixed(2)),
-        total_questions: questions.length,
-        answers_matrix: answersToEvaluate,
-        is_active_retest_granted: false,
-      }, { onConflict: "test_id,student_id" });
+      // Preferred path: single upsert
+      const { error: upsertError } = await supabase
+        .from("attempts")
+        .upsert(payload, { onConflict: "test_id,student_id" });
 
-      setScore(parseFloat(cumulativeScoreValue.toFixed(2)));
+      if (upsertError) {
+        console.warn("Upsert failed, trying update/insert fallback:", upsertError);
+
+        // Fallback (works even if the unique constraint on test_id+student_id is missing)
+        const { data: updatedRows, error: updateError } = await supabase
+          .from("attempts")
+          .update(payload)
+          .eq("test_id", testId)
+          .eq("student_id", studentId)
+          .select();
+        if (updateError) throw updateError;
+
+        if (!updatedRows || updatedRows.length === 0) {
+          const { error: insertError } = await supabase.from("attempts").insert(payload);
+          if (insertError) throw insertError;
+        }
+      }
+
+      // Only reached when the attempt was really saved
+      setSelectedAnswers(answers);
+      setScore(finalScore);
       setIsExamOver(true);
-    } catch (err) {
-      console.error("Submission packet failure:", err);
+    } catch (err: any) {
+      console.error("Submission failure:", err);
+      setSubmitError(err?.message || err?.details || "Could not save your attempt. Please check your internet and retry.");
+      submittingRef.current = false;            // allow retry
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -414,6 +474,8 @@ function LiveTestEngineCore() {
         testId={testId}
         isUrlViewMode={isUrlViewMode}
         onReturnToDashboard={() => router.push('/student')}
+        sectionOrder={uniqueSections}
+        testName={testMeta?.test_name}
       />
     );
   }
@@ -422,8 +484,30 @@ function LiveTestEngineCore() {
   const activeBlockCtx = currentQuestion?.content_blocks;
 
   return (
-    <AntiCheatWrapper enabled={!isUrlViewMode} onViolationSubmit={() => handleFinalSubmit(selectedAnswers, true)}>
+    <AntiCheatWrapper enabled={!isUrlViewMode} onViolationSubmit={() => handleFinalSubmit()}>
       <main className="h-screen w-screen bg-[#F4F4F4] flex flex-col overflow-hidden font-sans text-xs text-black select-none">
+        {submitting && (
+          <div className="fixed inset-0 z-[100] bg-black/50 flex flex-col items-center justify-center gap-2 text-white font-bold text-sm">
+            <Loader2 className="animate-spin" size={32} />
+            <span>Submitting your test... please do not close this window</span>
+          </div>
+        )}
+        {submitError && !submitting && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-5 space-y-3 border-t-4 border-[#d9534f]">
+              <h2 className="text-sm font-black text-[#a94442] uppercase tracking-wide">Submission failed</h2>
+              <p className="text-xs text-gray-700 leading-relaxed">
+                Your answers are safe on this screen but were not saved yet. Check your internet connection and retry.
+              </p>
+              <p className="text-[11px] font-mono bg-red-50 border border-red-200 text-red-700 p-2 rounded break-words">{submitError}</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => handleFinalSubmit()} className="h-[32px] px-5 bg-[#d9534f] border border-[#d43f3a] hover:bg-[#c9302c] text-white font-black rounded-sm uppercase text-[11px] tracking-wider">
+                  Retry Submit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="h-12 bg-[#1E1E24] text-white px-4 flex items-center justify-between shrink-0 border-b border-zinc-800 shadow-lg relative">
   {/* Modern Sleek Left Side - Enlarged Branding */}
   <div className="flex items-center gap-4 min-w-0 flex-1">
