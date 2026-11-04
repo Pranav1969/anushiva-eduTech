@@ -68,8 +68,10 @@ function TaxonomyPicker({
   allSections: TreeSection[];
   compact?: boolean;
 }) {
-  const chapterPool: TreeChapter[] = sectionNode ? sectionNode.chapters : allSections.flatMap((s) => s.chapters);
-  const hasChapterOptions = chapterPool.length > 0;
+  // Chapters are shown ONLY for the chosen syllabus section (never all sections together)
+  const needSection = allSections.length > 0 && !sectionNode;
+  const chapterPool: TreeChapter[] = sectionNode ? sectionNode.chapters : [];
+  const hasChapterOptions = chapterPool.length > 0 || needSection;
   const chapterNode = isId(value.chapterSel) ? allSections.flatMap((s) => s.chapters).find((c) => c.id === value.chapterSel) ?? null : null;
   const hasTopicOptions = !!chapterNode && chapterNode.topics.length > 0;
 
@@ -100,14 +102,8 @@ function TaxonomyPicker({
               }}
               className={selCls}
             >
-              <option value="">— not set (optional) —</option>
-              {sectionNode
-                ? sectionNode.chapters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)
-                : allSections.map((s) => (
-                    <optgroup key={s.id} label={s.name}>
-                      {s.chapters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </optgroup>
-                  ))}
+              <option value="">{needSection ? "— choose the syllabus section first —" : "— not set (optional) —"}</option>
+              {chapterPool.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               <option value={CUSTOM}>✍ Write my own…</option>
             </select>
           ) : (
@@ -130,7 +126,7 @@ function TaxonomyPicker({
           />
         )}
         <span className={`text-[9px] font-bold ${linked ? "text-emerald-600" : "text-slate-400"}`}>
-          {linked ? "🔗 linked to syllabus chapter" : value.chapter.trim() ? "typed name — auto-linked if it matches a syllabus chapter" : "optional"}
+          {linked ? "🔗 linked to syllabus chapter" : needSection && value.chapterSel !== CUSTOM ? "select a syllabus section to see its chapters" : value.chapter.trim() ? "typed name — auto-linked if it matches a syllabus chapter" : "optional"}
         </span>
       </div>
 
@@ -192,6 +188,7 @@ export default function AdminNumericalManager() {
   
   const [globalDurationMinutes, setGlobalDurationMinutes] = useState("45");
   const [globalTax, setGlobalTax] = useState<Taxonomy>({ ...EMPTY_TAX }); // optional fallback chapter/topic
+  const [globalSectionId, setGlobalSectionId] = useState<string>(""); // helper: section for the fallback chapter list
   const [perQuestionSeconds, setPerQuestionSeconds] = useState("60");
 
   const [loading, setLoading] = useState(false);
@@ -273,8 +270,13 @@ export default function AdminNumericalManager() {
     return () => { cancelled = true; };
   }, [selectedExamId]);
 
-  const findSectionNode = (container: SectionContainer): TreeSection | null =>
-    isId(container.syllabusSectionId) ? tree.find((s) => s.id === container.syllabusSectionId) ?? null : null;
+  // Picked syllabus section; if none is picked, auto-match by the section name (e.g. "Reasoning Ability")
+  const findSectionNode = (container: SectionContainer): TreeSection | null => {
+    if (isId(container.syllabusSectionId)) return tree.find((s) => s.id === container.syllabusSectionId) ?? null;
+    if (container.syllabusSectionId === CUSTOM) return null;
+    const nm = norm(container.sectionName || "");
+    return nm ? tree.find((s) => norm(s.name) === nm) ?? null : null;
+  };
 
   const [sections, setSections] = useState<SectionContainer[]>([
     {
@@ -317,6 +319,7 @@ export default function AdminNumericalManager() {
       }))
     );
     setGlobalTax((t) => clearIdTax(t));
+    setGlobalSectionId("");
   };
 
   const handleSyllabusSectionChange = (secId: string, value: string) => {
@@ -775,7 +778,22 @@ export default function AdminNumericalManager() {
               {/* GLOBAL FALLBACK chapter + topic */}
               <div className="pt-3 border-t border-slate-100 space-y-2">
                 <label className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-2"><Bookmark size={14} /> Global/Fallback Chapter & Topic (optional)</label>
-                <TaxonomyPicker value={globalTax} onChange={setGlobalTax} sectionNode={null} allSections={tree} />
+                {tree.length > 0 && (
+                  <select
+                    value={globalSectionId}
+                    onChange={(e) => { setGlobalSectionId(e.target.value); setGlobalTax({ ...EMPTY_TAX }); }}
+                    className="w-full md:w-1/2 p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-900 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">Syllabus section (to list its chapters)</option>
+                    {tree.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+                <TaxonomyPicker
+                  value={globalTax}
+                  onChange={setGlobalTax}
+                  sectionNode={tree.find((s) => s.id === globalSectionId) ?? null}
+                  allSections={tree}
+                />
                 <p className="text-[10px] text-slate-400 font-medium">Used only for questions where chapter / topic is left empty.</p>
               </div>
             </div>
@@ -811,7 +829,11 @@ export default function AdminNumericalManager() {
                         className="p-2 bg-purple-50 border border-purple-100 rounded-lg text-sm font-black text-purple-950 focus:bg-white focus:outline-none min-w-[200px]"
                         placeholder="Section Identity Designation Name"
                       />
-                      {sectionNode && <span className="text-[10px] font-bold text-emerald-600">🔗 linked</span>}
+                      {sectionNode && (
+                        <span className="text-[10px] font-bold text-emerald-600">
+                          🔗 {isId(section.syllabusSectionId) ? "linked" : `auto-matched: ${sectionNode.name}`}
+                        </span>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
