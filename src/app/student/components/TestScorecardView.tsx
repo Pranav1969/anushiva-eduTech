@@ -2,7 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, XCircle, ArrowLeft, ShieldCheck } from "lucide-react";
+import { CheckCircle2, XCircle, ArrowLeft, ShieldCheck, Crown, Timer } from "lucide-react";
 import TestResultDiagnostics from "./TestResultDiagnostics";
 import SolutionReviewExamView from "./SolutionReviewExamView";
 
@@ -33,6 +33,7 @@ interface TestScorecardViewProps {
   testId: string | null;
   isUrlViewMode: boolean;
   onReturnToDashboard: () => void;
+  onOpenDeepAnalysis?: () => void; // NEW: opens the premium Deep Strategy & Speed Diagnostics page
   sectionOrder?: string[];
   testName?: string;
 }
@@ -44,6 +45,7 @@ export default function TestScorecardView({
   testId,
   isUrlViewMode,
   onReturnToDashboard,
+  onOpenDeepAnalysis,
   sectionOrder,
   testName,
 }: TestScorecardViewProps) {
@@ -167,6 +169,40 @@ export default function TestScorecardView({
             </div>
           </motion.div>
         </div>
+
+        {/* NEW: Premium entry point - Deep Strategy & Speed Diagnostics */}
+        {onOpenDeepAnalysis && (
+          <motion.button
+            type="button"
+            onClick={onOpenDeepAnalysis}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="group relative w-full overflow-hidden rounded-2xl border border-amber-400/25 bg-gradient-to-r from-[#1a1608] via-[#0f1a14] to-[#0b1713] p-5 text-left transition-all hover:border-amber-400/60 hover:shadow-[0_0_30px_rgba(255,182,39,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="mt-0.5 rounded-xl border border-amber-400/30 bg-amber-400/10 p-2.5 text-amber-300">
+                  <Timer size={22} />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-black text-amber-200">
+                    Unlock your Speed & Time Leakage Report
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                      <Crown size={10} /> Premium
+                    </span>
+                  </div>
+                  <p className="max-w-2xl text-xs font-medium leading-relaxed text-slate-400">
+                    See your time on every question against the topper and the average aspirant, the topper&apos;s route through the paper, your ego traps, and a one-click practice test built from your mistakes.
+                  </p>
+                </div>
+              </div>
+              <span className="shrink-0 rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-[#0c1915] transition-transform group-hover:scale-[1.03]">
+                Open deep analysis
+              </span>
+            </div>
+          </motion.button>
+        )}
 
         {/* Embedded Diagnostics Layer Injection */}
         <TestResultDiagnostics 

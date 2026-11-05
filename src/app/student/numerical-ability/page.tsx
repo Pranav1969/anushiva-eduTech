@@ -8,6 +8,7 @@ import { useStudentSession } from "@/utils/auth";
 import { Loader2, Timer, ChevronLeft, ChevronRight, Send, Globe2 } from "lucide-react";
 import AntiCheatWrapper from "../components/AntiCheatWrapper";
 import TestScorecardView from "../components/TestScorecardView";
+import { useQuestionTimeTracker } from "../components/useQuestionTimeTracker"; // NEW: per-question time tracking
 
 
 interface Question {
@@ -63,6 +64,10 @@ function LiveTestEngineCore() {
   const submittingRef = useRef(false);
   const answersRef = useRef<Record<string, string>>({});
   answersRef.current = selectedAnswers;
+
+  // NEW: measures how long the student stays on every question
+  const tracker = useQuestionTimeTracker();
+
   const { session, loading: sessionLoading } = useStudentSession();
   useEffect(() => {
     if (sessionLoading) return;
@@ -98,6 +103,17 @@ function LiveTestEngineCore() {
     if (!targetActiveQuestion) return 0;
     return questions.findIndex(q => q.id === targetActiveQuestion.id);
   }, [questions, currentSectionQuestions, currentIdx]);
+
+  // NEW: start / stop the per-question stopwatch whenever the question on screen changes
+  const trackedQId = currentSectionQuestions[currentIdx]?.id;
+  useEffect(() => {
+    if (loading || isExamOver || isUrlViewMode || submitting) {
+      tracker.pause();
+      return;
+    }
+    if (trackedQId) tracker.enter(trackedQId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackedQId, loading, isExamOver, isUrlViewMode, submitting]);
 
   useEffect(() => {
     if (!testId || !studentId) return;
@@ -387,6 +403,9 @@ function LiveTestEngineCore() {
 
     const answers = answersToEvaluate ?? answersRef.current;
 
+    // NEW: freeze the per-question stopwatch and collect the time data
+    const timeSnap = tracker.snapshot();
+
     let cumulativeScoreValue = 0;
     questions.forEach((q) => {
       const givenAns = (answers[q.id] || "").trim().toLowerCase();
@@ -434,6 +453,24 @@ function LiveTestEngineCore() {
         }
       }
 
+      // NEW: save the per-question time log. A failure here must never block the submission.
+      try {
+        const { error: timeLogError } = await supabase.from("attempt_time_logs").upsert(
+          {
+            test_id: testId,
+            student_id: studentId,
+            per_question: timeSnap.per_question,
+            timeline: timeSnap.timeline,
+            total_seconds: timeSnap.total_seconds,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "test_id,student_id" }
+        );
+        if (timeLogError) console.warn("Time log not saved:", timeLogError);
+      } catch (timeErr) {
+        console.warn("Time log not saved:", timeErr);
+      }
+
       // Only reached when the attempt was really saved
       setSelectedAnswers(answers);
       setScore(finalScore);
@@ -474,6 +511,7 @@ function LiveTestEngineCore() {
         testId={testId}
         isUrlViewMode={isUrlViewMode}
         onReturnToDashboard={() => router.push('/student')}
+        onOpenDeepAnalysis={() => router.push(`/student/deep-analysis?id=${testId}`)}
         sectionOrder={uniqueSections}
         testName={testMeta?.test_name}
       />
