@@ -341,33 +341,34 @@ function ReportFooter({ student, test, reportId, verified }: { student?: string 
   chips.push(`Report ${reportId}`);
   chips.push(date);
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090F1C]/60 px-5 py-6 md:px-8 md:py-7">
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090F1C]/60 px-5 py-6 md:px-8 md:py-8">
       <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(241,217,139,.5), transparent)" }} />
       <div aria-hidden className="pointer-events-none absolute -left-10 top-1/2 h-40 w-40 -translate-y-1/2 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(212,175,55,.16), transparent 70%)" }} />
-      <div className="relative flex flex-col items-center gap-6 text-center md:flex-row md:gap-8 md:text-left">
-        {/* seal */}
-        <div className="relative h-28 w-28 shrink-0">
+
+      <div className="relative flex flex-col items-center gap-1 md:block">
+        {/* seal: pinned to the left on desktop so it does not shift the centre of the details */}
+        <div className="relative h-28 w-28 shrink-0 md:absolute md:left-4 md:top-1/2 md:-translate-y-1/2">
           <svg viewBox="0 0 112 112" className="absolute inset-0 h-full w-full" aria-hidden>
             <defs>
               <linearGradient id="rfSeal" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#F1D98B" /><stop offset="100%" stopColor="#B8932A" /></linearGradient>
             </defs>
-            <circle cx="56" cy="56" r="52" fill="none" stroke="url(#rfSeal)" strokeWidth="1.6" />
+            {/* <circle cx="56" cy="56" r="52" fill="none" stroke="url(#rfSeal)" strokeWidth="1.6" />
             <circle cx="56" cy="56" r="44" fill="none" stroke="url(#rfSeal)" strokeWidth="0.9" strokeDasharray="2 3.5" />
-            <circle cx="56" cy="56" r="34" fill="rgba(212,175,55,.10)" stroke="url(#rfSeal)" strokeWidth="1.1" />
+            <circle cx="56" cy="56" r="34" fill="rgba(212,175,55,.10)" stroke="url(#rfSeal)" strokeWidth="1.1" /> */}
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center"><StarMark size={46} id="rf-seal" /></span>
+          <span className="absolute inset-0 flex items-center justify-center"><StarMark size={90} id="rf-seal" /></span>
         </div>
 
-        <span aria-hidden className="hidden h-20 w-px shrink-0 md:block" style={{ background: "linear-gradient(180deg, transparent, rgba(212,175,55,.45), transparent)" }} />
+        <span aria-hidden className="absolute left-[10.5rem] top-1/2 hidden h-20 w-px -translate-y-1/2 md:block" style={{ background: "linear-gradient(180deg, transparent, rgba(212,175,55,.45), transparent)" }} />
 
-        {/* details */}
-        <div className="min-w-0 flex-1 space-y-2.5">
+        {/* details: centred on the whole card; side padding keeps clear of the star */}
+        <div className="mx-auto flex min-w-0 max-w-3xl flex-col items-center justify-center space-y-2.5 text-center md:px-40">
           <div className="da-head da-grad-chalk text-lg font-extrabold tracking-[0.14em] md:text-xl">{BRAND.name} {BRAND.product.toUpperCase()}</div>
           <p className="text-sm leading-relaxed text-[var(--mute)]">
             Prepared for <span className="font-semibold text-[var(--ink)]">{student || "this aspirant"}</span>
-            {test ? <span className="block md:inline"><span className="hidden md:inline"> · </span>{test}</span> : null}
+            {test ? <span className="block">{test}</span> : null}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1 md:justify-start">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
             {chips.map((c) => (
               <span key={c} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-[var(--mute)]">{c}</span>
             ))}
