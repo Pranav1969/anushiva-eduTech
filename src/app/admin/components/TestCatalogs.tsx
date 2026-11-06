@@ -11,7 +11,10 @@ interface TestCatalogsProps {
   onRefresh: () => void;
 }
 
-export default function TestCatalogs({ tests, onSelectTest, onRefresh }: TestCatalogsProps) {
+export default function TestCatalogs({ tests: allTests, onSelectTest, onRefresh }: TestCatalogsProps) {
+  // Student-private Mistake Vault practice tests never clutter the admin catalog
+  const tests = useMemo(() => allTests.filter((t: any) => !t.owner_student_id), [allTests]);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSectionTab, setActiveSectionTab] = useState<string>("all");

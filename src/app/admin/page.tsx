@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: tData } = await supabase.from("tests").select("*").order("created_at", { ascending: false });
+      const { data: tData } = await supabase.from("tests").select("*").is("owner_student_id", null).order("created_at", { ascending: false });
       const { data: sData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       const { data: gData } = await supabase.from("groups").select("*").order("name", { ascending: true });
 

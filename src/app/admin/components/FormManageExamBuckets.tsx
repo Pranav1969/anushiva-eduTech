@@ -10,7 +10,10 @@ interface FormManageExamBucketsProps {
   onUpdateComplete: () => void;
 }
 
-export default function FormManageExamBuckets({ tests, onUpdateComplete }: FormManageExamBucketsProps) {
+export default function FormManageExamBuckets({ tests: allTests, onUpdateComplete }: FormManageExamBucketsProps) {
+  // Student-private Mistake Vault practice tests never appear in admin bucket management
+  const tests = useMemo(() => allTests.filter((t: any) => !t.owner_student_id), [allTests]);
+
   const [exams, setExams] = useState<any[]>([]);
   const [selectedExamId, setSelectedExamId] = useState("");
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);

@@ -33,6 +33,7 @@ export interface TestRecord {
   chapter_id?: string | null;
   test_type?: "topic" | "sectional" | "mock";
   sequence_order?: number;
+  owner_student_id?: string | null;
   userAttempt?: {
     id: string;
     score: number;
@@ -203,7 +204,8 @@ export default function StudentDashboard() {
           // Fetch tests explicitly aligned inside this exam bucket
           const { data: bucketedTests } = await supabase
             .from("tests")
-            .select("id, exam_id")
+               .select("id, exam_id")
+               .is("owner_student_id", null)
             .eq("exam_id", examBucket.id);
 
           if (bucketedTests) {
@@ -241,7 +243,7 @@ export default function StudentDashboard() {
       const { data: attemptsData } = await supabase.from("attempts").select("*").eq("student_id", studentId);
 
       if (testsData) {
-        const joined: TestRecord[] = testsData.map(t => {
+           const joined: TestRecord[] = testsData.filter(t => !t.owner_student_id || t.owner_student_id === studentId).map(t => {
           const match = attemptsData?.find(a => a.test_id === t.id && a.student_id === studentId);
 
           // Gating logic: hierarchical plan check
@@ -257,7 +259,8 @@ export default function StudentDashboard() {
 
           return {
             ...t,
-            is_priority: assignedIds.includes(t.id), // tag if the test originated from manual assignments
+               is_priority: assignedIds.includes(t.id), // tag if the test originated from manual assignments
+               test_type: t.test_type === "mistake_vault" ? "topic" : t.test_type, // tag if the test originated from manual assignments
             is_locked: isPlanLocked, // enforce view gating interface layers
             userAttempt: match
               ? {
@@ -350,7 +353,7 @@ export default function StudentDashboard() {
   };
 
   const filteredTests = tests.filter(test => test.section_id === activeTab);
-  const completedTests = tests.filter(t => t.userAttempt);
+  const completedTests = tests.filter(t => t.userAttempt && !t.owner_student_id);
 
   // Only admin manual individual/group entries show up in priority pipeline
   const priorityTestsOnly = tests.filter(t => t.is_priority);
@@ -479,7 +482,7 @@ export default function StudentDashboard() {
             {!loading && (
               <PerformanceOverview
                 completed={completedTests.length}
-                total={tests.length}
+                total={tests.filter(t => !t.owner_student_id).length}
                 avgScore={avgScore}
                 chapterMetrics={globalChapterMetrics}
               />

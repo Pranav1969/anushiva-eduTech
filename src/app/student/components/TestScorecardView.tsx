@@ -187,7 +187,7 @@ export default function TestScorecardView({
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm font-black text-amber-200">
-                    Unlock your Speed & Time Leakage Report
+                    Unlock your ANUSHIVA Speed & Time Leakage Report
                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                       <Crown size={10} /> Premium
                     </span>

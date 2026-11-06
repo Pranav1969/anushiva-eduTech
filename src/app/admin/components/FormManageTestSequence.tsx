@@ -22,7 +22,10 @@ const seqSort = (a: Item, b: Item) => a.sequence_order - b.sequence_order;
 const selectCls = "bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500";
 const iconBtn = "p-1.5 rounded-md border border-slate-800 bg-slate-950 text-slate-400 hover:text-white disabled:opacity-30 transition-colors";
 
-export default function FormManageTestSequence({ tests, onUpdateComplete }: Props) {
+export default function FormManageTestSequence({ tests: allTests, onUpdateComplete }: Props) {
+  // Student-private Mistake Vault practice tests are never part of the admin syllabus order
+  const tests = useMemo(() => allTests.filter((t: any) => !t.owner_student_id), [allTests]);
+
   const [exams, setExams] = useState<any[]>([]);
   const [examId, setExamId] = useState("");
   const [sectionId, setSectionId] = useState("");

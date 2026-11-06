@@ -73,7 +73,7 @@ export default function FormDistributeTest({ tests, students, groups, onAssignme
       <form onSubmit={handleAssignTest} className="space-y-3">
         <select value={assignTestId} onChange={e => setAssignTestId(e.target.value)} className="w-full bg-slate-900 border border-slate-800/80 focus:border-indigo-500 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none cursor-pointer transition-colors" required>
           <option value="">-- Choose Target Test --</option>
-          {tests.map(t => <option key={t.id} value={t.id}>{t.test_name}</option>)}
+          {tests.filter((t) => !t.owner_student_id).map(t => <option key={t.id} value={t.id}>{t.test_name}</option>)}
         </select>
 
         <div className="grid grid-cols-2 gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800/60">
