@@ -16,56 +16,78 @@ import {
 import { supabase } from "@/utils/supabase";
 import { useStudentSession } from "@/utils/auth";
 import { getVerdict, resolveTaxonomy, Verdict } from "../components/resultMeta";
+import { BRAND, Wordmark, CardMark, StarMark } from "../components/AnushivaBrand";
 
 const UPGRADE_ROUTE = "/student/plans"; // <- change to your pricing / plans page
 
-// ---------- design tokens: a night-track palette (deep pine, chalk, marigold, aurora) ----------
+/* =====================================================================
+   DESIGN TOKENS  -  "Midnight Gold"
+   Navy surfaces, gold reserved for premium moments (badge, hero score, main buttons),
+   muted data colours so mistakes never feel alarming.
+   ===================================================================== */
 const C = {
-  you: "#FFB627", top: "#EDE8D8", avg: "#7FA596",
-  good: "#8BD17C", bad: "#FF6B4A", skip: "#5E7A70",
+  gold: "#D4AF37",   // premium accent
+  champ: "#F1D98B",  // soft gold / champagne
+  you: "#4DA3FF",    // the student's own data
+  top: "#F1D98B",    // topper benchmark
+  avg: "#7C6CF2",    // average aspirant
+  good: "#34C38F",   // strong / correct
+  warn: "#F5A524",   // needs improvement
+  bad: "#E5606B",    // weak / wrong (muted coral, never pure red)
+  skip: "#5B6785",   // skipped
 };
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]; // shared easing for every entrance
-const SEC_HUES = ["#FFB627", "#7FD6C2", "#F29E8E", "#9DB4F2", "#C5DE74", "#E3B6F0"];
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]; // shared entrance easing
+const SEC_HUES = ["#4DA3FF", "#34C38F", "#F5A524", "#7C6CF2", "#E5606B", "#F1D98B"];
+const CONF = ["#D4AF37", "#F1D98B", "#4DA3FF", "#34C38F", "#7C6CF2", "#FFFFFF"];
+
 const NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
-const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 @property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
-.da-root{--bg:#0C1915;--panel:#122820;--panel2:#18342A;--line:#2A4A3E;--ink:#E4EBE6;--mute:#8BA699;font-family:'Instrument Sans',system-ui,sans-serif;position:relative;isolation:isolate;overflow-x:clip}
-.da-head{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em}
-.da-num{font-family:'Bricolage Grotesque',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-0.03em}
 
-/* ambient world: drifting aurora + film grain + faint track lines */
-.da-world{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:#0C1915}
-.da-blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55;will-change:transform}
-.da-b1{width:560px;height:560px;left:-120px;top:-100px;background:radial-gradient(circle,rgba(127,214,194,.55),transparent 65%);animation:daDrift1 22s ease-in-out infinite alternate}
-.da-b2{width:620px;height:620px;right:-160px;top:-60px;background:radial-gradient(circle,rgba(255,182,39,.42),transparent 65%);animation:daDrift2 26s ease-in-out infinite alternate}
-.da-b3{width:520px;height:520px;left:35%;bottom:-220px;background:radial-gradient(circle,rgba(157,180,242,.28),transparent 65%);animation:daDrift3 30s ease-in-out infinite alternate}
-.da-grain{position:absolute;inset:0;opacity:.07;mix-blend-mode:overlay;background-image:${NOISE}}
-.da-lines{position:absolute;inset:0;opacity:.5;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 96px);mask-image:linear-gradient(180deg,#000,transparent 80%);-webkit-mask-image:linear-gradient(180deg,#000,transparent 80%)}
-@keyframes daDrift1{to{transform:translate(160px,120px) scale(1.15)}}
-@keyframes daDrift2{to{transform:translate(-140px,160px) scale(1.1)}}
-@keyframes daDrift3{to{transform:translate(-200px,-90px) scale(1.2)}}
+/* base + type: Playfair Display for headings, Inter for numbers and text */
+.da-root{--bg:#0B1220;--panel:#141C2F;--panel2:#1A2440;--well:#090F1C;--line:#26314A;--ink:#F5F6FA;--mute:#9AA4BA;
+  font-family:'Inter',system-ui,sans-serif;position:relative;isolation:isolate;overflow-x:clip}
+.da-head{font-family:'Playfair Display',Georgia,serif;letter-spacing:-0.01em}
+.da-num{font-family:'Inter',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.da-score{font-family:'Playfair Display',Georgia,serif;font-variant-numeric:lining-nums tabular-nums;font-weight:700;letter-spacing:-0.02em}
 
-/* glass card with cursor spotlight and a slow-travelling edge light */
-.da-card{position:relative;background:linear-gradient(160deg,rgba(24,52,42,.78) 0%,rgba(14,32,25,.82) 100%);backdrop-filter:blur(14px) saturate(130%);-webkit-backdrop-filter:blur(14px) saturate(130%);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 0 0 1px rgba(255,255,255,.02),0 30px 60px -30px rgba(0,0,0,.85),0 0 80px -40px rgba(127,214,194,.18)}
-.da-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;background:conic-gradient(from var(--ang),transparent 0 62%,rgba(255,182,39,.85) 78%,rgba(127,214,194,.7) 88%,transparent 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:daSpin 9s linear infinite;opacity:.55}
-.da-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s ease;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(255,214,120,.10),transparent 60%)}
+/* ambient world: quiet navy with a faint gold + indigo glow */
+.da-world{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:linear-gradient(180deg,#0B1220 0%,#0D1426 100%)}
+.da-blob{position:absolute;border-radius:50%;filter:blur(110px);will-change:transform}
+.da-b1{width:560px;height:560px;left:-140px;top:-120px;opacity:.5;background:radial-gradient(circle,rgba(77,99,214,.45),transparent 65%);animation:daDrift1 26s ease-in-out infinite alternate}
+.da-b2{width:620px;height:620px;right:-170px;top:-80px;opacity:.38;background:radial-gradient(circle,rgba(212,175,55,.38),transparent 65%);animation:daDrift2 30s ease-in-out infinite alternate}
+.da-b3{width:520px;height:520px;left:35%;bottom:-240px;opacity:.3;background:radial-gradient(circle,rgba(124,108,242,.3),transparent 65%);animation:daDrift3 34s ease-in-out infinite alternate}
+.da-grain{position:absolute;inset:0;opacity:.045;mix-blend-mode:overlay;background-image:${NOISE}}
+.da-lines{position:absolute;inset:0;opacity:.45;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 1px,transparent 1px 96px);mask-image:linear-gradient(180deg,#000,transparent 80%);-webkit-mask-image:linear-gradient(180deg,#000,transparent 80%)}
+@keyframes daDrift1{to{transform:translate(160px,120px) scale(1.12)}}
+@keyframes daDrift2{to{transform:translate(-140px,160px) scale(1.08)}}
+@keyframes daDrift3{to{transform:translate(-200px,-90px) scale(1.15)}}
+
+/* glass card: thin border, soft shadow, slow gold edge-light, cursor spotlight */
+.da-card{position:relative;background:linear-gradient(160deg,rgba(26,36,64,.78) 0%,rgba(15,22,40,.86) 100%);backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 30px 60px -32px rgba(0,0,0,.8)}
+.da-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:conic-gradient(from var(--ang),transparent 0 66%,rgba(212,175,55,.75) 80%,rgba(241,217,139,.5) 90%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:daSpin 10s linear infinite;opacity:.4}
+.da-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s ease;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(241,217,139,.07),transparent 60%)}
 .da-card:hover::after{opacity:1}
 @keyframes daSpin{to{--ang:360deg}}
 
 /* living type */
-.da-grad{background:linear-gradient(100deg,#FFD36B 0%,#FFB627 35%,#FF8A4A 60%,#FFD36B 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 6s ease-in-out infinite alternate}
-.da-grad-chalk{background:linear-gradient(100deg,#FFFFFF 0%,#EDE8D8 40%,#9FE3D0 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 7s ease-in-out infinite alternate}
+.da-grad{background:linear-gradient(100deg,#F1D98B 0%,#D4AF37 50%,#F1D98B 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 7s ease-in-out infinite alternate}
+.da-grad-chalk{background:linear-gradient(100deg,#FFFFFF 0%,#E6EAF6 45%,#B7C3E0 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 8s ease-in-out infinite alternate}
 @keyframes daSheen{to{background-position:100% 0}}
 
 /* bars, lights, pulses */
 .da-shimmer{position:relative;overflow:hidden}
-.da-shimmer::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%);transform:translateX(-100%);animation:daShim 3.2s ease-in-out infinite}
+.da-shimmer::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.32) 50%,transparent 70%);transform:translateX(-100%);animation:daShim 3.4s ease-in-out infinite}
 @keyframes daShim{60%,100%{transform:translateX(100%)}}
 .da-head-dot{position:absolute;right:-6px;top:50%;width:12px;height:12px;border-radius:50%;transform:translateY(-50%);background:#fff}
 .da-head-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid currentColor;opacity:.7;animation:daPing 1.8s ease-out infinite}
 @keyframes daPing{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.8);opacity:0}}
-.da-live{width:8px;height:8px;border-radius:50%;background:#8BD17C;box-shadow:0 0 0 0 rgba(139,209,124,.7);animation:daLive 2s infinite}
-@keyframes daLive{70%{box-shadow:0 0 0 9px rgba(139,209,124,0)}100%{box-shadow:0 0 0 0 rgba(139,209,124,0)}}
+.da-live{width:8px;height:8px;border-radius:50%;background:#34C38F;box-shadow:0 0 0 0 rgba(52,195,143,.7);animation:daLive 2s infinite}
+@keyframes daLive{70%{box-shadow:0 0 0 9px rgba(52,195,143,0)}100%{box-shadow:0 0 0 0 rgba(52,195,143,0)}}
 .da-float{animation:daFloat 6s ease-in-out infinite}
 @keyframes daFloat{50%{transform:translateY(-6px)}}
 .da-ring{animation:daRot 40s linear infinite;transform-origin:100px 100px}
@@ -74,33 +96,26 @@ const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Bricolag
 @keyframes daConf{0%{transform:translateY(0) rotate(0);opacity:0}10%{opacity:1}100%{transform:translateY(190px) rotate(540deg);opacity:0}}
 .da-crown{animation:daWobble 3.5s ease-in-out infinite;transform-origin:50% 90%}
 @keyframes daWobble{0%,100%{transform:rotate(-6deg) scale(1)}50%{transform:rotate(6deg) scale(1.08)}}
-.da-chk{background-image:conic-gradient(#fff 25%,#0A1411 0 50%,#fff 0 75%,#0A1411 0);background-size:8px 8px;opacity:.85}
+.da-chk{background-image:conic-gradient(#fff 25%,#090F1C 0 50%,#fff 0 75%,#090F1C 0);background-size:8px 8px;opacity:.8}
 
-/* tiles + interactive */
+/* interactive */
 .da-tile{transition:transform .25s cubic-bezier(.2,.8,.2,1),border-color .25s ease,box-shadow .25s ease}
-.da-tile:hover{transform:translateY(-4px);border-color:rgba(255,182,39,.45);box-shadow:0 18px 40px -18px rgba(255,182,39,.35)}
+.da-tile:hover{transform:translateY(-3px);border-color:rgba(212,175,55,.4);box-shadow:0 18px 40px -20px rgba(212,175,55,.3)}
 .da-btn{position:relative;overflow:hidden;transition:transform .2s ease,box-shadow .2s ease}
 .da-btn:hover{transform:translateY(-2px) scale(1.02)}
-.da-btn::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-120%);animation:daShim 3.6s ease-in-out infinite}
+.da-btn::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);transform:translateX(-120%);animation:daShim 3.8s ease-in-out infinite}
 .da-chip{transition:all .2s ease}
 .da-chip:hover{transform:translateY(-1px)}
-.da-seg{transition:filter .15s ease,transform .15s ease}.da-seg:hover{filter:brightness(1.25) drop-shadow(0 0 8px currentColor);z-index:5;transform:scaleY(1.12)}
-.da-scroll::-webkit-scrollbar{width:6px;height:6px}.da-scroll::-webkit-scrollbar-thumb{background:linear-gradient(#2A4A3E,#3E6B5A);border-radius:6px}
-::selection{background:rgba(255,182,39,.35);color:#fff}
-.da-medal{background:linear-gradient(110deg,#FFD36B,#FF9A3C,#FFD36B);background-size:200% 100%;animation:daSheen 3s ease-in-out infinite alternate}
-button:focus-visible,a:focus-visible{outline:2px solid #FFB627;outline-offset:2px}
+.da-seg{transition:filter .15s ease,transform .15s ease}.da-seg:hover{filter:brightness(1.2) drop-shadow(0 0 8px currentColor);z-index:5;transform:scaleY(1.12)}
+.da-scroll::-webkit-scrollbar{width:6px;height:6px}.da-scroll::-webkit-scrollbar-thumb{background:linear-gradient(#26314A,#3A4A70);border-radius:6px}
+.da-medal{background:linear-gradient(110deg,#F1D98B,#D4AF37,#F1D98B);background-size:200% 100%;animation:daSheen 3s ease-in-out infinite alternate}
+::selection{background:rgba(212,175,55,.35);color:#fff}
+button:focus-visible,a:focus-visible{outline:2px solid #D4AF37;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.da-root *,.da-root *::before,.da-root *::after{animation:none!important;transition:none!important}}`;
 
-function World() {
-  return (
-    <div aria-hidden className="da-world">
-      <div className="da-blob da-b1" /><div className="da-blob da-b2" /><div className="da-blob da-b3" />
-      <div className="da-lines" /><div className="da-grain" />
-    </div>
-  );
-}
-
-// ---------- helpers ----------
+/* =====================================================================
+   SMALL HELPERS
+   ===================================================================== */
 const fmt = (s: number) => {
   const t = Math.max(0, Math.round(s));
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -112,17 +127,22 @@ const median = (a: number[]) => {
   const m = Math.floor(b.length / 2);
   return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
 };
+const verdictColor = (v?: Verdict) => (v === "correct" ? C.good : v === "wrong" ? C.bad : C.skip);
+const tickStep = (span: number) => [30, 60, 120, 300, 600, 900].find((s) => span / s <= 10) || 900;
 
 interface Insight { tone: "warn" | "tip" | "good"; msg: string }
 interface Row {
-  id: string; no: number; section: string; text: string;
-  you: number; visits: number; verdict: Verdict;
+  id: string; no: number; section: string;
+  you: number; verdict: Verdict;
   avg: number | null; top: number | null;
   pctCorrect: number | null; pctTop: number | null; topSkipped: number | null;
   chapterKey: string; chapterName: string; chapterTagged: boolean; topicName: string; topicTagged: boolean;
   insight: Insight | null; trap: boolean; q: any;
 }
+type Seg = [string, number, number];
+type MetaMap = Map<string, { sec: number; no: number; verdict?: Verdict; section: string }>;
 
+// Micro-insights per question (rules agreed with the product brief)
 function insightFor(r: Pick<Row, "you" | "verdict" | "top" | "pctTop" | "topSkipped" | "pctCorrect">): Insight | null {
   const { you, verdict, top, pctTop, topSkipped, pctCorrect } = r;
   const hasTop = top != null && top > 0;
@@ -143,7 +163,33 @@ function insightFor(r: Pick<Row, "you" | "verdict" | "top" | "pctTop" | "topSkip
   return null;
 }
 
-// ---------- UI building blocks ----------
+// Route summary for a lane: where each section started/ended, and how many questions were revisited
+function pathSummary(segs: Seg[], meta: Map<string, any>, sections: string[]) {
+  const per: Record<string, { first: number; last: number; total: number }> = {};
+  const seen = new Map<string, number>();
+  segs.forEach(([id, s, e]) => {
+    const m = meta.get(id); if (!m) return;
+    const p = per[m.section] || (per[m.section] = { first: s, last: e, total: 0 });
+    p.first = Math.min(p.first, s); p.last = Math.max(p.last, e); p.total += e - s;
+    seen.set(id, (seen.get(id) || 0) + 1);
+  });
+  const revisits = Array.from(seen.values()).filter((n) => n > 1).length;
+  const order = sections.filter((s) => per[s]).sort((a, b) => per[a].first - per[b].first);
+  return { per, order, revisits };
+}
+
+/* =====================================================================
+   UI BUILDING BLOCKS
+   ===================================================================== */
+function World() {
+  return (
+    <div aria-hidden className="da-world">
+      <div className="da-blob da-b1" /><div className="da-blob da-b2" /><div className="da-blob da-b3" />
+      <div className="da-lines" /><div className="da-grain" />
+    </div>
+  );
+}
+
 // Count-up is display only: it animates toward the exact value and always lands on it.
 function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
   const [v, setV] = useState(0);
@@ -154,7 +200,9 @@ function CountUp({ value, format }: { value: number; format: (n: number) => stri
   return <>{format(v)}</>;
 }
 
-function Card({ id, title, note, children, className = "" }: { id?: string; title?: string; note?: string; children: React.ReactNode; className?: string }) {
+function Card({ id, title, note, children, className = "", brand = false, footer }: {
+  id?: string; title?: string; note?: string; children: React.ReactNode; className?: string; brand?: boolean; footer?: React.ReactNode;
+}) {
   const onMove = (e: React.MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
@@ -164,39 +212,40 @@ function Card({ id, title, note, children, className = "" }: { id?: string; titl
     <motion.section id={id} onMouseMove={onMove}
       initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.7, ease: EASE }}
       className={`da-card scroll-mt-20 overflow-hidden rounded-3xl border border-white/[0.06] p-5 md:p-8 ${className}`}>
-      <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(255,214,120,.8), transparent)" }} />
+      <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(241,217,139,.65), transparent)" }} />
       {title && (
         <header className="relative mb-6 flex items-start gap-3">
-          <span aria-hidden className="mt-1.5 h-6 w-1 shrink-0 rounded-full" style={{ background: `linear-gradient(180deg, ${C.you}, #7FD6C2)`, boxShadow: `0 0 14px ${C.you}88` }} />
+          <span aria-hidden className="mt-1.5 h-6 w-1 shrink-0 rounded-full" style={{ background: `linear-gradient(180deg, ${C.champ}, ${C.gold})`, boxShadow: `0 0 12px ${C.gold}66` }} />
           <div>
-            <h2 className="da-head da-grad-chalk text-xl font-extrabold md:text-2xl">{title}</h2>
+            <h2 className="da-head da-grad-chalk text-xl font-bold md:text-2xl">{title}</h2>
             {note && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--mute)]">{note}</p>}
           </div>
         </header>
       )}
       <div className="relative">{children}</div>
+      {footer && <div className="relative mt-6">{footer}</div>}
+      {brand && <CardMark />}
     </motion.section>
   );
 }
 
-const CONF = ["#FFB627", "#7FD6C2", "#F29E8E", "#9DB4F2", "#C5DE74", "#E3B6F0", "#FFFFFF"];
-function TopperBanner({ cohort, name }: { cohort: number; name?: string }) {
+function TopperBanner({ cohort, name, joint }: { cohort: number; name?: string; joint?: boolean }) {
   return (
     <motion.div initial={{ opacity: 0, y: -16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, ease: EASE }}
-      className="relative mb-7 overflow-hidden rounded-2xl border p-5 md:p-6"
-      style={{ borderColor: "rgba(255,182,39,.5)", background: "linear-gradient(110deg, rgba(255,182,39,.20), rgba(255,138,74,.10) 45%, rgba(127,214,194,.12))", boxShadow: "0 0 60px -14px rgba(255,182,39,.55), inset 0 1px 0 rgba(255,255,255,.12)" }}>
+      className="relative overflow-hidden rounded-2xl border p-5 md:p-6"
+      style={{ borderColor: "rgba(212,175,55,.5)", background: "linear-gradient(110deg, rgba(212,175,55,.18), rgba(241,217,139,.07) 50%, rgba(77,163,255,.08))", boxShadow: "0 0 60px -18px rgba(212,175,55,.5), inset 0 1px 0 rgba(255,255,255,.1)" }}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {Array.from({ length: 26 }).map((_, i) => (
           <span key={i} className="da-conf" style={{ left: `${(i * 37) % 100}%`, background: CONF[i % CONF.length], animationDelay: `${(i % 9) * 0.35}s`, animationDuration: `${2.6 + (i % 5) * 0.4}s` }} />
         ))}
       </div>
       <div className="relative flex items-center gap-4">
-        <div className="da-crown flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "linear-gradient(160deg,#FFD36B,#FF9A3C)", boxShadow: "0 0 36px rgba(255,182,39,.7)" }}>
-          <Trophy size={28} color="#0C1915" />
+        <div className="da-crown flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "linear-gradient(160deg,#F1D98B,#D4AF37)", boxShadow: "0 0 32px rgba(212,175,55,.6)" }}>
+          <Trophy size={28} color="#0B1220" />
         </div>
-        <div>
-          <h2 className="da-head da-grad text-2xl font-extrabold md:text-3xl">Congratulations{name ? `, ${name}` : ""}. You are the topper!</h2>
-          <p className="mt-1 text-sm leading-relaxed text-[var(--ink)]/80">You ranked #1 out of {cohort} on this test. Below is how to make your lead even stronger.</p>
+        <div className="min-w-0">
+          <h2 className="da-head da-grad text-2xl font-bold leading-tight md:text-3xl">Congratulations{name ? `, ${name}` : ""}. {joint ? "You are a joint topper!" : "You are the topper!"}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--ink)]/80">{joint ? "You share the #1 rank" : "You ranked #1"} out of {cohort} on this test. Below is how to make your lead even stronger.</p>
         </div>
       </div>
     </motion.div>
@@ -208,7 +257,7 @@ function Legend({ items }: { items: { c: string; l: string; dashed?: boolean }[]
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--mute)]">
       {items.map((i) => (
         <span key={i.l} className="flex items-center gap-1.5">
-          <span className="inline-block h-0 w-5 border-t-2" style={{ borderColor: i.c, borderStyle: i.dashed ? "dashed" : "solid", filter: `drop-shadow(0 0 4px ${i.c})` }} />
+          <span className="inline-block h-0 w-5 border-t-2" style={{ borderColor: i.c, borderStyle: i.dashed ? "dashed" : "solid" }} />
           {i.l}
         </span>
       ))}
@@ -221,7 +270,7 @@ function ChartTip({ active, payload }: any) {
   const d = payload[0].payload;
   const delta = d.top != null ? d.you - d.top : null;
   return (
-    <div className="min-w-[180px] rounded-2xl border border-white/10 bg-[#07110D]/90 p-3.5 text-xs shadow-[0_20px_50px_-10px_rgba(0,0,0,.9)] backdrop-blur-xl">
+    <div className="min-w-[180px] rounded-2xl border border-white/10 bg-[#090F1C]/95 p-3.5 text-xs shadow-[0_20px_50px_-10px_rgba(0,0,0,.9)] backdrop-blur-xl">
       <p className="da-head mb-1.5 text-sm font-bold text-[var(--ink)]">{d.name} <span className="ml-1 text-[11px] font-medium text-[var(--mute)]">{d.verdictLabel}</span></p>
       <p className="flex justify-between gap-4" style={{ color: C.you }}><span>You</span><span className="da-num font-bold">{secs(d.you)}</span></p>
       {d.top != null && <p className="flex justify-between gap-4" style={{ color: C.top }}><span>Topper</span><span className="da-num font-bold">{secs(d.top)}</span></p>}
@@ -242,71 +291,114 @@ function Donut({ parts, center, sub }: { parts: { v: number; c: string }[]; cent
   return (
     <svg viewBox="0 0 200 200" className="h-full w-full overflow-visible">
       <defs>
-        <filter id="dGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-        <radialGradient id="dCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#1B4034" stopOpacity=".9" /><stop offset="100%" stopColor="#0A1411" stopOpacity="0" /></radialGradient>
+        <filter id="dGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <radialGradient id="dCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#1E2A4A" stopOpacity=".9" /><stop offset="100%" stopColor="#090F1C" stopOpacity="0" /></radialGradient>
       </defs>
       <g className="da-ring"><circle cx="100" cy="100" r="94" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="1" strokeDasharray="2 7" /></g>
       <circle cx="100" cy="100" r="58" fill="url(#dCore)" />
-      <circle cx="100" cy="100" r={r} fill="none" stroke="#0A1411" strokeWidth="20" />
+      <circle cx="100" cy="100" r={r} fill="none" stroke="#090F1C" strokeWidth="20" />
       {parts.map((p, i) => {
         const len = (p.v / total) * circ;
         const el = (
           <motion.circle key={i} cx="100" cy="100" r={r} fill="none" stroke={p.c} strokeWidth="20" strokeLinecap="butt" filter="url(#dGlow)"
-            strokeDashoffset={-acc}
-            transform="rotate(-90 100 100)" initial={{ strokeDasharray: `0 ${circ}` }} animate={{ strokeDasharray: `${Math.max(len - 3, 0)} ${circ}` }} transition={{ delay: 0.3 + i * 0.25, duration: 1.1, ease: EASE }} />
+            strokeDashoffset={-acc} transform="rotate(-90 100 100)"
+            initial={{ strokeDasharray: `0 ${circ}` }} animate={{ strokeDasharray: `${Math.max(len - 3, 0)} ${circ}` }}
+            transition={{ delay: 0.3 + i * 0.25, duration: 1.1, ease: EASE }} />
         );
         acc += len;
         return el;
       })}
-      <text x="100" y="98" textAnchor="middle" fill="#E4EBE6" fontSize="30" fontWeight="800" fontFamily="'Bricolage Grotesque',sans-serif">{center}</text>
-      <text x="100" y="118" textAnchor="middle" fill="#8BA699" fontSize="11">{sub}</text>
+      <text x="100" y="98" textAnchor="middle" fill="#F5F6FA" fontSize="30" fontWeight="700" fontFamily="'Playfair Display',Georgia,serif">{center}</text>
+      <text x="100" y="118" textAnchor="middle" fill="#9AA4BA" fontSize="11">{sub}</text>
     </svg>
   );
 }
 
 function PercentileTrack({ pct }: { pct: number | null }) {
-  const col = (pct ?? 0) >= 60 ? C.good : (pct ?? 0) >= 35 ? C.you : C.bad;
+  const col = (pct ?? 0) >= 60 ? C.good : (pct ?? 0) >= 35 ? C.warn : C.bad;
   return (
-    <div className="relative h-3 rounded-full bg-[#07110D] shadow-[inset_0_2px_4px_rgba(0,0,0,.6)]">
+    <div className="relative h-3 rounded-full bg-[var(--well)] shadow-[inset_0_2px_4px_rgba(0,0,0,.6)]">
       <div className="absolute inset-0 flex overflow-hidden rounded-full opacity-30">
-        <div style={{ width: "35%", background: C.bad }} /><div style={{ width: "25%", background: C.you }} /><div style={{ width: "40%", background: C.good }} />
+        <div style={{ width: "35%", background: C.bad }} /><div style={{ width: "25%", background: C.warn }} /><div style={{ width: "40%", background: C.good }} />
       </div>
       {pct != null && (
         <>
-          <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.1, ease: EASE }} className="da-shimmer absolute left-0 top-0 h-full rounded-full" style={{ background: `linear-gradient(90deg, ${col}33, ${col})`, boxShadow: `0 0 16px ${col}66` }} />
+          <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.1, ease: EASE }} className="da-shimmer absolute left-0 top-0 h-full rounded-full" style={{ background: `linear-gradient(90deg, ${col}33, ${col})`, boxShadow: `0 0 14px ${col}55` }} />
           <motion.span initial={{ left: 0 }} animate={{ left: `${pct}%` }} transition={{ duration: 1.1, ease: EASE }}
-            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#0C1915]"
-            style={{ background: col, boxShadow: `0 0 18px ${col}, 0 0 4px #fff inset` }} />
+            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#0B1220]"
+            style={{ background: col, boxShadow: `0 0 16px ${col}` }} />
         </>
       )}
     </div>
   );
 }
 
-// ---------- race lanes (the topper's path) ----------
-type Seg = [string, number, number];
-type MetaMap = Map<string, { sec: number; no: number; verdict?: Verdict; section: string }>;
-const tickStep = (span: number) => [30, 60, 120, 300, 600, 900].find((s) => span / s <= 10) || 900;
+/* ---------- report footer (verification seal), aligned and a little larger ---------- */
+function ReportFooter({ student, test, reportId, verified }: { student?: string | null; test?: string | null; reportId: string; verified?: number | null }) {
+  const date = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const chips: string[] = [];
+  if (verified) chips.push(`Benchmarked against ${verified} verified attempt${verified > 1 ? "s" : ""}`);
+  chips.push(`Report ${reportId}`);
+  chips.push(date);
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090F1C]/60 px-5 py-6 md:px-8 md:py-8">
+      <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(241,217,139,.5), transparent)" }} />
+      <div aria-hidden className="pointer-events-none absolute -left-10 top-1/2 h-40 w-40 -translate-y-1/2 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(212,175,55,.16), transparent 70%)" }} />
 
+      <div className="relative flex flex-col items-center gap-1 md:block">
+        {/* seal: pinned to the left on desktop so it does not shift the centre of the details */}
+        <div className="relative h-28 w-28 shrink-0 md:absolute md:left-4 md:top-1/2 md:-translate-y-1/2">
+          <svg viewBox="0 0 112 112" className="absolute inset-0 h-full w-full" aria-hidden>
+            <defs>
+              <linearGradient id="rfSeal" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#F1D98B" /><stop offset="100%" stopColor="#B8932A" /></linearGradient>
+            </defs>
+            {/* <circle cx="56" cy="56" r="52" fill="none" stroke="url(#rfSeal)" strokeWidth="1.6" />
+            <circle cx="56" cy="56" r="44" fill="none" stroke="url(#rfSeal)" strokeWidth="0.9" strokeDasharray="2 3.5" />
+            <circle cx="56" cy="56" r="34" fill="rgba(212,175,55,.10)" stroke="url(#rfSeal)" strokeWidth="1.1" /> */}
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center"><StarMark size={90} id="rf-seal" /></span>
+        </div>
+
+        <span aria-hidden className="absolute left-[10.5rem] top-1/2 hidden h-20 w-px -translate-y-1/2 md:block" style={{ background: "linear-gradient(180deg, transparent, rgba(212,175,55,.45), transparent)" }} />
+
+        {/* details: centred on the whole card; side padding keeps clear of the star */}
+        <div className="mx-auto flex min-w-0 max-w-3xl flex-col items-center justify-center space-y-2.5 text-center md:px-40">
+          <div className="da-head da-grad-chalk text-lg font-extrabold tracking-[0.14em] md:text-xl">{BRAND.name} {BRAND.product.toUpperCase()}</div>
+          <p className="text-sm leading-relaxed text-[var(--mute)]">
+            Prepared for <span className="font-semibold text-[var(--ink)]">{student || "this aspirant"}</span>
+            {test ? <span className="block">{test}</span> : null}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+            {chips.map((c) => (
+              <span key={c} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-[var(--mute)]">{c}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- race lanes (the topper's path) ---------- */
 function Lane({ label, segs, span, meta, you }: { label: string; segs: Seg[]; span: number; meta: MetaMap; you?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="da-head w-16 shrink-0 text-sm font-bold" style={{ color: you ? C.you : C.top, textShadow: `0 0 14px ${you ? C.you : C.top}66` }}>{label}</div>
-      <div className="relative h-14 flex-1 rounded-xl border border-white/[0.07] bg-[#07110D] shadow-[inset_0_2px_10px_rgba(0,0,0,.7)]">
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, rgba(255,255,255,.14) 0 8px, transparent 8px 18px)" }} />
+      <div className="da-head w-16 shrink-0 text-sm font-bold" style={{ color: you ? C.you : C.top }}>{label}</div>
+      <div className="relative h-14 flex-1 rounded-xl border border-white/[0.07] bg-[var(--well)] shadow-[inset_0_2px_10px_rgba(0,0,0,.7)]">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 8px, transparent 8px 18px)" }} />
         {segs.map(([id, s, e], i) => {
           const m = meta.get(id);
           if (!m) return null;
           const w = Math.max(((e - s) / span) * 100, 0.4);
           const hue = SEC_HUES[m.sec % SEC_HUES.length];
-          const vcol = m.verdict === "correct" ? C.good : m.verdict === "wrong" ? C.bad : C.skip;
+          const vcol = verdictColor(m.verdict);
           return (
             <motion.div key={i} title={`${m.section} Q${m.no} · ${fmt(s)}–${fmt(e)} (${secs(e - s)})`}
               initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.15 + (s / span) * 1.2, duration: 0.45, ease: "easeOut" }}
               className="da-seg absolute top-1.5 bottom-1.5 origin-left cursor-default rounded-[5px]"
-              style={{ left: `${(s / span) * 100}%`, width: `calc(${w}% - 1.5px)`, color: hue, background: `linear-gradient(180deg, ${hue}, ${hue}A0)`, boxShadow: `0 0 12px -2px ${hue}77, inset 0 1px 0 rgba(255,255,255,.4)` }}>
+              style={{ left: `${(s / span) * 100}%`, width: `calc(${w}% - 1.5px)`, color: hue, background: `linear-gradient(180deg, ${hue}, ${hue}A0)`, boxShadow: `0 0 10px -2px ${hue}66, inset 0 1px 0 rgba(255,255,255,.35)` }}>
               {you && <span className="absolute -bottom-[5px] left-0 h-[3px] w-full rounded-full" style={{ background: vcol, boxShadow: `0 0 8px ${vcol}` }} />}
-              {w > 3 && <span className="absolute left-1 top-0.5 text-[10px] font-extrabold text-[#0A1411]">{m.no}</span>}
+              {w > 3 && <span className="absolute left-1 top-0.5 text-[10px] font-extrabold text-[#0B1220]">{m.no}</span>}
             </motion.div>
           );
         })}
@@ -331,21 +423,7 @@ function TimeAxis({ span }: { span: number }) {
   );
 }
 
-function pathSummary(segs: Seg[], meta: Map<string, any>, sections: string[]) {
-  const per: Record<string, { first: number; last: number; total: number }> = {};
-  const seen = new Map<string, number>();
-  segs.forEach(([id, s, e]) => {
-    const m = meta.get(id); if (!m) return;
-    const p = per[m.section] || (per[m.section] = { first: s, last: e, total: 0 });
-    p.first = Math.min(p.first, s); p.last = Math.max(p.last, e); p.total += e - s;
-    seen.set(id, (seen.get(id) || 0) + 1);
-  });
-  const revisits = Array.from(seen.values()).filter((n) => n > 1).length;
-  const order = sections.filter((s) => per[s]).sort((a, b) => per[a].first - per[b].first);
-  return { per, order, revisits };
-}
-
-// ---------- locked (non premium) view ----------
+/* ---------- locked (non premium) view ---------- */
 function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () => void }) {
   return (
     <div className="da-root relative min-h-screen p-6 text-[var(--ink)]">
@@ -354,7 +432,7 @@ function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () =
       <div className="relative mx-auto max-w-4xl">
         <div aria-hidden className="pointer-events-none select-none space-y-4 opacity-70 blur-[7px]">
           <div className="da-card flex items-center justify-between rounded-3xl p-6">
-            <div className="da-num text-6xl font-extrabold" style={{ color: C.you }}>41:12 <span className="text-[var(--mute)]">vs</span> 33:40</div>
+            <div className="da-score text-6xl" style={{ color: C.champ }}>41:12 <span className="text-[var(--mute)]">vs</span> 33:40</div>
             <div className="h-28 w-28 rounded-full border-[14px]" style={{ borderColor: `${C.good} ${C.bad} ${C.skip} ${C.good}` }} />
           </div>
           <div className="da-card flex h-56 items-end gap-2 rounded-3xl p-6">
@@ -363,15 +441,15 @@ function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () =
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
           <motion.div initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}
-            className="da-card max-w-md rounded-3xl border border-white/10 bg-[#07110D]/90 p-8 text-center shadow-2xl">
-            <div className="da-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "rgba(255,182,39,.12)", boxShadow: `0 0 40px ${C.you}55, inset 0 0 0 1px ${C.you}55` }}>
-              <Lock style={{ color: C.you }} />
+            className="da-card max-w-md rounded-3xl border border-white/10 bg-[#090F1C]/90 p-8 text-center shadow-2xl">
+            <div className="da-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "rgba(212,175,55,.1)", boxShadow: `0 0 36px ${C.gold}44, inset 0 0 0 1px ${C.gold}55` }}>
+              <Lock style={{ color: C.gold }} />
             </div>
-            <h1 className="da-head da-grad text-3xl font-extrabold">See where your time leaks</h1>
+            <h1 className="da-head da-grad text-3xl font-bold">See where your time leaks</h1>
             <p className="mt-3 text-sm leading-relaxed text-[var(--mute)]">
-              Question-by-question time against the topper and the average, the topper's route through the paper, your ego traps, and a one-click practice test from your mistakes.
+              Question-by-question time against the topper and the average, the topper&apos;s route through the paper, your ego traps, and a one-click practice test from your mistakes.
             </p>
-            <button onClick={onUpgrade} className="da-btn mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-[#0C1915] shadow-[0_12px_32px_-8px_rgba(255,182,39,.7)]" style={{ background: `linear-gradient(180deg, #FFC857, ${C.you})` }}>
+            <button onClick={onUpgrade} className="da-btn mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-[#0B1220] shadow-[0_12px_32px_-10px_rgba(212,175,55,.7)]" style={{ background: `linear-gradient(180deg, ${C.champ}, ${C.gold})` }}>
               <Crown size={15} /> Upgrade to unlock
             </button>
           </motion.div>
@@ -381,13 +459,16 @@ function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () =
   );
 }
 
-// =====================================================================
+/* =====================================================================
+   PAGE
+   ===================================================================== */
 function DeepAnalysisCore() {
   const router = useRouter();
   const params = useSearchParams();
   const testId = params.get("id");
   const { session, loading: sessionLoading } = useStudentSession();
 
+  // ---- data ----
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [test, setTest] = useState<any>(null);
@@ -396,6 +477,7 @@ function DeepAnalysisCore() {
   const [log, setLog] = useState<any>(null);
   const [bench, setBench] = useState<any>(null);
 
+  // ---- ui state ----
   const [secIdx, setSecIdx] = useState(0);
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "traps" | "wrong" | "skipped">("all");
   const [open, setOpen] = useState<string | null>(null);
@@ -405,6 +487,9 @@ function DeepAnalysisCore() {
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
 
+  useEffect(() => { document.title = BRAND.title; }, []);
+
+  // load everything for this student + test
   useEffect(() => {
     if (sessionLoading) return;
     if (!session) { router.push("/student/login"); return; }
@@ -432,7 +517,7 @@ function DeepAnalysisCore() {
   const answers: Record<string, string> = attempt?.answers_matrix || {};
   const hasTime = !!log && Object.keys(log.per_question || {}).length > 0;
 
-  // highlights the nav pill of the section currently in view (visual only)
+  // highlight the nav pill of the section currently in view (visual only)
   useEffect(() => {
     if (loading || sessionLoading) return;
     const els = ["time", "route", "coach", "chapters", "marks", "vault", "ledger"]
@@ -442,6 +527,7 @@ function DeepAnalysisCore() {
     return () => io.disconnect();
   }, [loading, sessionLoading, attempt, hasTime]);
 
+  // ---- derived data (calculations unchanged) ----
   const sections = useMemo(() => {
     const seen: string[] = [];
     qs.forEach((q) => { const s = (q.section || "").trim() || "Assessment Section"; if (!seen.includes(s)) seen.push(s); });
@@ -465,15 +551,13 @@ function DeepAnalysisCore() {
         top: b.top_time ?? null, pctTop: b.pct_correct_top ?? null,
         topSkipped: b.pct_skipped_top ?? null, pctCorrect: b.pct_correct ?? null,
       };
-      const insight = hasTime ? insightFor(base) : null;
       const hasTop = base.top != null && base.top > 0;
       return {
-        id: q.id, no: counters[section], section, text: q.question_text,
-        ...base, visits: log?.per_question?.[q.id]?.v ?? 0,
+        id: q.id, no: counters[section], section, ...base,
         avg: b.avg_time ?? null,
         chapterKey: tax[i].chapterKey, chapterName: tax[i].chapterName, chapterTagged: tax[i].chapterTagged,
         topicName: tax[i].topicName, topicTagged: tax[i].topicTagged,
-        insight,
+        insight: hasTime ? insightFor(base) : null,
         trap: hasTime && ((verdict !== "correct" && base.you >= 90) || (verdict === "correct" && hasTop && base.you >= base.top! * 3 && base.you >= 40)),
         q,
       } as Row;
@@ -481,17 +565,18 @@ function DeepAnalysisCore() {
   }, [qs, bench, log, answers, hasTime]);
 
   const agg = useMemo(() => {
-    const you = rows.reduce((a, r) => a + r.you, 0);
-    const topTotal = bench?.topper_total_seconds ?? null;
-    const leak = rows.reduce((a, r) => a + (r.top ? Math.max(0, r.you - r.top) : 0), 0);
-    const wrongTime = rows.filter((r) => r.verdict === "wrong").reduce((a, r) => a + r.you, 0);
-    const correctTime = rows.filter((r) => r.verdict === "correct").reduce((a, r) => a + r.you, 0);
-    const skippedTime = rows.filter((r) => r.verdict === "skipped").reduce((a, r) => a + r.you, 0);
-    const egoTraps = rows.filter((r) => r.verdict !== "correct" && r.you >= 90).sort((a, b) => b.you - a.you);
-    const timeTraps = rows.filter((r) => r.trap && r.verdict === "correct").sort((a, b) => b.you - a.you);
-    const guesses = rows.filter((r) => r.verdict === "wrong" && r.you < 5);
-    const cap = Math.round(2 * median(rows.map((r) => r.top || 0).filter((x) => x > 0)));
-    return { you, topTotal, leak, wrongTime, correctTime, skippedTime, egoTraps, timeTraps, guesses, cap };
+    const sumTime = (f: (r: Row) => boolean) => rows.filter(f).reduce((a, r) => a + r.you, 0);
+    return {
+      you: rows.reduce((a, r) => a + r.you, 0),
+      topTotal: (bench?.topper_total_seconds ?? null) as number | null,
+      leak: rows.reduce((a, r) => a + (r.top ? Math.max(0, r.you - r.top) : 0), 0),
+      wrongTime: sumTime((r) => r.verdict === "wrong"),
+      correctTime: sumTime((r) => r.verdict === "correct"),
+      skippedTime: sumTime((r) => r.verdict === "skipped"),
+      egoTraps: rows.filter((r) => r.verdict !== "correct" && r.you >= 90).sort((a, b) => b.you - a.you),
+      guesses: rows.filter((r) => r.verdict === "wrong" && r.you < 5),
+      cap: Math.round(2 * median(rows.map((r) => r.top || 0).filter((x) => x > 0))),
+    };
   }, [rows, bench]);
 
   const chapters = useMemo(() => {
@@ -508,8 +593,7 @@ function DeepAnalysisCore() {
     return Array.from(m.values());
   }, [rows, bench]);
 
-  const sectionName = sections[secIdx];
-  const secRows = rows.filter((r) => r.section === sectionName);
+  const secRows = rows.filter((r) => r.section === sections[secIdx]);
   const chartData = secRows.map((r) => ({
     name: `Q${r.no}`, you: Math.round(r.you), top: r.top, avg: r.avg, verdict: r.verdict,
     verdictLabel: r.verdict === "correct" ? "correct" : r.verdict === "wrong" ? "wrong" : "skipped",
@@ -530,7 +614,7 @@ function DeepAnalysisCore() {
   const quadrantMid = chapters.length ? chapters.reduce((a, c) => a + c.time, 0) / Math.max(1, chapters.reduce((a, c) => a + c.n, 0)) : 0;
   const scatter = chapters.map((c) => {
     const x = Math.round(c.time / c.n), y = Math.round((c.correct / c.n) * 100);
-    return { name: c.name, short: c.name.length > 16 ? c.name.slice(0, 15) + "…" : c.name, x, y, z: c.n, fill: y >= 60 ? (x <= quadrantMid ? C.good : C.you) : (x <= quadrantMid ? C.skip : C.bad) };
+    return { name: c.name, short: c.name.length > 16 ? c.name.slice(0, 15) + "…" : c.name, x, y, z: c.n, fill: y >= 60 ? (x <= quadrantMid ? C.good : C.warn) : (x <= quadrantMid ? C.skip : C.bad) };
   });
   const xMax = Math.max(10, Math.ceil(Math.max(quadrantMid * 2, ...scatter.map((d) => d.x)) * 1.1));
 
@@ -581,14 +665,14 @@ function DeepAnalysisCore() {
 
   const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // ---------- states ----------
+  // ---------- early states ----------
   if (loading || sessionLoading) {
     return (
       <div className="da-root flex min-h-screen flex-col items-center justify-center gap-5 text-[var(--mute)]">
         <style>{FONT_CSS}</style><World />
         <div className="relative h-16 w-16">
-          <motion.span className="absolute inset-0 rounded-full border-2 border-transparent" style={{ borderTopColor: C.you, borderRightColor: "#7FD6C2" }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: "linear" }} />
-          <motion.span className="absolute inset-3 rounded-full border-2 border-transparent" style={{ borderBottomColor: "#F29E8E" }} animate={{ rotate: -360 }} transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }} />
+          <motion.span className="absolute inset-0 rounded-full border-2 border-transparent" style={{ borderTopColor: C.gold, borderRightColor: C.champ }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: "linear" }} />
+          <motion.span className="absolute inset-3 rounded-full border-2 border-transparent" style={{ borderBottomColor: C.you }} animate={{ rotate: -360 }} transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }} />
           <span className="da-live absolute inset-[26px]" />
         </div>
         <span className="da-head da-grad-chalk text-lg font-bold">Building your report</span>
@@ -605,10 +689,13 @@ function DeepAnalysisCore() {
     return <div className="da-root flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center text-[var(--ink)]"><style>{FONT_CSS}</style><World /><p>Submit this test first to unlock its deep analysis.</p><button onClick={() => router.back()} className="da-chip rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Go back</button></div>;
   }
 
+  // ---------- flags for the render ----------
   const hasTopper = (bench?.topper_count || 0) > 0;
-  const isTopper = Number(bench?.my_rank) === 1 && Number(bench?.cohort_size) >= 2;
+  const isTopper = bench?.is_topper === true || (bench?.is_topper == null && Number(bench?.my_rank) === 1 && Number(bench?.cohort_size) >= 2);
+  const jointTopper = isTopper && Number(bench?.rank_ties) > 1;
   const lead = agg.topTotal ? agg.you - agg.topTotal : null;
   const trackMax = Math.max(agg.you, agg.topTotal || 0, 1);
+  const studentName = (session?.name || "").split(" ")[0];
   const navItems = [
     hasTime && ["time", "Time chart"], hasTime && ["route", "Topper route"], hasTime && ["coach", "Coaching"],
     chapters.length > 0 && ["chapters", "Chapters"], sectionBench.length > 0 && ["marks", "Sectional marks"],
@@ -620,45 +707,47 @@ function DeepAnalysisCore() {
       <style>{FONT_CSS}</style>
       <World />
 
-      {/* sticky bar: back, premium badge, section jump */}
-      <div className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#0C1915]/60 backdrop-blur-xl">
-        <motion.div aria-hidden style={{ scaleX: progress, background: `linear-gradient(90deg, #7FD6C2, ${C.you}, #FF8A4A)`, boxShadow: `0 0 12px ${C.you}` }} className="absolute inset-x-0 bottom-[-1px] h-[2px] origin-left" />
+      {/* sticky bar: back, brand, section jump, premium badge */}
+      <div className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#0B1220]/75 backdrop-blur-xl">
+        <motion.div aria-hidden style={{ scaleX: progress, background: `linear-gradient(90deg, ${C.you}, ${C.champ}, ${C.gold})`, boxShadow: `0 0 10px ${C.gold}88` }} className="absolute inset-x-0 bottom-[-1px] h-[2px] origin-left" />
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 md:px-6">
           <button onClick={() => router.back()} className="da-chip flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-[var(--mute)] hover:text-[var(--ink)]"><ArrowLeft size={14} /> Results</button>
+          <Wordmark className="hidden md:inline-flex" />
           <nav className="da-scroll flex flex-1 gap-1.5 overflow-x-auto">
             {navItems.map(([id, l]) => (
               <button key={id} onClick={() => jump(id)} className="da-chip shrink-0 rounded-full border border-transparent px-3.5 py-1.5 text-xs font-semibold text-[var(--mute)] hover:border-white/10 hover:bg-white/[0.05] hover:text-[var(--ink)]"
-                style={activeNav === id ? { color: C.you, background: "rgba(255,182,39,.1)", borderColor: "rgba(255,182,39,.35)" } : undefined}>{l}</button>
+                style={activeNav === id ? { color: C.champ, background: "rgba(212,175,55,.1)", borderColor: "rgba(212,175,55,.35)" } : undefined}>{l}</button>
             ))}
           </nav>
-          <span className="da-shimmer hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold sm:flex" style={{ color: C.you, borderColor: "rgba(255,182,39,.4)", background: "rgba(255,182,39,.08)", boxShadow: "0 0 24px -6px rgba(255,182,39,.5)" }}><Crown size={12} /> Premium</span>
+          <span className="da-shimmer hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold sm:flex" style={{ color: C.champ, borderColor: "rgba(212,175,55,.4)", background: "rgba(212,175,55,.08)" }}><Crown size={12} /> Premium</span>
         </div>
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 pt-6 md:px-6">
-        {/* hero */}
+        {/* ===================== HERO ===================== */}
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.9, ease: EASE }}
           className="da-card relative overflow-hidden rounded-[2rem] border border-white/[0.07] p-6 md:p-10">
-          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 72px)", maskImage: "linear-gradient(180deg,#000,transparent 85%)", WebkitMaskImage: "linear-gradient(180deg,#000,transparent 85%)" }} />
-          <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(255,182,39,.28), transparent 65%)" }} />
-          {isTopper && <div className="relative"><TopperBanner cohort={Number(bench?.cohort_size)} /></div>}
-          <p className="relative flex flex-wrap items-center gap-2.5 text-sm text-[var(--mute)]">
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 72px)", maskImage: "linear-gradient(180deg,#000,transparent 85%)", WebkitMaskImage: "linear-gradient(180deg,#000,transparent 85%)" }} />
+          <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(212,175,55,.22), transparent 65%)" }} />
+          <div className="relative mb-5"><Wordmark large /></div>
+          {isTopper && <div className="relative mb-6"><TopperBanner cohort={Number(bench?.cohort_size)} name={studentName} joint={jointTopper} /></div>}
+          <p className="relative flex flex-wrap items-center gap-2.5 pt-1 text-sm text-[var(--mute)]">
             <span className="da-live" />
             <span className="font-semibold text-[var(--ink)]">{test?.test_name}</span>
             {isTopper
-              ? <span className="da-medal inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-extrabold text-[#0C1915] shadow-[0_0_20px_-2px_rgba(255,182,39,.8)]"><Trophy size={12} /> Rank {bench?.my_rank} of {bench?.cohort_size}</span>
+              ? <span className="da-medal inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-extrabold text-[#0B1220]"><Trophy size={12} /> Rank {bench?.my_rank} of {bench?.cohort_size}</span>
               : <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-0.5 text-xs">rank {bench?.my_rank} of {bench?.cohort_size}</span>}
           </p>
 
-          <div className="relative mt-4 grid items-center gap-10 lg:grid-cols-[1.5fr_1fr]">
+          <div className="relative mt-5 grid items-center gap-10 lg:grid-cols-[1.5fr_1fr]">
             <div>
               {hasTime ? (
                 <>
-                  <h1 className="da-head text-4xl font-extrabold leading-[1.05] md:text-6xl">
+                  <h1 className="da-head text-4xl font-bold leading-[1.1] md:text-6xl">
                     {isTopper
-                      ? <>You finished first in <span className="da-num da-grad">{fmt(agg.you)}</span></>
-                      : <>You took <span className="da-num da-grad">{fmt(agg.you)}</span></>}
-                    {agg.topTotal ? <>{isTopper ? ". The fastest benchmark run took " : " where toppers took "}<span className="da-num da-grad-chalk">{fmt(agg.topTotal)}</span></> : null}
+                      ? <>You finished first in <span className="da-score da-grad">{fmt(agg.you)}</span></>
+                      : <>You took <span className="da-score da-grad">{fmt(agg.you)}</span></>}
+                    {agg.topTotal ? <>{isTopper ? ". The fastest benchmark run took " : " where toppers took "}<span className="da-score da-grad-chalk">{fmt(agg.topTotal)}</span></> : null}
                   </h1>
                   <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--mute)]">
                     {agg.leak > 0
@@ -669,16 +758,16 @@ function DeepAnalysisCore() {
                     {!hasTopper && " Topper benchmarks appear once at least 3 clean attempts exist for this test."}
                   </p>
                   {/* the race: total time you vs topper */}
-                  <div className="relative mt-8 space-y-4 rounded-2xl border border-white/[0.06] bg-[#07110D]/50 p-4 pr-5">
+                  <div className="relative mt-8 space-y-4 rounded-2xl border border-white/[0.06] bg-[var(--well)]/60 p-4 pr-5">
                     <span aria-hidden className="da-chk absolute bottom-3 right-2 top-3 w-2 rounded-sm" />
-                    {[{ l: "You", v: agg.you, c: C.you }, ...(agg.topTotal ? [{ l: isTopper ? "Best" : "Topper", v: agg.topTotal as number, c: C.top }] : [])].map((t, i) => (
+                    {[{ l: "You", v: agg.you, c: C.you }, ...(agg.topTotal ? [{ l: isTopper ? "Best" : "Topper", v: agg.topTotal, c: C.top }] : [])].map((t, i) => (
                       <div key={t.l} className="flex items-center gap-3">
                         <span className="da-head w-14 text-sm font-bold" style={{ color: t.c }}>{t.l}</span>
-                        <div className="relative mr-3 h-6 flex-1 rounded-full bg-[#07110D] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
+                        <div className="relative mr-3 h-6 flex-1 rounded-full bg-[var(--well)] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
                           <div aria-hidden className="absolute inset-x-2 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 6px, transparent 6px 14px)" }} />
                           <motion.div initial={{ width: 0 }} animate={{ width: `${(t.v / trackMax) * 100}%` }} transition={{ duration: 1.4, delay: 0.3 + i * 0.2, ease: EASE }}
-                            className="da-shimmer relative h-full rounded-full" style={{ color: t.c, background: `linear-gradient(90deg, ${t.c}22, ${t.c})`, boxShadow: `0 0 26px ${t.c}66` }}>
-                            <span className="da-head-dot" style={{ boxShadow: `0 0 14px ${t.c}` }} />
+                            className="da-shimmer relative h-full rounded-full" style={{ color: t.c, background: `linear-gradient(90deg, ${t.c}22, ${t.c})`, boxShadow: `0 0 22px ${t.c}55` }}>
+                            <span className="da-head-dot" style={{ boxShadow: `0 0 12px ${t.c}` }} />
                           </motion.div>
                         </div>
                         <span className="da-num w-14 text-right text-sm font-bold"><CountUp value={t.v} format={fmt} /></span>
@@ -687,7 +776,7 @@ function DeepAnalysisCore() {
                   </div>
                 </>
               ) : (
-                <h1 className="da-head da-grad-chalk text-3xl font-extrabold md:text-4xl">Time data was not recorded for this attempt</h1>
+                <h1 className="da-head da-grad-chalk text-3xl font-bold md:text-4xl">Time data was not recorded for this attempt</h1>
               )}
             </div>
 
@@ -698,8 +787,8 @@ function DeepAnalysisCore() {
                     parts={[{ v: agg.correctTime, c: C.good }, { v: agg.wrongTime, c: C.bad }, { v: agg.skippedTime, c: C.skip }]} />
                 </div>
                 <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[var(--mute)]">
-                  {[["Correct", C.good, agg.correctTime], ["Wrong", C.bad, agg.wrongTime], ["Skipped", C.skip, agg.skippedTime]].map(([l, c, v]) => (
-                    <span key={l as string} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: c as string, boxShadow: `0 0 10px ${c as string}` }} />{l as string} {Math.round(((v as number) / Math.max(agg.you, 1)) * 100)}%</span>
+                  {([["Correct", C.good, agg.correctTime], ["Wrong", C.bad, agg.wrongTime], ["Skipped", C.skip, agg.skippedTime]] as const).map(([l, c, v]) => (
+                    <span key={l} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: c, boxShadow: `0 0 8px ${c}` }} />{l} {Math.round((v / Math.max(agg.you, 1)) * 100)}%</span>
                   ))}
                 </div>
               </div>
@@ -710,17 +799,17 @@ function DeepAnalysisCore() {
             <div className="relative mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
                 { icon: Flame, k: "Time leakage", n: agg.leak, f: fmt, s: "vs topper pace", c: C.bad },
-                { icon: AlertTriangle, k: "Ego traps", n: agg.egoTraps.length, f: (x: number) => String(Math.round(x)), s: "90s+ with no marks", c: C.you },
-                { icon: Zap, k: "Blind guesses", n: agg.guesses.length, f: (x: number) => String(Math.round(x)), s: "wrong in under 5s", c: C.you },
+                { icon: AlertTriangle, k: "Ego traps", n: agg.egoTraps.length, f: (x: number) => String(Math.round(x)), s: "90s+ with no marks", c: C.warn },
+                { icon: Zap, k: "Blind guesses", n: agg.guesses.length, f: (x: number) => String(Math.round(x)), s: "wrong in under 5s", c: C.warn },
                 lead != null
                   ? { icon: Gauge, k: isTopper ? (lead > 0 ? "Behind best pace by" : "Ahead of best pace by") : lead > 0 ? "Behind topper by" : "Ahead of topper by", n: Math.abs(lead), f: fmt, s: "total time", c: lead <= 0 ? C.good : C.you }
                   : { icon: Gauge, k: "Avg per question", n: agg.you / Math.max(rows.length, 1), f: secs, s: "total time", c: C.you },
               ].map((t) => (
-                <div key={t.k} className="da-tile relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#07110D]/60 p-4">
-                  <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: t.c, boxShadow: `0 0 16px ${t.c}` }} />
-                  <span aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl" style={{ background: `${t.c}33` }} />
+                <div key={t.k} className="da-tile relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4">
+                  <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: t.c }} />
+                  <span aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl" style={{ background: `${t.c}26` }} />
                   <span className="relative flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${t.c}1F`, boxShadow: `inset 0 0 0 1px ${t.c}44` }}><t.icon size={15} style={{ color: t.c }} /></span>
-                  <div className="da-num relative mt-3 text-4xl font-extrabold" style={{ textShadow: `0 0 28px ${t.c}55` }}><CountUp value={t.n} format={t.f} /></div>
+                  <div className="da-score relative mt-3 text-4xl"><CountUp value={t.n} format={t.f} /></div>
                   <div className="relative text-sm font-semibold">{t.k}</div>
                   <div className="relative text-xs text-[var(--mute)]">{t.s}</div>
                 </div>
@@ -733,14 +822,13 @@ function DeepAnalysisCore() {
           <Card><p className="text-sm leading-relaxed text-[var(--mute)]">This attempt was submitted before time tracking was switched on, so the speed sections are hidden. Attempt any new test and the full time analysis appears here. Your chapter standing and mistake vault below still work.</p></Card>
         )}
 
-        {/* next moves */}
+        {/* ===================== NEXT MOVES ===================== */}
         <div className="grid gap-4 md:grid-cols-3">
           {moves.map((m, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 + i * 0.12, duration: 0.7, ease: EASE }}
               className="da-card da-tile group relative overflow-hidden rounded-3xl border border-white/[0.07] p-6">
-              <span aria-hidden className="absolute right-4 top-2 da-num text-7xl font-extrabold text-white/[0.05] transition-transform duration-500 group-hover:scale-110">{i + 1}</span>
-              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full blur-3xl" style={{ background: "rgba(255,182,39,.16)" }} />
-              <div className="relative flex items-center gap-2 text-xs font-bold" style={{ color: C.you }}><span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(255,182,39,.14)" }}><Target size={13} /></span> Do this next</div>
+              <span aria-hidden className="da-score absolute right-4 top-2 text-7xl text-white/[0.05] transition-transform duration-500 group-hover:scale-110">{i + 1}</span>
+              <div className="relative flex items-center gap-2 text-xs font-bold" style={{ color: C.champ }}><span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(212,175,55,.12)" }}><Target size={13} /></span> Do this next</div>
               <h3 className="da-head relative mt-3 text-xl font-bold">{m.title}</h3>
               <p className="relative mt-1.5 text-sm leading-relaxed text-[var(--mute)]">{m.body}</p>
             </motion.div>
@@ -749,41 +837,41 @@ function DeepAnalysisCore() {
 
         {hasTime && (
           <>
-            {/* time overlay */}
-            <Card id="time" title="Your time on every question" note="Bars are your time, coloured by result. The light line is the topper median and the shaded dashed area is the average aspirant. The strip underneath shows where you were slower (red) or faster (green) than the topper.">
+            {/* ===================== TIME OVERLAY ===================== */}
+            <Card id="time" brand title="Your time on every question" note="Bars are your time, coloured by result. The champagne line is the topper median and the shaded dashed area is the average aspirant. The strip underneath shows where you were slower (coral) or faster (green) than the topper.">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-1.5">
                   {sections.map((s, i) => (
                     <button key={s} onClick={() => setSecIdx(i)} className="da-chip rounded-full border px-3.5 py-1.5 text-xs font-bold"
-                      style={i === secIdx ? { background: SEC_HUES[i % SEC_HUES.length], color: "#0C1915", borderColor: "transparent", boxShadow: `0 8px 22px -6px ${SEC_HUES[i % SEC_HUES.length]}99` } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>
+                      style={i === secIdx ? { background: SEC_HUES[i % SEC_HUES.length], color: "#0B1220", borderColor: "transparent", boxShadow: `0 8px 22px -8px ${SEC_HUES[i % SEC_HUES.length]}99` } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>
                       {s}
                     </button>
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--mute)]">
-                  {[["Correct", C.good], ["Wrong", C.bad], ["Skipped", C.skip]].map(([l, c]) => <span key={l} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: c, boxShadow: `0 0 8px ${c}` }} />{l}</span>)}
+                  {([["Correct", C.good], ["Wrong", C.bad], ["Skipped", C.skip]] as const).map(([l, c]) => <span key={l} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} />{l}</span>)}
                 </div>
               </div>
-              <div className="h-[360px] w-full rounded-2xl border border-white/[0.05] bg-[#07110D]/40 p-2">
+              <div className="h-[360px] w-full rounded-2xl border border-white/[0.05] bg-[var(--well)]/50 p-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 10, right: 8, bottom: 0, left: -18 }}>
                     <defs>
-                      <linearGradient id="gGood" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C6F7AE" /><stop offset="100%" stopColor="#3E9A55" /></linearGradient>
-                      <linearGradient id="gBad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FFA77E" /><stop offset="100%" stopColor="#D1331A" /></linearGradient>
-                      <linearGradient id="gSkip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#86A89B" /><stop offset="100%" stopColor="#385149" /></linearGradient>
-                      <linearGradient id="gAvg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7FA596" stopOpacity={0.4} /><stop offset="100%" stopColor="#7FA596" stopOpacity={0} /></linearGradient>
-                      <filter id="lineGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                      <linearGradient id="gGood" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6EE0B4" /><stop offset="100%" stopColor="#1F9D70" /></linearGradient>
+                      <linearGradient id="gBad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F08A93" /><stop offset="100%" stopColor="#B93E49" /></linearGradient>
+                      <linearGradient id="gSkip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7A87A6" /><stop offset="100%" stopColor="#3A4560" /></linearGradient>
+                      <linearGradient id="gAvg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7C6CF2" stopOpacity={0.35} /><stop offset="100%" stopColor="#7C6CF2" stopOpacity={0} /></linearGradient>
+                      <filter id="lineGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                     </defs>
-                    <CartesianGrid stroke="#2A4A3E" strokeDasharray="2 6" vertical={false} />
-                    <XAxis dataKey="name" stroke="#8BA699" fontSize={11} tickLine={false} axisLine={{ stroke: "#2A4A3E" }} />
-                    <YAxis stroke="#8BA699" fontSize={11} tickLine={false} axisLine={false} unit="s" />
-                    <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.06)" }} />
+                    <CartesianGrid stroke="#26314A" strokeDasharray="2 6" vertical={false} />
+                    <XAxis dataKey="name" stroke="#9AA4BA" fontSize={11} tickLine={false} axisLine={{ stroke: "#26314A" }} />
+                    <YAxis stroke="#9AA4BA" fontSize={11} tickLine={false} axisLine={false} unit="s" />
+                    <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
                     <Area type="monotone" dataKey="avg" stroke={C.avg} strokeWidth={1.6} strokeDasharray="5 4" fill="url(#gAvg)" dot={false} connectNulls animationDuration={1400} />
                     <Bar dataKey="you" radius={[7, 7, 0, 0]} maxBarSize={30} animationDuration={1100}>
                       {chartData.map((d, i) => <Cell key={i} fill={d.verdict === "correct" ? "url(#gGood)" : d.verdict === "wrong" ? "url(#gBad)" : "url(#gSkip)"} />)}
                     </Bar>
-                    <Line type="monotone" dataKey="top" stroke={C.top} strokeWidth={2.6} connectNulls filter="url(#lineGlow)" animationDuration={1800}
-                      dot={{ r: 4.5, fill: C.top, stroke: "#0C1915", strokeWidth: 2 }} activeDot={{ r: 7, fill: "#fff", stroke: C.top, strokeWidth: 3 }} />
+                    <Line type="monotone" dataKey="top" stroke={C.top} strokeWidth={2.4} connectNulls filter="url(#lineGlow)" animationDuration={1800}
+                      dot={{ r: 4.5, fill: C.top, stroke: "#0B1220", strokeWidth: 2 }} activeDot={{ r: 7, fill: "#fff", stroke: C.top, strokeWidth: 3 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -792,20 +880,20 @@ function DeepAnalysisCore() {
                 <div className="mb-1.5 text-xs font-semibold text-[var(--mute)]">Pace against the topper, question by question</div>
                 <div className="flex gap-[3px]">
                   {secRows.map((r, i) => {
-                    let bg = "rgba(139,166,153,0.18)";
+                    let bg = "rgba(154,164,186,0.18)";
                     if (r.top) {
                       const ratio = (r.you - r.top) / Math.max(r.top, 1);
-                      bg = ratio > 0 ? `rgba(255,107,74,${Math.min(1, 0.25 + ratio * 0.35)})` : `rgba(139,209,124,${Math.min(1, 0.25 + -ratio * 0.8)})`;
+                      bg = ratio > 0 ? `rgba(229,96,107,${Math.min(1, 0.25 + ratio * 0.35)})` : `rgba(52,195,143,${Math.min(1, 0.25 + -ratio * 0.8)})`;
                     }
-                    return <motion.div key={r.id} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.4 + i * 0.02 }} title={`Q${r.no}: ${secs(r.you)}${r.top ? ` vs ${secs(r.top)}` : ""}`} className="h-3.5 flex-1 origin-bottom rounded-[4px]" style={{ background: bg, boxShadow: `0 0 10px -2px ${bg}` }} />;
+                    return <motion.div key={r.id} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.4 + i * 0.02 }} title={`Q${r.no}: ${secs(r.you)}${r.top ? ` vs ${secs(r.top)}` : ""}`} className="h-3.5 flex-1 origin-bottom rounded-[4px]" style={{ background: bg }} />;
                   })}
                 </div>
               </div>
               <div className="mt-4"><Legend items={[{ c: C.top, l: "Topper median" }, { c: C.avg, l: "Average aspirant", dashed: true }]} /></div>
             </Card>
 
-            {/* race lanes */}
-            <Card id="route" title="The topper's route through the paper" note="Each block is one visit to a question, coloured by section and sized by time. Your lane has a result strip underneath: green correct, red wrong, grey skipped. Hover a block for details.">
+            {/* ===================== TOPPER ROUTE ===================== */}
+            <Card id="route" brand title="The topper's route through the paper" note="Each block is one visit to a question, coloured by section and sized by time. Your lane has a result strip underneath: green correct, coral wrong, grey skipped. Hover a block for details.">
               {topSegs.length ? (
                 <>
                   <div className="relative space-y-3">
@@ -814,11 +902,11 @@ function DeepAnalysisCore() {
                     <TimeAxis span={span} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--mute)]">
-                    {sections.map((s, i) => <span key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SEC_HUES[i % SEC_HUES.length], boxShadow: `0 0 8px ${SEC_HUES[i % SEC_HUES.length]}` }} />{s}</span>)}
+                    {sections.map((s, i) => <span key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SEC_HUES[i % SEC_HUES.length] }} />{s}</span>)}
                   </div>
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
                     {[{ n: "Topper", p: topPath, c: C.top }, { n: "You", p: youPath, c: C.you }].map(({ n, p, c }) => (
-                      <div key={n} className="da-tile rounded-2xl border border-white/[0.07] bg-[#07110D]/60 p-4 text-sm leading-relaxed">
+                      <div key={n} className="da-tile rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4 text-sm leading-relaxed">
                         <div className="da-head mb-1 font-bold" style={{ color: c }}>{n}</div>
                         {p.order.length ? (
                           <p className="text-[var(--mute)]">
@@ -834,19 +922,19 @@ function DeepAnalysisCore() {
               ) : <p className="text-sm text-[var(--mute)]">The topper route appears once enough clean attempts are in for this test.</p>}
             </Card>
 
-            {/* insights + ego traps */}
+            {/* ===================== EGO TRAPS + COACHING ===================== */}
             <div id="coach" className="grid scroll-mt-20 gap-6 lg:grid-cols-5">
               <Card title="Ego traps" note="Questions that held you for 90 seconds or more without giving marks." className="lg:col-span-2">
                 {agg.egoTraps.length ? (
                   <ul className="space-y-2">
                     {agg.egoTraps.slice(0, 8).map((r) => (
-                      <li key={r.id} className="da-tile rounded-xl border border-white/[0.07] bg-[#07110D]/60 px-3.5 py-3 text-sm">
+                      <li key={r.id} className="da-tile rounded-xl border border-white/[0.07] bg-[var(--well)]/60 px-3.5 py-3 text-sm">
                         <div className="flex items-center justify-between gap-3">
                           <span className="truncate">{r.section} · Q{r.no}</span>
-                          <span className="da-num shrink-0 font-bold" style={{ color: C.bad, textShadow: `0 0 14px ${C.bad}66` }}>{fmt(r.you)}{r.top ? <span className="ml-1 text-xs font-medium text-[var(--mute)]">vs {secs(r.top)}</span> : null}</span>
+                          <span className="da-num shrink-0 font-bold" style={{ color: C.bad }}>{fmt(r.you)}{r.top ? <span className="ml-1 text-xs font-medium text-[var(--mute)]">vs {secs(r.top)}</span> : null}</span>
                         </div>
-                        <div className="mt-2 h-1.5 rounded-full bg-[#07110D]">
-                          <motion.div initial={{ width: 0 }} whileInView={{ width: `${Math.min(100, (r.you / Math.max(agg.egoTraps[0].you, 1)) * 100)}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: EASE }} className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${C.bad}55, ${C.bad})`, boxShadow: `0 0 10px ${C.bad}88` }} />
+                        <div className="mt-2 h-1.5 rounded-full bg-[var(--well)]">
+                          <motion.div initial={{ width: 0 }} whileInView={{ width: `${Math.min(100, (r.you / Math.max(agg.egoTraps[0].you, 1)) * 100)}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: EASE }} className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${C.bad}55, ${C.bad})` }} />
                         </div>
                       </li>
                     ))}
@@ -856,12 +944,12 @@ function DeepAnalysisCore() {
               <Card title="Coaching notes" note="Generated from your time, your result and how the top scorers handled each question." className="lg:col-span-3">
                 <ul className="da-scroll max-h-[330px] space-y-2 overflow-y-auto pr-1">
                   {rows.filter((r) => r.insight).slice(0, 25).map((r) => {
-                    const tone = r.insight!.tone === "warn" ? C.bad : r.insight!.tone === "tip" ? C.you : C.good;
+                    const tone = r.insight!.tone === "warn" ? C.bad : r.insight!.tone === "tip" ? C.warn : C.good;
+                    const ToneIcon = r.insight!.tone === "warn" ? AlertTriangle : r.insight!.tone === "tip" ? Lightbulb : CheckCircle2;
                     return (
-                      <li key={r.id} className="da-tile relative flex gap-3 overflow-hidden rounded-xl border border-white/[0.07] bg-[#07110D]/60 p-3.5 pl-4 text-sm">
-                        <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: tone, boxShadow: `0 0 12px ${tone}` }} />
-                        <span aria-hidden className="pointer-events-none absolute -left-8 top-0 h-full w-24 blur-2xl" style={{ background: `${tone}18` }} />
-                        {r.insight!.tone === "warn" ? <AlertTriangle size={16} className="relative mt-0.5 shrink-0" style={{ color: tone }} /> : r.insight!.tone === "tip" ? <Lightbulb size={16} className="relative mt-0.5 shrink-0" style={{ color: tone }} /> : <CheckCircle2 size={16} className="relative mt-0.5 shrink-0" style={{ color: tone }} />}
+                      <li key={r.id} className="da-tile relative flex gap-3 overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--well)]/60 p-3.5 pl-4 text-sm">
+                        <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: tone }} />
+                        <ToneIcon size={16} className="relative mt-0.5 shrink-0" style={{ color: tone }} />
                         <div className="relative"><span className="font-semibold">{r.section} · Q{r.no}</span><span className="ml-2 text-xs text-[var(--mute)]">{secs(r.you)}{r.top ? ` vs ${secs(r.top)}` : ""}</span><p className="mt-0.5 text-[var(--mute)]">{r.insight!.msg}</p></div>
                       </li>
                     );
@@ -873,36 +961,36 @@ function DeepAnalysisCore() {
           </>
         )}
 
-        {/* chapters: speed vs accuracy + percentile */}
+        {/* ===================== CHAPTERS ===================== */}
         {chapters.length > 0 && (
           <div id="chapters" className="grid scroll-mt-20 gap-6 lg:grid-cols-2">
             {hasTime && (
               <Card title="Speed against accuracy" note="Each dot is a chapter and bigger dots mean more questions. Top left is where you want to be. Bottom right is slow and wrong, which is where marks are leaking.">
-                <div className="h-[360px] rounded-2xl border border-white/[0.05] bg-[#07110D]/40 p-2">
+                <div className="h-[360px] rounded-2xl border border-white/[0.05] bg-[var(--well)]/50 p-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart margin={{ top: 14, right: 18, bottom: 22, left: -8 }}>
-                      <ReferenceArea x1={0} x2={quadrantMid} y1={60} y2={100} fill={C.good} fillOpacity={0.09} label={{ value: "Fast and accurate", position: "insideTopLeft", fill: C.good, fontSize: 11 }} />
-                      <ReferenceArea x1={quadrantMid} x2={xMax} y1={60} y2={100} fill={C.you} fillOpacity={0.08} label={{ value: "Accurate but slow", position: "insideTopRight", fill: C.you, fontSize: 11 }} />
-                      <ReferenceArea x1={0} x2={quadrantMid} y1={0} y2={60} fill={C.skip} fillOpacity={0.14} label={{ value: "Fast but wrong: guessing?", position: "insideBottomLeft", fill: "#9DB8AC", fontSize: 11 }} />
-                      <ReferenceArea x1={quadrantMid} x2={xMax} y1={0} y2={60} fill={C.bad} fillOpacity={0.12} label={{ value: "Slow and wrong: fix first", position: "insideBottomRight", fill: C.bad, fontSize: 11 }} />
-                      <CartesianGrid stroke="#2A4A3E" strokeDasharray="2 6" />
-                      <XAxis type="number" dataKey="x" name="Avg seconds" domain={[0, xMax]} stroke="#8BA699" fontSize={11} tickLine={false} label={{ value: "Seconds per question", position: "insideBottom", offset: -12, fill: "#8BA699", fontSize: 11 }} />
-                      <YAxis type="number" dataKey="y" name="Accuracy" domain={[0, 100]} unit="%" stroke="#8BA699" fontSize={11} tickLine={false} />
+                      <ReferenceArea x1={0} x2={quadrantMid} y1={60} y2={100} fill={C.good} fillOpacity={0.08} label={{ value: "Fast and accurate", position: "insideTopLeft", fill: C.good, fontSize: 11 }} />
+                      <ReferenceArea x1={quadrantMid} x2={xMax} y1={60} y2={100} fill={C.warn} fillOpacity={0.07} label={{ value: "Accurate but slow", position: "insideTopRight", fill: C.warn, fontSize: 11 }} />
+                      <ReferenceArea x1={0} x2={quadrantMid} y1={0} y2={60} fill={C.skip} fillOpacity={0.14} label={{ value: "Fast but wrong: guessing?", position: "insideBottomLeft", fill: "#9AA4BA", fontSize: 11 }} />
+                      <ReferenceArea x1={quadrantMid} x2={xMax} y1={0} y2={60} fill={C.bad} fillOpacity={0.1} label={{ value: "Slow and wrong: fix first", position: "insideBottomRight", fill: C.bad, fontSize: 11 }} />
+                      <CartesianGrid stroke="#26314A" strokeDasharray="2 6" />
+                      <XAxis type="number" dataKey="x" name="Avg seconds" domain={[0, xMax]} stroke="#9AA4BA" fontSize={11} tickLine={false} label={{ value: "Seconds per question", position: "insideBottom", offset: -12, fill: "#9AA4BA", fontSize: 11 }} />
+                      <YAxis type="number" dataKey="y" name="Accuracy" domain={[0, 100]} unit="%" stroke="#9AA4BA" fontSize={11} tickLine={false} />
                       <ZAxis type="number" dataKey="z" range={[120, 520]} />
-                      <ReferenceLine x={quadrantMid} stroke="#8BA699" strokeDasharray="4 4" />
-                      <ReferenceLine y={60} stroke="#8BA699" strokeDasharray="4 4" />
+                      <ReferenceLine x={quadrantMid} stroke="#9AA4BA" strokeDasharray="4 4" />
+                      <ReferenceLine y={60} stroke="#9AA4BA" strokeDasharray="4 4" />
                       <Tooltip cursor={{ strokeDasharray: "3 3" }} content={({ active, payload }: any) => active && payload?.length ? (
-                        <div className="rounded-2xl border border-white/10 bg-[#07110D]/90 p-3.5 text-xs shadow-2xl backdrop-blur-xl"><p className="da-head mb-1 text-sm font-bold">{payload[0].payload.name}</p><p>{payload[0].payload.x}s per question</p><p>{payload[0].payload.y}% accuracy · {payload[0].payload.z} Qs</p></div>) : null} />
+                        <div className="rounded-2xl border border-white/10 bg-[#090F1C]/95 p-3.5 text-xs shadow-2xl backdrop-blur-xl"><p className="da-head mb-1 text-sm font-bold">{payload[0].payload.name}</p><p>{payload[0].payload.x}s per question</p><p>{payload[0].payload.y}% accuracy · {payload[0].payload.z} Qs</p></div>) : null} />
                       <Scatter data={scatter} animationDuration={1400}>
-                        {scatter.map((d, i) => <Cell key={i} fill={d.fill} fillOpacity={0.95} stroke="#0C1915" strokeWidth={2} style={{ filter: `drop-shadow(0 0 8px ${d.fill})` }} />)}
-                        <LabelList dataKey="short" position="top" fill="#CFE0D6" fontSize={10} />
+                        {scatter.map((d, i) => <Cell key={i} fill={d.fill} fillOpacity={0.95} stroke="#0B1220" strokeWidth={2} />)}
+                        <LabelList dataKey="short" position="top" fill="#C9D3EA" fontSize={10} />
                       </Scatter>
                     </ScatterChart>
                   </ResponsiveContainer>
                 </div>
               </Card>
             )}
-            <Card title="Where you stand, chapter by chapter" note="The marker shows the share of other aspirants you beat in that chapter on this test. Red is the bottom third, gold the middle, green the top." className={hasTime ? "" : "lg:col-span-2"}>
+            <Card title="Where you stand, chapter by chapter" note="The marker shows the share of other aspirants you beat in that chapter on this test. Coral is the bottom third, amber the middle, green the top." className={hasTime ? "" : "lg:col-span-2"}>
               <ul className="da-scroll max-h-[360px] space-y-5 overflow-y-auto pr-1">
                 {[...chapters].sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101)).map((c) => (
                   <li key={c.key}>
@@ -921,9 +1009,9 @@ function DeepAnalysisCore() {
           </div>
         )}
 
-        {/* sectional benchmark */}
+        {/* ===================== SECTIONAL MARKS ===================== */}
         {sectionBench.length > 0 && (
-          <Card id="marks" title="Sectional marks against the field" note="Marks per section after negative marking. Gold is you, the white tick is the median aspirant and the chalk marker is the topper average.">
+          <Card id="marks" brand title="Sectional marks against the field" note="Marks per section after negative marking. Blue is you, the white tick is the median aspirant and the champagne marker is the topper average.">
             <div className={`grid gap-8 ${radarData.length >= 3 ? "lg:grid-cols-5" : ""}`}>
               <div className={`space-y-7 ${radarData.length >= 3 ? "lg:col-span-3" : ""}`}>
                 {sectionBench.map((s) => {
@@ -936,16 +1024,14 @@ function DeepAnalysisCore() {
                         <span className="font-semibold">{s.sec}</span>
                         <span className="da-num text-xs text-[var(--mute)]">you <b className="text-[var(--ink)]">{s.my_score}</b> · median {s.median_score}{s.top_score != null ? ` · topper ${s.top_score}` : ""} · of {max}</span>
                       </div>
-                      <div className="relative h-8 rounded-full bg-[#07110D] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
+                      <div className="relative h-8 rounded-full bg-[var(--well)] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
                         <div className="absolute inset-0 overflow-hidden rounded-full">
-                          {s.median_score != null && <div className="absolute left-0 top-0 h-full" style={{ width: `${w(s.median_score)}%`, background: "rgba(127,165,150,.18)" }} />}
+                          {s.median_score != null && <div className="absolute left-0 top-0 h-full" style={{ width: `${w(s.median_score)}%`, background: "rgba(154,164,186,.16)" }} />}
                           <motion.div initial={{ width: 0 }} whileInView={{ width: `${w(s.my_score)}%` }} viewport={{ once: true }} transition={{ duration: 1.2, ease: EASE }}
-                            className="da-shimmer absolute left-0 top-2 h-4 rounded-full" style={{ background: `linear-gradient(90deg, ${C.you}55, ${C.you})`, boxShadow: `0 0 18px ${C.you}77` }} />
+                            className="da-shimmer absolute left-0 top-2 h-4 rounded-full" style={{ background: `linear-gradient(90deg, ${C.you}55, ${C.you})`, boxShadow: `0 0 16px ${C.you}66` }} />
                         </div>
-                        {s.median_score != null && <div className="absolute top-0 h-full w-[2px] bg-white/80" style={{ left: `${w(s.median_score)}%`, boxShadow: "0 0 8px rgba(255,255,255,.7)" }} />}
-                        {s.top_score != null && (
-                          <div className="absolute top-[-3px] h-[38px] w-[3px] rounded" style={{ left: `${w(s.top_score)}%`, background: C.top, boxShadow: `0 0 14px ${C.top}AA` }} />
-                        )}
+                        {s.median_score != null && <div className="absolute top-0 h-full w-[2px] bg-white/80" style={{ left: `${w(s.median_score)}%` }} />}
+                        {s.top_score != null && <div className="absolute top-[-3px] h-[38px] w-[3px] rounded" style={{ left: `${w(s.top_score)}%`, background: C.top, boxShadow: `0 0 12px ${C.top}99` }} />}
                       </div>
                       <div className="mt-1.5 text-[11px]" style={{ color: beat ? C.good : C.bad }}>
                         {beat ? "At or above the median aspirant" : "Below the median aspirant"}{s.percentile != null ? ` · ahead of ${s.percentile}%` : ""}
@@ -956,15 +1042,15 @@ function DeepAnalysisCore() {
               </div>
               {radarData.length >= 3 && (
                 <div className="lg:col-span-2">
-                  <div className="h-[310px] rounded-2xl border border-white/[0.05] bg-[#07110D]/40">
+                  <div className="h-[310px] rounded-2xl border border-white/[0.05] bg-[var(--well)]/50">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData} outerRadius="72%">
-                        <PolarGrid stroke="#2A4A3E" />
-                        <PolarAngleAxis dataKey="sec" tick={{ fill: "#A9C0B5", fontSize: 11 }} />
+                        <PolarGrid stroke="#26314A" />
+                        <PolarAngleAxis dataKey="sec" tick={{ fill: "#B7C3E0", fontSize: 11 }} />
                         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                         <Radar name="Topper" dataKey="topper" stroke={C.top} fill={C.top} fillOpacity={0.06} strokeDasharray="4 4" strokeWidth={1.6} animationDuration={1400} />
                         <Radar name="Median" dataKey="median" stroke={C.avg} fill={C.avg} fillOpacity={0.14} strokeWidth={1.6} animationDuration={1400} />
-                        <Radar name="You" dataKey="you" stroke={C.you} fill={C.you} fillOpacity={0.34} strokeWidth={2.6} animationDuration={1400} />
+                        <Radar name="You" dataKey="you" stroke={C.you} fill={C.you} fillOpacity={0.3} strokeWidth={2.4} animationDuration={1400} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
@@ -975,7 +1061,7 @@ function DeepAnalysisCore() {
           </Card>
         )}
 
-        {/* mistake vault */}
+        {/* ===================== MISTAKE VAULT ===================== */}
         <Card id="vault" title="Mistake vault" note="Everything you got wrong or skipped, grouped by chapter and topic. One click turns it into a fresh practice test.">
           {mistakeCount === 0 ? (
             <p className="flex items-center gap-2 text-sm text-[var(--mute)]"><CheckCircle2 size={15} style={{ color: C.good }} /> No mistakes on this test.</p>
@@ -983,28 +1069,29 @@ function DeepAnalysisCore() {
             <>
               <div className="grid gap-3 md:grid-cols-2">
                 {vault.map((c) => (
-                  <div key={c.name} className="da-tile rounded-2xl border border-white/[0.07] bg-[#07110D]/60 p-4">
-                    <div className="flex items-center justify-between"><span className="font-semibold">{c.name}</span><span className="da-num rounded-full px-2.5 py-0.5 text-sm font-bold" style={{ color: C.bad, background: "rgba(255,107,74,.14)", boxShadow: "0 0 16px -4px rgba(255,107,74,.6)" }}>{c.n}</span></div>
-                    <div className="mt-2 h-1.5 rounded-full bg-[#07110D]"><motion.div initial={{ width: 0 }} whileInView={{ width: `${(c.n / Math.max(vault[0].n, 1)) * 100}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: EASE }} className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${C.bad}55, ${C.bad})`, boxShadow: `0 0 10px ${C.bad}88` }} /></div>
+                  <div key={c.name} className="da-tile rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4">
+                    <div className="flex items-center justify-between"><span className="font-semibold">{c.name}</span><span className="da-num rounded-full px-2.5 py-0.5 text-sm font-bold" style={{ color: C.bad, background: "rgba(229,96,107,.14)" }}>{c.n}</span></div>
+                    <div className="mt-2 h-1.5 rounded-full bg-[var(--well)]"><motion.div initial={{ width: 0 }} whileInView={{ width: `${(c.n / Math.max(vault[0].n, 1)) * 100}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: EASE }} className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${C.bad}55, ${C.bad})` }} /></div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {Array.from(c.topics.entries()).map(([t, n]) => <span key={t} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-[11px] text-[var(--mute)]">{t} · {n}</span>)}
                     </div>
                   </div>
                 ))}
               </div>
-              <button onClick={runVault} disabled={vaulting} className="da-btn mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-[#0C1915] shadow-[0_12px_32px_-8px_rgba(255,182,39,.7)] disabled:opacity-50" style={{ background: `linear-gradient(180deg, #FFC857, ${C.you})` }}>
+              <button onClick={runVault} disabled={vaulting} className="da-btn mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-[#0B1220] shadow-[0_12px_32px_-10px_rgba(212,175,55,.7)] disabled:opacity-50" style={{ background: `linear-gradient(180deg, ${C.champ}, ${C.gold})` }}>
                 {vaulting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} Practise these {mistakeCount} questions
               </button>
             </>
           )}
         </Card>
 
-        {/* ledger */}
-        <Card id="ledger" title="Question ledger" note="Your personal solution sheet. Open any row for the answer, the explanation and the shortcut method.">
+        {/* ===================== LEDGER ===================== */}
+        <Card id="ledger" title="Question ledger" note="Your personal solution sheet. Open any row for the answer, the explanation and the shortcut method."
+          footer={<ReportFooter student={session?.name} test={test?.test_name} verified={bench?.clean_count} reportId={`${String(testId).slice(0, 4)}${String(session?.id).slice(0, 4)}`.toUpperCase()} />}>
           <div className="mb-4 flex flex-wrap gap-1.5">
             {([["all", "All"], ["traps", "Time traps"], ["wrong", "Wrong"], ["skipped", "Skipped"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setLedgerFilter(k)} className="da-chip rounded-full border px-3.5 py-1.5 text-xs font-bold"
-                style={ledgerFilter === k ? { background: C.you, color: "#0C1915", borderColor: "transparent", boxShadow: `0 8px 22px -6px ${C.you}99` } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>{l}</button>
+                style={ledgerFilter === k ? { background: C.gold, color: "#0B1220", borderColor: "transparent" } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>{l}</button>
             ))}
           </div>
           <div className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.07]">
@@ -1012,19 +1099,19 @@ function DeepAnalysisCore() {
               const isOpen = open === r.id;
               const q = r.q;
               const corr = (q.correct_option || "").toLowerCase();
-              const vcol = r.verdict === "correct" ? C.good : r.verdict === "wrong" ? C.bad : C.skip;
+              const vcol = verdictColor(r.verdict);
               const hasShortcut = !!(q.shortcut_explanation || q.shortcut_video_url);
               const barMax = Math.max(r.you, r.top || 0, 1);
               return (
-                <div key={r.id} className="bg-[#0A1B14]/70 transition-colors" style={isOpen ? { background: "rgba(18,40,32,.9)" } : undefined}>
+                <div key={r.id} className="bg-[#0E1526]/70 transition-colors" style={isOpen ? { background: "rgba(26,36,64,.85)" } : undefined}>
                   <button onClick={() => setOpen(isOpen ? null : r.id)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm transition-colors hover:bg-white/[0.04]">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: vcol, boxShadow: `0 0 10px ${vcol}, 0 0 2px ${vcol}` }} />
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: vcol, boxShadow: `0 0 8px ${vcol}99` }} />
                     <span className="w-24 shrink-0 truncate font-semibold">{r.section.slice(0, 10)} Q{r.no}</span>
                     <span className="min-w-0 flex-1 truncate text-[var(--mute)]">{r.chapterTagged ? r.chapterName : "Untagged"}{r.topicTagged ? ` › ${r.topicName}` : ""}</span>
                     {hasTime && (
-                      <span className="relative hidden h-2 w-24 shrink-0 rounded-full bg-[#07110D] md:block" title="Your time against the topper's">
-                        <span className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${(r.you / barMax) * 100}%`, background: C.you, boxShadow: `0 0 8px ${C.you}88` }} />
-                        {r.top != null && <span className="absolute -top-[3px] h-[14px] w-[2px] rounded" style={{ left: `${(r.top / barMax) * 100}%`, background: C.top, boxShadow: `0 0 6px ${C.top}` }} />}
+                      <span className="relative hidden h-2 w-24 shrink-0 rounded-full bg-[var(--well)] md:block" title="Your time against the topper's">
+                        <span className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${(r.you / barMax) * 100}%`, background: C.you }} />
+                        {r.top != null && <span className="absolute -top-[3px] h-[14px] w-[2px] rounded" style={{ left: `${(r.top / barMax) * 100}%`, background: C.top }} />}
                       </span>
                     )}
                     {hasTime && <span className="da-num w-12 shrink-0 text-right font-bold" style={{ color: C.you }}>{secs(r.you)}</span>}
@@ -1034,16 +1121,16 @@ function DeepAnalysisCore() {
                   </button>
                   {isOpen && (
                     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }}
-                      className="space-y-3 bg-[#07110D]/70 px-4 pb-5 pt-2 text-sm leading-relaxed">
+                      className="space-y-3 bg-[var(--well)]/70 px-4 pb-5 pt-2 text-sm leading-relaxed">
                       <p className="font-medium">{q.question_text}</p>
-                      <p><span className="text-[var(--mute)]">Correct answer:</span> <span className="font-semibold" style={{ color: C.good, textShadow: `0 0 14px ${C.good}55` }}>({corr.toUpperCase()}) {q[`option_${corr}`]}</span>
+                      <p><span className="text-[var(--mute)]">Correct answer:</span> <span className="font-semibold" style={{ color: C.good }}>({corr.toUpperCase()}) {q[`option_${corr}`]}</span>
                         {answers[q.id] && r.verdict === "wrong" && <span className="ml-3 text-[var(--mute)]">You chose <span style={{ color: C.bad }}>({answers[q.id].toUpperCase()})</span></span>}</p>
                       {r.insight && <p className="text-[var(--mute)]">{r.insight.msg}</p>}
                       <div>
                         <div className="mb-2 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 text-xs font-semibold">
                           {[false, true].map((on) => (
                             <button key={String(on)} onClick={() => setShortcutOn((s) => ({ ...s, [r.id]: on }))} className="rounded-full px-3.5 py-1.5 transition-all"
-                              style={(!!shortcutOn[r.id]) === on ? { background: C.you, color: "#0C1915", boxShadow: `0 6px 18px -6px ${C.you}` } : { color: "var(--mute)" }}>
+                              style={(!!shortcutOn[r.id]) === on ? { background: C.gold, color: "#0B1220" } : { color: "var(--mute)" }}>
                               {on ? "30-second shortcut" : "Standard solution"}
                             </button>
                           ))}
@@ -1052,7 +1139,7 @@ function DeepAnalysisCore() {
                           hasShortcut ? (
                             <>
                               {q.shortcut_explanation && <p className="whitespace-pre-wrap text-[var(--ink)]">{q.shortcut_explanation}</p>}
-                              {q.shortcut_video_url && <a href={q.shortcut_video_url} target="_blank" rel="noreferrer" className="mt-1 inline-block underline" style={{ color: C.you }}>Watch the walkthrough</a>}
+                              {q.shortcut_video_url && <a href={q.shortcut_video_url} target="_blank" rel="noreferrer" className="mt-1 inline-block underline" style={{ color: C.champ }}>Watch the walkthrough</a>}
                             </>
                           ) : <p className="text-[var(--mute)]">A shortcut for this question has not been added yet.</p>
                         ) : (
@@ -1073,7 +1160,7 @@ function DeepAnalysisCore() {
 
 export default function DeepAnalysisPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0C1915] text-[#8BA699]"><Loader2 className="animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B1220] text-[#9AA4BA]"><Loader2 className="animate-spin" /></div>}>
       <DeepAnalysisCore />
     </Suspense>
   );
