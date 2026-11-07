@@ -71,26 +71,27 @@ export interface QuizQuestion {
   sequence_order: number;
 }
 
+// Dark-theme tag colors (match the student dashboard palette)
 export const PILLAR_META: Record<ExamPillar, { text: string; bg: string; border: string }> = {
   "RBI Circulars": {
-    text: "text-[#8A6216]",
-    bg: "bg-[#B98B3E]/[0.08]",
-    border: "border-[#B98B3E]/30",
+    text: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
   },
   "Government Schemes": {
-    text: "text-[#2F6FAB]",
-    bg: "bg-[#2F6FAB]/[0.07]",
-    border: "border-[#2F6FAB]/25",
+    text: "text-sky-400",
+    bg: "bg-sky-500/10",
+    border: "border-sky-500/25",
   },
   "Economic Reports": {
-    text: "text-[#7A5FA0]",
-    bg: "bg-[#7A5FA0]/[0.07]",
-    border: "border-[#7A5FA0]/25",
+    text: "text-violet-400",
+    bg: "bg-violet-500/10",
+    border: "border-violet-500/25",
   },
   "Banking Regulations": {
-    text: "text-[#1F5F4A]",
-    bg: "bg-[#1F5F4A]/[0.07]",
-    border: "border-[#1F5F4A]/25",
+    text: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/25",
   },
 };
 
@@ -100,20 +101,20 @@ export const SOURCE_META: Record<
 > = {
   rbi: {
     label: "RBI",
-    text: "text-[#8A6216]",
-    bg: "bg-[#B98B3E]/[0.08]",
-    border: "border-[#B98B3E]/30",
+    text: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
   },
   pib: {
     label: "PIB",
-    text: "text-[#2F6FAB]",
-    bg: "bg-[#2F6FAB]/[0.07]",
-    border: "border-[#2F6FAB]/25",
+    text: "text-sky-400",
+    bg: "bg-sky-500/10",
+    border: "border-sky-500/25",
   },
   economy: {
     label: "Economy",
-    text: "text-[#7A5FA0]",
-    bg: "bg-[#7A5FA0]/[0.07]",
-    border: "border-[#7A5FA0]/25",
+    text: "text-violet-400",
+    bg: "bg-violet-500/10",
+    border: "border-violet-500/25",
   },
 };

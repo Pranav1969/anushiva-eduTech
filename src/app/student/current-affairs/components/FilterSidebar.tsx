@@ -42,6 +42,9 @@ const LANGUAGES: { code: LanguageCode; label: string }[] = [
   { code: "mr", label: "मराठी" },
 ];
 
+const PANEL = "rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm";
+const LABEL = "block text-xs font-semibold uppercase tracking-wider text-slate-400";
+
 export default function FilterSidebar({
   searchQuery,
   onSearchChange,
@@ -57,18 +60,16 @@ export default function FilterSidebar({
   return (
     <aside className="space-y-5">
       {/* Reading progress */}
-      <div className="rounded-2xl border border-[#DCE1E8] bg-white p-4">
+      <div className={PANEL}>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#5B6472]">
-            Reading Progress
-          </span>
-          <span className="font-mono text-[11px] font-semibold text-[#1F5F4A]">
+          <span className={LABEL}>Reading Progress</span>
+          <span className="font-mono text-[11px] font-semibold text-blue-400">
             {readCount}/{totalCount}
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#EEF1F5]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
           <div
-            className="h-1.5 bg-[#1F5F4A] transition-all duration-300"
+            className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300"
             style={{ width: `${totalCount > 0 ? (readCount / totalCount) * 100 : 0}%` }}
           />
         </div>
@@ -77,21 +78,21 @@ export default function FilterSidebar({
       {/* Focus mode toggle */}
       <button
         onClick={onToggleFocusMode}
-        className="flex w-full items-center justify-between rounded-2xl border border-[#DCE1E8] bg-white p-4 text-left transition-colors hover:border-[#1F5F4A]/30"
+        className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-left backdrop-blur-sm transition-colors hover:border-blue-500/40"
       >
         <div className="flex items-center gap-2.5">
           {isFocusMode ? (
-            <Minimize2 className="h-4 w-4 text-[#1F5F4A]" />
+            <Minimize2 className="h-4 w-4 text-blue-400" />
           ) : (
-            <Maximize2 className="h-4 w-4 text-[#5B6472]" />
+            <Maximize2 className="h-4 w-4 text-slate-400" />
           )}
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#1B2430]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-200">
             Focus Mode
           </span>
         </div>
         <span
           className={`relative h-5 w-9 rounded-full transition-colors ${
-            isFocusMode ? "bg-[#1F5F4A]" : "bg-[#E3E7EC]"
+            isFocusMode ? "bg-blue-600" : "bg-slate-700"
           }`}
         >
           <span
@@ -103,27 +104,23 @@ export default function FilterSidebar({
       </button>
 
       {/* Search */}
-      <div className="space-y-3 rounded-2xl border border-[#DCE1E8] bg-white p-4">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-[#5B6472]">
-          Search Capsule Index
-        </label>
+      <div className={`space-y-3 ${PANEL}`}>
+        <label className={LABEL}>Search Capsule Index</label>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8992A0]" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             placeholder="Type dynamic keywords..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-xl border border-[#DCE1E8] bg-[#F9FAFB] py-2.5 pl-10 pr-4 text-sm text-[#1B2430] placeholder-[#8992A0] transition-all focus:border-[#1F5F4A]/40 focus:outline-none focus:ring-1 focus:ring-[#1F5F4A]/20"
+            className="w-full rounded-xl border border-slate-800 bg-slate-950/50 py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
           />
         </div>
       </div>
 
       {/* Source filter */}
-      <div className="space-y-3 rounded-2xl border border-[#DCE1E8] bg-white p-4">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-[#5B6472]">
-          Knowledge Matrix
-        </label>
+      <div className={`space-y-3 ${PANEL}`}>
+        <label className={LABEL}>Knowledge Matrix</label>
         <div className="flex flex-col gap-1.5">
           {SOURCE_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -134,8 +131,8 @@ export default function FilterSidebar({
                 onClick={() => onFilterChange(tab.id)}
                 className={`flex w-full items-center gap-2.5 rounded-xl border px-4 py-3 text-left text-xs font-medium transition-all ${
                   isSelected
-                    ? "border-[#1F5F4A] bg-[#1F5F4A] font-bold text-white shadow-sm"
-                    : "border-[#E3E7EC] bg-[#F9FAFB] text-[#5B6472] hover:border-[#DCE1E8] hover:text-[#1B2430]"
+                    ? "border-blue-500/50 bg-blue-500/15 font-bold text-blue-300 shadow-sm"
+                    : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -147,22 +144,22 @@ export default function FilterSidebar({
       </div>
 
       {/* Language */}
-      <div className="space-y-3 rounded-2xl border border-[#DCE1E8] bg-white p-4">
-        <div className="flex items-center gap-1.5 text-[#5B6472]">
+      <div className={`space-y-3 ${PANEL}`}>
+        <div className="flex items-center gap-1.5 text-slate-400">
           <Globe className="h-3.5 w-3.5" />
           <label className="block text-xs font-semibold uppercase tracking-wider">
             Translation Layer
           </label>
         </div>
-        <div className="grid grid-cols-3 rounded-xl border border-[#E3E7EC] bg-[#F9FAFB] p-1">
+        <div className="grid grid-cols-3 rounded-xl border border-slate-800 bg-slate-950/50 p-1">
           {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               onClick={() => onLanguageChange(lang.code)}
               className={`rounded-lg py-2 text-xs font-bold transition-all duration-200 ${
                 language === lang.code
-                  ? "bg-white text-[#1F5F4A] shadow-sm"
-                  : "text-[#8992A0] hover:text-[#5B6472]"
+                  ? "bg-blue-500/20 text-blue-300 shadow-sm"
+                  : "text-slate-500 hover:text-slate-300"
               }`}
             >
               {lang.label}

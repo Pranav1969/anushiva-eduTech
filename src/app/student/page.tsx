@@ -17,6 +17,7 @@ import EmptyState from "./components/EmptyState";
 import RevisionNotesTree from "./components/RevisionNotesTree";
 import PlanUpgradeModal from "./components/PlanUpgradeModal";
 import SectionTestBrowser from "./components/SectionTestBrowser"; // NEW: chapter-wise / sectional / mock view
+import { BrandBar, BrandFooter, BrandLoader } from "./components/StudentBrand"; // ANUSHIVA silver branding
 
 export interface TestRecord {
   id: string;
@@ -399,9 +400,11 @@ export default function StudentDashboard() {
   );
 
   if (!student) {
+    // ANUSHIVA branded loading screen (silver star gently breathing)
     return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500" size={32} />
+      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center gap-6">
+        <BrandLoader />
+        <Loader2 className="animate-spin text-blue-500/70" size={20} />
       </div>
     );
   }
@@ -415,6 +418,9 @@ export default function StudentDashboard() {
       )}
 
       <div className="w-full mx-auto space-y-5 relative z-10">
+
+        {/* ANUSHIVA BRAND BAR: always visible (even in notes focus), adapts to dark / cream themes */}
+        <BrandBar tone={dashboardFocus === "notes" ? "light" : "dark"} />
 
         {/* ANIMATED HEADER COLLAPSE: Shrinks down when reading notes to save space */}
         <div className={`transition-all duration-500 ease-in-out transform origin-top overflow-hidden ${
@@ -555,6 +561,9 @@ export default function StudentDashboard() {
             />
           </div>
         )}
+
+        {/* ANUSHIVA signature footer */}
+        <BrandFooter tone={dashboardFocus === "notes" ? "light" : "dark"} />
       </div>
 
       {/* Subscription Gating Interface Modal */}

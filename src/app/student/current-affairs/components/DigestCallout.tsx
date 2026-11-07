@@ -23,9 +23,9 @@ export default function DigestCallout({
 }: DigestCalloutProps) {
   if (isLoading) {
     return (
-      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-[#DCE1E8] bg-white px-5 py-4">
-        <Loader2 className="h-4 w-4 animate-spin text-[#1F5F4A]" />
-        <span className="text-xs text-[#8992A0]">Checking for a digest on this date...</span>
+      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4 backdrop-blur-sm">
+        <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+        <span className="text-xs text-slate-500">Checking for a digest on this date...</span>
       </div>
     );
   }
@@ -33,9 +33,9 @@ export default function DigestCallout({
   // No digest yet: today (day still open) or a past date with no relevant news / not yet processed.
   if (!digest) {
     return (
-      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-dashed border-[#DCE1E8] bg-white px-5 py-4">
-        <Hourglass className="h-4 w-4 shrink-0 text-[#8992A0]" />
-        <p className="text-xs leading-relaxed text-[#8992A0]">
+      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-5 py-4">
+        <Hourglass className="h-4 w-4 shrink-0 text-slate-500" />
+        <p className="text-xs leading-relaxed text-slate-500">
           {isToday
             ? "Today's digest and quiz aren't ready yet -- they're compiled once the day's news cycle closes."
             : "No digest was generated for this date, likely because there was no exam-relevant news that day."}
@@ -52,18 +52,18 @@ export default function DigestCallout({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="group mb-8 flex w-full flex-col items-start gap-4 rounded-2xl border border-[#1F5F4A]/20 bg-white p-5 text-left transition-all hover:border-[#1F5F4A]/40 hover:shadow-[0_4px_24px_-8px_rgba(31,95,74,0.15)] sm:flex-row sm:items-center sm:justify-between"
+      className="group mb-8 flex w-full flex-col items-start gap-4 rounded-2xl border border-blue-500/25 bg-slate-900/60 p-5 text-left backdrop-blur-sm transition-all hover:border-blue-500/50 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.35)] sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex items-start gap-3 sm:items-center">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1F5F4A]/10">
-          <BookOpenCheck className="h-5 w-5 text-[#1F5F4A]" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10">
+          <BookOpenCheck className="h-5 w-5 text-blue-400" />
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-serif text-base font-bold text-[#1B2430]">
+            <h3 className="text-base font-bold text-slate-100">
               This Day&apos;s Digest &amp; Quiz
             </h3>
-            <Sparkles className="h-3.5 w-3.5 text-[#B98B3E]" />
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {pillarEntries.map(([pillar, count]) => {
@@ -82,7 +82,7 @@ export default function DigestCallout({
         </div>
       </div>
 
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#1F5F4A] px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-[#1A5240]">
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-blue-500">
         <HelpCircle className="h-3.5 w-3.5" />
         Study &amp; take quiz ({quizCount})
       </span>

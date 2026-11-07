@@ -44,13 +44,13 @@ export default function DailyDoseCarousel({
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#B98B3E]/10">
-            <Sparkles className="h-3.5 w-3.5 text-[#B98B3E]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <h2 className="font-serif text-lg font-bold tracking-tight text-[#1B2430]">
+          <h2 className="text-lg font-bold tracking-tight text-slate-100">
             Today&apos;s Dose
           </h2>
-          <span className="rounded-full border border-[#E3E7EC] bg-white px-2 py-0.5 font-mono text-[10px] font-semibold text-[#8992A0]">
+          <span className="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-400">
             Editor&apos;s Picks
           </span>
         </div>
@@ -59,14 +59,14 @@ export default function DailyDoseCarousel({
           <button
             onClick={() => scrollBy(-1)}
             aria-label="Scroll picks left"
-            className="rounded-lg border border-[#E3E7EC] bg-white p-1.5 text-[#5B6472] transition-colors hover:border-[#1F5F4A]/30 hover:text-[#1F5F4A]"
+            className="rounded-lg border border-slate-800 bg-slate-900/60 p-1.5 text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-400"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             onClick={() => scrollBy(1)}
             aria-label="Scroll picks right"
-            className="rounded-lg border border-[#E3E7EC] bg-white p-1.5 text-[#5B6472] transition-colors hover:border-[#1F5F4A]/30 hover:text-[#1F5F4A]"
+            className="rounded-lg border border-slate-800 bg-slate-900/60 p-1.5 text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-400"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

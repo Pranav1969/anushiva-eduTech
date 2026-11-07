@@ -29,7 +29,7 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
 
   if (questions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#DCE1E8] bg-[#F9FAFB] p-6 text-center text-sm text-[#8992A0]">
+      <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-sm text-slate-500">
         No quiz is available for this capsule yet.
       </div>
     );
@@ -79,15 +79,15 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[#DCE1E8] bg-white p-6 text-center"
+        className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-center"
       >
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#1F5F4A]/10">
-          <Brain className="h-6 w-6 text-[#1F5F4A]" />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10">
+          <Brain className="h-6 w-6 text-blue-400" />
         </div>
-        <h3 className="font-serif text-lg font-bold text-[#1B2430]">
+        <h3 className="text-lg font-bold text-slate-100">
           You scored {score}/{questions.length}
         </h3>
-        <p className="mt-1 text-sm text-[#5B6472]">
+        <p className="mt-1 text-sm text-slate-400">
           {pct >= 80
             ? "Strong recall -- this concept is exam-ready."
             : pct >= 50
@@ -99,18 +99,18 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
   }
 
   return (
-    <div className="rounded-xl border border-[#DCE1E8] bg-white p-5">
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
       <div className="mb-4 flex items-center justify-between">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-[#8992A0]">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
           Question {index + 1} of {questions.length}
         </span>
-        <span className="rounded-full border border-[#E3E7EC] bg-[#F9FAFB] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#5B6472]">
+        <span className="rounded-full border border-slate-800 bg-slate-950/50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-400">
           {QUESTION_TYPE_LABEL[question.question_type]}
         </span>
       </div>
 
       {question.source_tag && (
-        <span className="mb-3 inline-block rounded-full border border-[#1F5F4A]/20 bg-[#1F5F4A]/[0.06] px-2.5 py-0.5 text-[10px] font-semibold text-[#1F5F4A]">
+        <span className="mb-3 inline-block rounded-full border border-blue-500/25 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
           {question.source_tag}
         </span>
       )}
@@ -123,7 +123,7 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
           exit={{ opacity: 0, x: -12 }}
           transition={{ duration: 0.2 }}
         >
-          <h4 className="mb-4 font-serif text-base font-bold leading-snug text-[#1B2430]">
+          <h4 className="mb-4 text-base font-bold leading-snug text-slate-100">
             {question.question_text[language]}
           </h4>
 
@@ -134,14 +134,14 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
               const isCorrectOption = question.correct_option === letter;
 
               let stateClasses =
-                "border-[#E3E7EC] bg-[#F9FAFB] text-[#1B2430] hover:border-[#1F5F4A]/30";
+                "border-slate-800 bg-slate-950/40 text-slate-200 hover:border-blue-500/40 hover:bg-slate-900";
               if (hasAnswered) {
                 if (isCorrectOption) {
-                  stateClasses = "border-[#1F5F4A]/40 bg-[#1F5F4A]/[0.06] text-[#1B2430]";
+                  stateClasses = "border-emerald-500/40 bg-emerald-500/10 text-slate-100";
                 } else if (isSelectedOption && !isCorrect) {
-                  stateClasses = "border-red-300 bg-red-50 text-[#1B2430]";
+                  stateClasses = "border-red-500/40 bg-red-500/10 text-slate-100";
                 } else {
-                  stateClasses = "border-[#E3E7EC] bg-white text-[#8992A0]";
+                  stateClasses = "border-slate-800 bg-slate-900/30 text-slate-500";
                 }
               }
 
@@ -153,16 +153,16 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
                   className={`flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${stateClasses}`}
                 >
                   <span className="flex items-center gap-2.5">
-                    <span className="font-mono text-xs font-bold uppercase text-[#8992A0]">
+                    <span className="font-mono text-xs font-bold uppercase text-slate-500">
                       {letter}
                     </span>
                     {optionText}
                   </span>
                   {hasAnswered && isCorrectOption && (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1F5F4A]" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
                   )}
                   {hasAnswered && isSelectedOption && !isCorrect && (
-                    <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                    <XCircle className="h-4 w-4 shrink-0 text-red-400" />
                   )}
                 </button>
               );
@@ -173,10 +173,10 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
-              className="mt-4 rounded-lg border border-[#E3E7EC] bg-[#F9FAFB] p-3.5"
+              className="mt-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3.5"
             >
-              <p className="text-xs leading-relaxed text-[#5B6472]">
-                <span className="font-semibold text-[#1B2430]">
+              <p className="text-xs leading-relaxed text-slate-400">
+                <span className="font-semibold text-slate-100">
                   {isCorrect ? "Correct. " : "Not quite. "}
                 </span>
                 {question.explanation[language]}
@@ -189,7 +189,7 @@ export default function QuizWidget({ questions, studentId, language }: QuizWidge
       {hasAnswered && (
         <button
           onClick={handleNext}
-          className="mt-4 w-full rounded-lg bg-[#1F5F4A] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1A5240]"
+          className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
         >
           {isLast ? "See Results" : "Next Question"}
         </button>

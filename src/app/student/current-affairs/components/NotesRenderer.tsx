@@ -15,7 +15,7 @@ function renderInlineBold(text: string, keyPrefix: string) {
   return segments.map((segment, i) => {
     if (segment.startsWith("**") && segment.endsWith("**")) {
       return (
-        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-[#1B2430]">
+        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-100">
           {segment.slice(2, -2)}
         </strong>
       );
@@ -37,9 +37,9 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
   const flushList = (key: string) => {
     if (currentList.length === 0) return;
     blocks.push(
-      <ul key={key} className="ml-1 list-disc space-y-1.5 pl-4 marker:text-[#1F5F4A]/60">
+      <ul key={key} className="ml-1 list-disc space-y-1.5 pl-4 marker:text-blue-400/70">
         {currentList.map((item, i) => (
-          <li key={`${key}-item-${i}`} className="text-sm leading-relaxed text-[#374151]">
+          <li key={`${key}-item-${i}`} className="text-sm leading-relaxed text-slate-300">
             {renderInlineBold(item, `${key}-item-${i}`)}
           </li>
         ))}
@@ -62,7 +62,7 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
       blocks.push(
         <h4
           key={`heading-${idx}`}
-          className="mt-4 font-serif text-sm font-bold uppercase tracking-wide text-[#1F5F4A] first:mt-0"
+          className="mt-4 text-sm font-bold uppercase tracking-wide text-blue-400 first:mt-0"
         >
           {renderInlineBold(line.slice(3).trim(), `heading-${idx}`)}
         </h4>
@@ -73,7 +73,7 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
     // Anything else -- including any off-format response -- is plain prose,
     // never mis-rendered as a heading.
     blocks.push(
-      <p key={`para-${idx}`} className="text-sm leading-relaxed text-[#374151]">
+      <p key={`para-${idx}`} className="text-sm leading-relaxed text-slate-300">
         {renderInlineBold(line, `para-${idx}`)}
       </p>
     );
