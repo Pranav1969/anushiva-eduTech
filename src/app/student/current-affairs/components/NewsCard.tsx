@@ -11,6 +11,7 @@ import {
   Lock,
   CheckCircle2,
 } from "lucide-react";
+import { useTheme } from "../../theme/ThemeProvider";
 import { NewsCapsule, LanguageCode, SOURCE_META } from "./types";
 
 interface NewsCardProps {
@@ -35,7 +36,9 @@ export default function NewsCard({
   onToggleBookmark,
   variant = "default",
 }: NewsCardProps) {
-  const sourceMeta = SOURCE_META[capsule.source_type];
+  const { theme: t } = useTheme();
+  const sourceLabel = SOURCE_META[capsule.source_type].label;
+  const sourceColors = t.source[capsule.source_type];
   const isCompact = variant === "compact";
 
   return (
@@ -47,36 +50,30 @@ export default function NewsCard({
       onClick={() => onInteract(capsule)}
       className={`group relative flex cursor-pointer flex-col justify-between rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
         isCompact ? "h-full p-5" : "p-6 md:p-8"
-      } ${
-        isLocked
-          ? "border-amber-500/30 bg-slate-900/60"
-          : isRead
-          ? "border-slate-800 bg-slate-900/40 opacity-70"
-          : "border-slate-800 bg-slate-900/60 hover:border-blue-500/40 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.3)]"
-      }`}
+      } ${isLocked ? t.card.locked : isRead ? t.card.read : t.card.hover}`}
     >
       {/* Meta row */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest ${sourceMeta.text} ${sourceMeta.bg} ${sourceMeta.border}`}
+            className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest ${sourceColors.text} ${sourceColors.bg} ${sourceColors.border}`}
           >
-            {sourceMeta.label}
+            {sourceLabel}
           </span>
           {!isCompact && (
-            <span className="rounded-md border border-slate-800 bg-slate-950/50 px-2.5 py-1 text-[11px] font-medium text-slate-400">
+            <span className={`rounded-md border ${t.inset} px-2.5 py-1 text-[11px] font-medium ${t.text.muted}`}>
               {capsule.category_tag}
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500">
+          <div className={`flex items-center gap-1.5 font-mono text-[10.5px] ${t.text.faint}`}>
             <Calendar className="h-3.5 w-3.5" />
             <span>{capsule.original_date}</span>
           </div>
           {!isCompact && (
-            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3 font-mono text-[10.5px] text-slate-500">
+            <div className={`flex items-center gap-1.5 border-l ${t.divider} pl-3 font-mono text-[10.5px] ${t.text.faint}`}>
               <Clock className="h-3.5 w-3.5" />
               <span>{capsule.read_time}</span>
             </div>
@@ -86,12 +83,10 @@ export default function NewsCard({
               onClick={(e) => onToggleBookmark(capsule.id, e)}
               aria-label={isBookmarked ? "Remove bookmark" : "Bookmark this capsule"}
               className={`rounded-lg border p-1.5 transition-all ${
-                isBookmarked
-                  ? "border-blue-500/40 bg-blue-500/15 text-blue-400"
-                  : "border-slate-800 bg-slate-950/50 text-slate-500 hover:text-blue-400"
+                isBookmarked ? t.bookmark.on : t.bookmark.off
               }`}
             >
-              <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? "fill-blue-400" : ""}`} />
+              <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? t.bookmark.fill : ""}`} />
             </button>
           )}
         </div>
@@ -100,18 +95,18 @@ export default function NewsCard({
       {/* Core content */}
       {isLocked ? (
         <div className="space-y-3">
-          <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+          <div className={`mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider ${t.amber.text}`}>
             <Lock className="h-3 w-3" /> Locked &middot; {capsule.required_plan} tier
           </div>
           <h2
-            className={`select-none font-bold text-slate-300 blur-[4px] ${
+            className={`select-none font-bold ${t.amber.lockedTitle} blur-[4px] ${
               isCompact ? "text-base" : "text-lg md:text-xl"
             }`}
           >
             {capsule.title[language] || "Sample locked headline"}
           </h2>
           {!isCompact && (
-            <p className="select-none text-sm leading-relaxed text-slate-500 blur-[6px]">
+            <p className={`select-none text-sm leading-relaxed ${t.amber.lockedBody} blur-[6px]`}>
               Placeholder summary of structured regulatory notification requiring an upgraded tier.
             </p>
           )}
@@ -119,14 +114,14 @@ export default function NewsCard({
       ) : (
         <div className="space-y-3">
           <h2
-            className={`font-bold leading-snug tracking-tight text-slate-100 transition-colors group-hover:text-blue-300 ${
+            className={`font-bold leading-snug tracking-tight ${t.text.heading} transition-colors ${t.accent.titleHover} ${
               isCompact ? "text-base" : "text-lg md:text-xl"
             }`}
           >
             {capsule.title[language]}
           </h2>
           {!isCompact && (
-            <p className="select-text whitespace-pre-line text-sm leading-relaxed text-slate-400">
+            <p className={`select-text whitespace-pre-line text-sm leading-relaxed ${t.text.muted}`}>
               {capsule.summary[language]}
             </p>
           )}
@@ -134,18 +129,18 @@ export default function NewsCard({
       )}
 
       {/* Footer controls */}
-      <div className="mt-6 flex items-center justify-between border-t border-slate-800 pt-4">
-        <div className="text-xs text-slate-500">
+      <div className={`mt-6 flex items-center justify-between border-t ${t.divider} pt-4`}>
+        <div className={`text-xs ${t.text.faint}`}>
           {isLocked ? (
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 transition-colors group-hover:text-amber-300">
+            <span className={`text-[11px] font-semibold uppercase tracking-wider ${t.amber.text} transition-colors ${t.amber.hoverText}`}>
               Tap to unlock {capsule.required_plan} &rarr;
             </span>
           ) : isRead ? (
-            <span className="flex items-center gap-1 font-medium text-emerald-400">
+            <span className={`flex items-center gap-1 font-medium ${t.success.text}`}>
               <CheckCircle2 className="h-3.5 w-3.5" /> Finished reading
             </span>
           ) : (
-            <span className="transition-colors group-hover:text-slate-300">Tap to mark as read</span>
+            <span className={`transition-colors ${t.card.groupHoverBody}`}>Tap to mark as read</span>
           )}
         </div>
 
@@ -155,7 +150,7 @@ export default function NewsCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 transition-colors hover:text-blue-400"
+            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ${t.text.muted} transition-colors ${t.accent.linkHover}`}
           >
             Verify source <ExternalLink className="h-3 w-3" />
           </a>

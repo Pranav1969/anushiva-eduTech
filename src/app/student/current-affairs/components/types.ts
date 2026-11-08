@@ -1,4 +1,7 @@
 // src/app/student/current-affairs/components/types.ts
+//
+// Types + non-visual constants only. All colors now live in
+// src/app/student/theme/themes.ts (theme.source / theme.pillar).
 
 export type SourceType = "rbi" | "pib" | "economy";
 export type PlanTier = "free" | "silver" | "gold" | "premium";
@@ -71,50 +74,9 @@ export interface QuizQuestion {
   sequence_order: number;
 }
 
-// Dark-theme tag colors (match the student dashboard palette)
-export const PILLAR_META: Record<ExamPillar, { text: string; bg: string; border: string }> = {
-  "RBI Circulars": {
-    text: "text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-  },
-  "Government Schemes": {
-    text: "text-sky-400",
-    bg: "bg-sky-500/10",
-    border: "border-sky-500/25",
-  },
-  "Economic Reports": {
-    text: "text-violet-400",
-    bg: "bg-violet-500/10",
-    border: "border-violet-500/25",
-  },
-  "Banking Regulations": {
-    text: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/25",
-  },
-};
-
-export const SOURCE_META: Record<
-  SourceType,
-  { label: string; text: string; bg: string; border: string }
-> = {
-  rbi: {
-    label: "RBI",
-    text: "text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-  },
-  pib: {
-    label: "PIB",
-    text: "text-sky-400",
-    bg: "bg-sky-500/10",
-    border: "border-sky-500/25",
-  },
-  economy: {
-    label: "Economy",
-    text: "text-violet-400",
-    bg: "bg-violet-500/10",
-    border: "border-violet-500/25",
-  },
+// Display labels for source badges (colors come from the active theme).
+export const SOURCE_META: Record<SourceType, { label: string }> = {
+  rbi: { label: "RBI" },
+  pib: { label: "PIB" },
+  economy: { label: "Economy" },
 };

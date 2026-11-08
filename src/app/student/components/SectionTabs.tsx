@@ -2,6 +2,7 @@
 "use client";
 import Link from "next/link";
 import { Layers, Calculator, BookOpen, ShieldCheck, Award, HelpCircle } from "lucide-react";
+import { useTheme } from "../theme/ThemeProvider";
 
 // Fallback icon mapping handler helper
 const getSectionIcon = (id: string) => {
@@ -27,6 +28,7 @@ interface SectionTabsProps {
 }
 
 export default function SectionTabs({ activeTab, onTabChange, testsCountMap, useLinks = false }: SectionTabsProps) {
+  const { theme: t } = useTheme();
   
   // DYNAMIC SECTION GENERATION: Get ALL section keys present in the data right now
   const visibleSectionIds = Object.keys(testsCountMap).filter(
@@ -34,7 +36,7 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
   );
 
   return (
-    <div className="relative border-b border-slate-800 pb-2">
+    <div className={`relative border-b ${t.divider} pb-2`}>
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x">
         {visibleSectionIds.map((secId) => {
           const Icon = getSectionIcon(secId);
@@ -44,10 +46,10 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
 
           const buttonContent = (
             <>
-              <Icon size={14} className={isActive ? "text-[#22D3EE]" : "text-[#CBD5E1]"} />
+              <Icon size={14} className={isActive ? "text-[#22D3EE]" : t.ui.tabIconIdle} />
               <span className="truncate max-w-[180px]">{formattedLabel}</span>
               <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all ${
-                isActive ? "bg-white/20 text-white shadow-inner" : "bg-slate-900 text-[#CBD5E1]"
+                isActive ? "bg-white/20 text-white shadow-inner" : t.ui.tabCountIdle
               }`}>
                 {count}
               </span>
@@ -60,9 +62,7 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
                 key={secId}
                 href={`/student/section/${secId}`}
                 className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 border shrink-0 snap-bleed relative ${
-                  isActive
-                    ? "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]"
-                    : "bg-[#1E293B]/70 backdrop-blur-sm border-slate-800 text-[#CBD5E1] hover:text-white hover:border-slate-700 hover:bg-[#1E293B]"
+                  isActive ? t.ui.tabActive : t.ui.tabIdle
                 }`}
               >
                 {buttonContent}
@@ -75,9 +75,7 @@ export default function SectionTabs({ activeTab, onTabChange, testsCountMap, use
               key={secId}
               onClick={() => onTabChange && onTabChange(secId)}
               className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 border shrink-0 snap-bleed relative ${
-                isActive
-                  ? "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]"
-                  : "bg-[#1E293B]/70 backdrop-blur-sm border-slate-800 text-[#CBD5E1] hover:text-white hover:border-slate-700 hover:bg-[#1E293B]"
+                isActive ? t.ui.tabActive : t.ui.tabIdle
               }`}
             >
               {buttonContent}

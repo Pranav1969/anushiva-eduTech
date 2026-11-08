@@ -10,6 +10,8 @@ import { useStudentSession, StudentSession } from "@/utils/auth";
 import { todayIST } from "@/utils/istDate";
 import PlanUpgradeModal from "../../components/PlanUpgradeModal";
 import { BrandBar, BrandFooter, BrandLoader } from "../../components/StudentBrand"; // ANUSHIVA silver branding
+import { ThemeProvider, useTheme } from "../../theme/ThemeProvider"; // central theme system
+import ThemeToggle from "../../theme/ThemeToggle"; // Dark / Light switch
 import NewsCalendar from "./NewsCalendar";
 import DailyDoseCarousel from "./DailyDoseCarousel";
 import FilterSidebar from "./FilterSidebar";
@@ -31,11 +33,19 @@ interface NewsFeedClientWrapperProps {
   selectedDate: string;
 }
 
-export default function NewsFeedClientWrapper({
-  initialFeed,
-  selectedDate,
-}: NewsFeedClientWrapperProps) {
+// Public entry: same props as before. If the student layout already provides a
+// ThemeProvider this passes straight through; otherwise it creates one.
+export default function NewsFeedClientWrapper(props: NewsFeedClientWrapperProps) {
+  return (
+    <ThemeProvider>
+      <NewsFeedInner {...props} />
+    </ThemeProvider>
+  );
+}
+
+function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps) {
   const router = useRouter();
+  const { theme: t } = useTheme();
   const [student, setStudent] = useState<StudentSession | null>(null);
 
   // UI state (preserved from the original implementation)
@@ -208,53 +218,60 @@ export default function NewsFeedClientWrapper({
   if (!student) {
     // ANUSHIVA branded loading screen, same as the student dashboard
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#0F172A]">
+      <div className={`flex min-h-screen flex-col items-center justify-center gap-6 ${t.page}`}>
         <BrandLoader />
-        <Loader2 className="animate-spin text-blue-500/70" size={20} />
+        <Loader2 className={`animate-spin ${t.accent.spinnerDim}`} size={20} />
       </div>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#0F172A] font-sans text-[#F8FAFC] antialiased selection:bg-blue-500/30 selection:text-blue-100">
-      {/* Same soft indigo glow as the student dashboard */}
-      <div className="pointer-events-none absolute left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-[#312E81]/15 blur-[120px]" />
+    <main
+      className={`relative min-h-screen overflow-x-hidden ${t.page} font-sans antialiased transition-colors duration-500 ${t.selection}`}
+    >
+      {/* Soft background glow */}
+      <div className={`pointer-events-none absolute left-1/4 top-0 h-[500px] w-[500px] rounded-full ${t.glow} blur-[120px]`} />
 
       {/* GLOBAL TOP NAVIGATION HEADER */}
-      <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#0F172A]/90 px-4 py-3 backdrop-blur-md">
+      <header className={`sticky top-0 z-50 border-b ${t.header} px-4 py-3 backdrop-blur-md`}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/student")}
-              className="group rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 transition-all hover:border-slate-700 hover:text-slate-100"
+              className={`group rounded-xl border p-2 transition-all ${t.iconButton}`}
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </button>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-slate-100">
+              <h1 className={`text-lg font-bold tracking-tight ${t.text.heading}`}>
                 Daily News Hub
               </h1>
-              <span className="hidden items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 sm:inline-flex">
-                <Sparkles className="h-3 w-3 text-blue-400" />
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-blue-300">
+              <span className={`hidden items-center gap-1 rounded-full border ${t.accent.soft} px-2 py-0.5 sm:inline-flex`}>
+                <Sparkles className={`h-3 w-3 ${t.accent.text}`} />
+                <span className={`font-mono text-[10px] font-semibold uppercase tracking-wider ${t.accent.textStrong}`}>
                   AI Engine
                 </span>
               </span>
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 font-mono text-xs text-slate-400 md:flex">
-            <span className="font-semibold text-blue-400">
-              {readIds.length}/{initialFeed.length} Read
-            </span>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">
-              <div
-                className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300"
-                style={{
-                  width: `${initialFeed.length > 0 ? (readIds.length / initialFeed.length) * 100 : 0}%`,
-                }}
-              />
+          <div className="flex items-center gap-3">
+            <div className={`hidden items-center gap-3 rounded-full border ${t.panel} px-3 py-1.5 font-mono text-xs ${t.text.muted} md:flex`}>
+              <span className={`font-semibold ${t.accent.text}`}>
+                {readIds.length}/{initialFeed.length} Read
+              </span>
+              <div className={`h-1.5 w-24 overflow-hidden rounded-full ${t.accent.track}`}>
+                <div
+                  className={`h-1.5 rounded-full ${t.accent.gradient} transition-all duration-300`}
+                  style={{
+                    width: `${initialFeed.length > 0 ? (readIds.length / initialFeed.length) * 100 : 0}%`,
+                  }}
+                />
+              </div>
             </div>
+
+            {/* DARK / LIGHT SWITCH: same shared setting as the dashboard */}
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -264,9 +281,9 @@ export default function NewsFeedClientWrapper({
           isFocusMode ? "max-w-3xl" : "max-w-6xl"
         }`}
       >
-        {/* ANUSHIVA BRAND BAR (same silver lockup as the student dashboard) */}
+        {/* ANUSHIVA BRAND BAR (silver lockup) */}
         <div className="mb-6">
-          <BrandBar tone="dark" />
+          <BrandBar />
         </div>
 
         <NewsCalendar selectedDate={selectedDate} onSelectDate={handleSelectDate} />
@@ -324,37 +341,37 @@ export default function NewsFeedClientWrapper({
             {isFocusMode && (
               <button
                 onClick={() => setIsFocusMode(false)}
-                className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
+                className={`mb-2 inline-flex items-center gap-2 rounded-full border ${t.panel} px-3 py-1.5 text-xs font-semibold ${t.text.mutedHover} transition-colors`}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Exit Focus Mode
               </button>
             )}
 
             {initialFeed.length === 0 ? (
-              <div className="mx-auto flex max-w-2xl flex-col items-center justify-center space-y-4 rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-16 text-center">
+              <div className={`mx-auto flex max-w-2xl flex-col items-center justify-center space-y-4 rounded-2xl border border-dashed ${t.panelDashed} p-16 text-center`}>
                 <div className="relative">
-                  <Compass className="h-10 w-10 animate-spin text-blue-400/50 duration-[3000ms]" />
-                  <Sparkles className="absolute -right-1 -top-1 h-4 w-4 animate-pulse text-amber-400" />
+                  <Compass className={`h-10 w-10 animate-spin ${t.accent.spinnerDim} duration-[3000ms]`} />
+                  <Sparkles className={`absolute -right-1 -top-1 h-4 w-4 animate-pulse ${t.amber.icon}`} />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-slate-100">
+                  <h3 className={`text-base font-semibold ${t.text.heading}`}>
                     {isViewingToday ? "Preparing Exam Capsules" : "No Capsules for This Date"}
                   </h3>
-                  <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-500">
+                  <p className={`mx-auto mt-1 max-w-md text-xs leading-relaxed ${t.text.faint}`}>
                     {isViewingToday
                       ? "The AI Engine is currently parsing the latest updates from RBI, PIB, and Economic Times. Your study feed will refresh automatically."
                       : "No archived capsules were found for this date. Try a different day on the dateline above."}
                   </p>
                 </div>
                 {isViewingToday && (
-                  <div className="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-950/50 px-3 py-1.5 font-mono text-[10px] text-slate-500">
-                    <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+                  <div className={`flex items-center gap-1.5 rounded-full border ${t.inset} px-3 py-1.5 font-mono text-[10px] ${t.text.faint}`}>
+                    <Loader2 className={`h-3 w-3 animate-spin ${t.accent.text}`} />
                     <span>Synchronizing live database indices...</span>
                   </div>
                 )}
               </div>
             ) : filteredNews.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-16 text-center text-sm text-slate-500">
+              <div className={`rounded-2xl border border-dashed ${t.panelDashed} p-16 text-center text-sm ${t.text.faint}`}>
                 No capsules found matching the search criteria.
               </div>
             ) : (
@@ -377,7 +394,7 @@ export default function NewsFeedClientWrapper({
         </div>
 
         {/* ANUSHIVA signature footer */}
-        <BrandFooter tone="dark" />
+        <BrandFooter />
       </div>
 
       <PlanUpgradeModal

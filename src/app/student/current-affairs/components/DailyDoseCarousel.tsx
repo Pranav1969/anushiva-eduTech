@@ -5,6 +5,7 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { useTheme } from "../../theme/ThemeProvider";
 import NewsCard from "./NewsCard";
 import { NewsCapsule, LanguageCode } from "./types";
 
@@ -27,6 +28,7 @@ export default function DailyDoseCarousel({
   onInteract,
   onToggleBookmark,
 }: DailyDoseCarouselProps) {
+  const { theme: t } = useTheme();
   const trackRef = useRef<HTMLDivElement>(null);
 
   if (picks.length === 0) return null;
@@ -44,13 +46,13 @@ export default function DailyDoseCarousel({
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10">
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+          <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${t.amber.iconWrap}`}>
+            <Sparkles className={`h-3.5 w-3.5 ${t.amber.icon}`} />
           </div>
-          <h2 className="text-lg font-bold tracking-tight text-slate-100">
+          <h2 className={`text-lg font-bold tracking-tight ${t.text.heading}`}>
             Today&apos;s Dose
           </h2>
-          <span className="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-400">
+          <span className={`rounded-full border ${t.panel} px-2 py-0.5 font-mono text-[10px] font-semibold ${t.text.muted}`}>
             Editor&apos;s Picks
           </span>
         </div>
@@ -59,14 +61,14 @@ export default function DailyDoseCarousel({
           <button
             onClick={() => scrollBy(-1)}
             aria-label="Scroll picks left"
-            className="rounded-lg border border-slate-800 bg-slate-900/60 p-1.5 text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-400"
+            className={`rounded-lg border ${t.panel} p-1.5 ${t.text.muted} transition-colors ${t.accent.hoverBoth}`}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             onClick={() => scrollBy(1)}
             aria-label="Scroll picks right"
-            className="rounded-lg border border-slate-800 bg-slate-900/60 p-1.5 text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-400"
+            className={`rounded-lg border ${t.panel} p-1.5 ${t.text.muted} transition-colors ${t.accent.hoverBoth}`}
           >
             <ChevronRight className="h-4 w-4" />
           </button>

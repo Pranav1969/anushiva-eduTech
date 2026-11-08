@@ -4,6 +4,7 @@
 
 import { motion } from "framer-motion";
 import { todayIST, shiftISODate, formatISTDateLabel } from "@/utils/istDate";
+import { useTheme } from "../../theme/ThemeProvider";
 
 interface NewsCalendarProps {
   selectedDate: string; // YYYY-MM-DD
@@ -17,18 +18,19 @@ export default function NewsCalendar({
   onSelectDate,
   daysBack = 13,
 }: NewsCalendarProps) {
+  const { theme: t } = useTheme();
   const today = todayIST();
   // Pure string/UTC date math anchored to the single IST "today" -- no Date
   // object timezone ambiguity anywhere in this list.
   const days = Array.from({ length: daysBack + 1 }, (_, i) => shiftISODate(today, i - daysBack));
 
   return (
-    <div className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+    <div className={`mb-8 rounded-2xl border ${t.panel} p-4`}>
       <div className="mb-3 flex items-center justify-between">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+        <span className={`font-mono text-[10px] font-semibold uppercase tracking-widest ${t.text.faint}`}>
           Dateline
         </span>
-        <span className="font-mono text-[10px] text-slate-400">
+        <span className={`font-mono text-[10px] ${t.text.muted}`}>
           {formatISTDateLabel(selectedDate, { weekday: "long", month: "long", day: "numeric" })}
         </span>
       </div>
@@ -42,32 +44,32 @@ export default function NewsCalendar({
               key={iso}
               onClick={() => onSelectDate(iso)}
               className={`relative flex shrink-0 flex-col items-center rounded-lg px-3 py-2 transition-colors ${
-                isSelected ? "" : "hover:bg-slate-800/60"
+                isSelected ? "" : t.calendar.dayHover
               }`}
             >
               {isSelected && (
                 <motion.div
                   layoutId="calendar-selected-pill"
-                  className="absolute inset-0 rounded-lg bg-blue-600 shadow-lg shadow-blue-900/40"
+                  className={`absolute inset-0 rounded-lg ${t.calendar.selected}`}
                   transition={{ type: "spring", stiffness: 400, damping: 32 }}
                 />
               )}
               <span
                 className={`relative z-10 font-mono text-[9.5px] uppercase tracking-wider ${
-                  isSelected ? "text-white/70" : "text-slate-500"
+                  isSelected ? t.calendar.selectedSub : t.text.faint
                 }`}
               >
                 {formatISTDateLabel(iso, { weekday: "short" })}
               </span>
               <span
                 className={`relative z-10 text-sm font-bold ${
-                  isSelected ? "text-white" : "text-slate-200"
+                  isSelected ? "text-white" : t.text.heading
                 }`}
               >
                 {formatISTDateLabel(iso, { day: "numeric" })}
               </span>
               {isToday && !isSelected && (
-                <span className="relative z-10 mt-0.5 h-1 w-1 rounded-full bg-amber-400" />
+                <span className={`relative z-10 mt-0.5 h-1 w-1 rounded-full ${t.amber.today}`} />
               )}
             </button>
           );

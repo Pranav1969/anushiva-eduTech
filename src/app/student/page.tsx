@@ -18,6 +18,20 @@ import RevisionNotesTree from "./components/RevisionNotesTree";
 import PlanUpgradeModal from "./components/PlanUpgradeModal";
 import SectionTestBrowser from "./components/SectionTestBrowser"; // NEW: chapter-wise / sectional / mock view
 import { BrandBar, BrandFooter, BrandLoader } from "./components/StudentBrand"; // ANUSHIVA silver branding
+import { ThemeProvider, ThemeScope, useTheme } from "./theme/ThemeProvider"; // central theme system
+import ThemeToggle from "./theme/ThemeToggle"; // Dark / Light switch (lives ONLY on this page)
+
+// ---------------------------------------------------------------------------
+// THEME READINESS SWITCH
+// The dashboard's child components (DashboardHeader, TestCard, SectionTabs,
+// PerformanceOverview, RecentAssignedTests, EmptyState, RevisionNotesTree,
+// PlanUpgradeModal, SectionTestBrowser) must read their colors from the theme
+// before Light mode can look right here.
+//   false -> dashboard stays on AnushivaDefault and the toggle is hidden
+//   true  -> dashboard follows the student's choice and the toggle appears
+// Flip to `true` once those components are migrated.
+// ---------------------------------------------------------------------------
+const DASHBOARD_THEMING_READY = true;
 
 export interface TestRecord {
   id: string;
@@ -61,8 +75,25 @@ export interface ChapterAnalysis {
   accuracy: number;
 }
 
+// Public entry. The shared provider normally comes from src/app/student/layout.tsx;
+// <ThemeProvider> here is a harmless safety net (it passes through if one already exists).
 export default function StudentDashboard() {
+  return (
+    <ThemeProvider>
+      {DASHBOARD_THEMING_READY ? (
+        <StudentDashboardInner />
+      ) : (
+        <ThemeScope themeId="AnushivaDefault">
+          <StudentDashboardInner />
+        </ThemeScope>
+      )}
+    </ThemeProvider>
+  );
+}
+
+function StudentDashboardInner() {
   const router = useRouter();
+  const { theme: t } = useTheme();
   const { session, loading: sessionLoading, logout } = useStudentSession();
   const [student, setStudent] = useState<StudentSession | null>(null);
   const [tests, setTests] = useState<TestRecord[]>([]);
@@ -370,74 +401,80 @@ export default function StudentDashboard() {
   };
 
   // NEW: your existing lock wrapper + TestCard, moved into a function so SectionTestBrowser can reuse it
-  const renderTestCard = (t: TestRecord) => (
+  const renderTestCard = (testItem: TestRecord) => (
     <div
       className="relative group transition-all duration-200 h-full"
       onClickCapture={(e) => {
-        if (t.is_locked) {
+        if (testItem.is_locked) {
           e.stopPropagation();
           e.preventDefault();
-          setSelectedRequiredPlan(t.required_plan || "premium");
+          setSelectedRequiredPlan(testItem.required_plan || "premium");
           setIsUpgradeOpen(true);
         }
       }}
     >
       {/* Visual overlay indicator if locked */}
-      {t.is_locked && (
-        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[3px] border border-amber-500/30 rounded-xl z-20 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-950/70 transition-all p-2 text-center">
-          <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-black/60 mb-1">
+      {testItem.is_locked && (
+        <div className={`absolute inset-0 backdrop-blur-[3px] border rounded-xl z-20 flex flex-col items-center justify-center cursor-pointer transition-all p-2 text-center ${t.dash.lockOverlay}`}>
+          <div className={`w-7 h-7 rounded-full border flex items-center justify-center shadow-lg mb-1 ${t.dash.lockIcon}`}>
             <Lock className="w-3.5 h-3.5" />
           </div>
-          <span className="text-[9px] font-black tracking-widest uppercase text-amber-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded shadow-md">
-            Unlock {t.required_plan}
+          <span className={`text-[9px] font-black tracking-widest uppercase border px-2 py-0.5 rounded shadow-md ${t.dash.lockBadge}`}>
+            Unlock {testItem.required_plan}
           </span>
         </div>
       )}
 
       {/* Original test card component, all internals preserved */}
-      <TestCard test={t} />
+      <TestCard test={testItem} />
     </div>
   );
 
   if (!student) {
     // ANUSHIVA branded loading screen (silver star gently breathing)
     return (
-      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center gap-6">
+      <div className={`min-h-screen ${t.page} flex flex-col items-center justify-center gap-6`}>
         <BrandLoader />
-        <Loader2 className="animate-spin text-blue-500/70" size={20} />
+        <Loader2 className={`animate-spin ${t.accent.spinnerDim}`} size={20} />
       </div>
     );
   }
 
   return (
-    <main className={`min-h-screen p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? "bg-[#FDFBF7]" : "bg-[#0F172A] text-[#F8FAFC]"}`}>
+    <main className={`min-h-screen p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? t.pageNotes : t.page}`}>
 
       {/* Visual background decoration for examination view */}
       {dashboardFocus === "assessments" && (
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#312E81]/15 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500" />
+        <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${t.glow} blur-[120px] rounded-full pointer-events-none transition-opacity duration-500`} />
       )}
 
       <div className="w-full mx-auto space-y-5 relative z-10">
 
-        {/* ANUSHIVA BRAND BAR: always visible (even in notes focus), adapts to dark / cream themes */}
-        <BrandBar tone={dashboardFocus === "notes" ? "light" : "dark"} />
+        {/* ANUSHIVA BRAND BAR: always visible (even in notes focus), adapts to dark / cream surfaces */}
+        <BrandBar tone={dashboardFocus === "notes" ? "light" : undefined} />
 
         {/* ANIMATED HEADER COLLAPSE: Shrinks down when reading notes to save space */}
         <div className={`transition-all duration-500 ease-in-out transform origin-top overflow-hidden ${
           dashboardFocus === "notes" ? "max-h-0 opacity-0 scale-y-95 pointer-events-none mb-0" : "max-h-[300px] opacity-100 scale-y-100 mb-2"
         }`}>
           <DashboardHeader student={student} onLogout={handleLogout} />
+
+          {/* DARK / LIGHT SWITCH: sits right under the employee name + logout area (top-right).
+              This is the ONLY place in the app with this control; every other page just follows it. */}
+          {DASHBOARD_THEMING_READY && (
+            <div className="mt-2 flex justify-end">
+              <ThemeToggle />
+            </div>
+          )}
         </div>
 
         {/* Workspace Mode Sub-Navigation System */}
-        <div className={`flex items-center justify-between border-b pb-1 ${dashboardFocus === "notes" ? "border-stone-200" : "border-slate-800"}`}>
+        <div className={`flex items-center justify-between border-b pb-1 ${dashboardFocus === "notes" ? t.dash.barBorderNotes : t.dash.barBorder}`}>
           <div className="flex gap-6">
             <button
               onClick={() => setDashboardFocus("assessments")}
               className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                dashboardFocus === "assessments"
-                  ? "border-blue-500 text-blue-400"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+                dashboardFocus === "assessments" ? t.dash.tabAssessActive : t.dash.tabAssessIdle
               }`}
             >
               <GraduationCap className="w-4 h-4" /> Examination Center
@@ -446,9 +483,7 @@ export default function StudentDashboard() {
             <button
               onClick={() => setDashboardFocus("notes")}
               className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                dashboardFocus === "notes"
-                  ? "border-amber-700 text-amber-800"
-                  : "border-transparent text-slate-400 hover:text-slate-500"
+                dashboardFocus === "notes" ? t.dash.tabNotesActive : t.dash.tabNotesIdle
               }`}
             >
               <BookOpen className="w-4 h-4" /> Revision Notes Module
@@ -457,7 +492,7 @@ export default function StudentDashboard() {
             {/* Current Affairs Trigger Routing Action Link */}
             <button
               onClick={() => router.push("/student/current-affairs")}
-              className="pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-emerald-400 transition-all duration-300"
+              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all duration-300 ${t.dash.tabCurrentAffairs}`}
             >
               <Newspaper className="w-4 h-4" /> Current Affairs & GK
             </button>
@@ -467,7 +502,7 @@ export default function StudentDashboard() {
           {dashboardFocus === "notes" && (
             <button
               onClick={() => setDashboardFocus("assessments")}
-              className="text-xs font-medium text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80 px-3 py-1.5 rounded-lg transition-all duration-200 mr-2"
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 mr-2 ${t.dash.backToDashboard}`}
             >
               Back to Dashboard &rarr;
             </button>
@@ -502,8 +537,8 @@ export default function StudentDashboard() {
 
             {loading ? (
               <div className="text-center py-20 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="animate-spin text-[#2563EB]" size={32} />
-                <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold animate-pulse">Filtering Target Assignments...</span>
+                <Loader2 className={`animate-spin ${t.accent.spinnerStrong}`} size={32} />
+                <span className={`text-xs uppercase tracking-widest font-semibold animate-pulse ${t.text.muted}`}>Filtering Target Assignments...</span>
               </div>
             ) : filteredTests.length === 0 ? (
               <EmptyState />
@@ -563,7 +598,7 @@ export default function StudentDashboard() {
         )}
 
         {/* ANUSHIVA signature footer */}
-        <BrandFooter tone={dashboardFocus === "notes" ? "light" : "dark"} />
+        <BrandFooter tone={dashboardFocus === "notes" ? "light" : undefined} />
       </div>
 
       {/* Subscription Gating Interface Modal */}

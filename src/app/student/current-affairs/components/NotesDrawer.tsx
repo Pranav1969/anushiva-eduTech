@@ -7,8 +7,9 @@ import { X, Compass } from "lucide-react";
 import QuizWidget from "./QuizWidget";
 import NotesRenderer from "./NotesRenderer";
 import { StarMark } from "../../components/StudentBrand"; // ANUSHIVA silver mark
+import { useTheme } from "../../theme/ThemeProvider";
 import { formatISTDateLabel } from "@/utils/istDate";
-import { DailyDoseDigest, QuizQuestion, LanguageCode, PILLAR_META } from "./types";
+import { DailyDoseDigest, QuizQuestion, LanguageCode, ExamPillar } from "./types";
 
 interface NotesDrawerProps {
   isOpen: boolean;
@@ -34,6 +35,8 @@ export default function NotesDrawer({
   studentId,
   onClose,
 }: NotesDrawerProps) {
+  const { theme: t } = useTheme();
+
   const notesText = digest
     ? language === "hi"
       ? digest.notes_hi || digest.notes_en
@@ -53,23 +56,23 @@ export default function NotesDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px]"
+            className={`fixed inset-0 z-[60] ${t.drawer.overlay} backdrop-blur-[2px]`}
           />
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 34 }}
-            className="fixed right-0 top-0 z-[70] h-full w-full max-w-lg overflow-y-auto border-l border-slate-800 bg-[#0F172A] text-[#F8FAFC] shadow-2xl"
+            className={`fixed right-0 top-0 z-[70] h-full w-full max-w-lg overflow-y-auto border-l ${t.drawer.surface} shadow-2xl`}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-[#0F172A]/95 px-5 py-4 backdrop-blur-md">
+            <div className={`sticky top-0 z-10 flex items-center justify-between border-b ${t.drawer.header} px-5 py-4 backdrop-blur-md`}>
               <div className="flex items-center gap-3">
                 <StarMark size={30} tile id="drawer" />
                 <div>
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <span className={`font-mono text-[10px] font-semibold uppercase tracking-widest ${t.text.faint}`}>
                     Daily Dose &middot; Digest
                   </span>
-                  <p className="text-sm font-bold text-slate-100">
+                  <p className={`text-sm font-bold ${t.text.heading}`}>
                     {formatISTDateLabel(date, { weekday: "long", month: "long", day: "numeric" })}
                   </p>
                 </div>
@@ -77,7 +80,7 @@ export default function NotesDrawer({
               <button
                 onClick={onClose}
                 aria-label="Close digest panel"
-                className="rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-400 transition-colors hover:text-slate-100"
+                className={`rounded-lg border p-1.5 transition-colors ${t.iconButton}`}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -86,19 +89,19 @@ export default function NotesDrawer({
             <div className="space-y-6 p-5">
               {isLoading && (
                 <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                  <Compass className="h-8 w-8 animate-spin text-blue-400/50 duration-[3000ms]" />
-                  <p className="text-xs text-slate-500">Loading this day&apos;s digest...</p>
+                  <Compass className={`h-8 w-8 animate-spin ${t.accent.spinnerDim} duration-[3000ms]`} />
+                  <p className={`text-xs ${t.text.faint}`}>Loading this day&apos;s digest...</p>
                 </div>
               )}
 
               {!isLoading && error && (
-                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center text-sm text-slate-500">
+                <div className={`rounded-xl border border-dashed ${t.panelDashed} p-8 text-center text-sm ${t.text.faint}`}>
                   {error}
                 </div>
               )}
 
               {!isLoading && !error && !digest && (
-                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center text-sm text-slate-500">
+                <div className={`rounded-xl border border-dashed ${t.panelDashed} p-8 text-center text-sm ${t.text.faint}`}>
                   No digest is available for this date yet.
                 </div>
               )}
@@ -109,7 +112,7 @@ export default function NotesDrawer({
                   {pillarEntries.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       {pillarEntries.map(([pillar, count]) => {
-                        const meta = PILLAR_META[pillar as keyof typeof PILLAR_META];
+                        const meta = t.pillar[pillar as ExamPillar];
                         if (!meta) return null;
                         return (
                           <span
@@ -124,13 +127,13 @@ export default function NotesDrawer({
                   )}
 
                   {/* Consolidated notes for the whole day */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+                  <div className={`rounded-xl border ${t.panel} p-5`}>
                     <NotesRenderer text={notesText} />
                   </div>
 
                   {/* Quiz spanning the day's news */}
                   <div>
-                    <h3 className="mb-3 text-base font-bold text-slate-100">
+                    <h3 className={`mb-3 text-base font-bold ${t.text.heading}`}>
                       Test Yourself &middot; {quiz.length} Questions
                     </h3>
                     <QuizWidget questions={quiz} studentId={studentId} language={language} />

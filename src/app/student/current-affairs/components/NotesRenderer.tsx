@@ -1,34 +1,37 @@
 // src/app/student/current-affairs/components/NotesRenderer.tsx
-//
+"use client";
+
 // The digest prompt instructs Gemini to write notes as light Markdown:
 // "## Pillar Name" for section headers, "- " for bullets, "**term**" for
-// inline bold. The drawer used to dump this straight into a <p> with
-// whitespace-pre-line, which is why raw "**" and "##" characters were
-// showing up on screen (see the screenshot that flagged this). This parses
-// exactly that shape into styled JSX. It's deliberately narrow -- not a full
-// Markdown engine -- and falls back to plain paragraph text for any line
-// that isn't a recognized header or bullet, so an off-format response from
-// Gemini degrades gracefully instead of mis-rendering as a heading.
+// inline bold. This parses exactly that shape into styled JSX. It's
+// deliberately narrow -- not a full Markdown engine -- and falls back to plain
+// paragraph text for any line that isn't a recognized header or bullet, so an
+// off-format response from Gemini degrades gracefully instead of
+// mis-rendering as a heading.
 
-function renderInlineBold(text: string, keyPrefix: string) {
-  const segments = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
-  return segments.map((segment, i) => {
-    if (segment.startsWith("**") && segment.endsWith("**")) {
-      return (
-        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-100">
-          {segment.slice(2, -2)}
-        </strong>
-      );
-    }
-    return <span key={`${keyPrefix}-${i}`}>{segment}</span>;
-  });
-}
+import { useTheme } from "../../theme/ThemeProvider";
 
 interface NotesRendererProps {
   text: string;
 }
 
 export default function NotesRenderer({ text }: NotesRendererProps) {
+  const { theme: t } = useTheme();
+
+  function renderInlineBold(line: string, keyPrefix: string) {
+    const segments = line.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+    return segments.map((segment, i) => {
+      if (segment.startsWith("**") && segment.endsWith("**")) {
+        return (
+          <strong key={`${keyPrefix}-${i}`} className={`font-semibold ${t.text.heading}`}>
+            {segment.slice(2, -2)}
+          </strong>
+        );
+      }
+      return <span key={`${keyPrefix}-${i}`}>{segment}</span>;
+    });
+  }
+
   const lines = text.split("\n").map((l) => l.trim());
 
   const blocks: React.ReactNode[] = [];
@@ -37,9 +40,9 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
   const flushList = (key: string) => {
     if (currentList.length === 0) return;
     blocks.push(
-      <ul key={key} className="ml-1 list-disc space-y-1.5 pl-4 marker:text-blue-400/70">
+      <ul key={key} className={`ml-1 list-disc space-y-1.5 pl-4 ${t.accent.marker}`}>
         {currentList.map((item, i) => (
-          <li key={`${key}-item-${i}`} className="text-sm leading-relaxed text-slate-300">
+          <li key={`${key}-item-${i}`} className={`text-sm leading-relaxed ${t.text.body}`}>
             {renderInlineBold(item, `${key}-item-${i}`)}
           </li>
         ))}
@@ -62,7 +65,7 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
       blocks.push(
         <h4
           key={`heading-${idx}`}
-          className="mt-4 text-sm font-bold uppercase tracking-wide text-blue-400 first:mt-0"
+          className={`mt-4 text-sm font-bold uppercase tracking-wide ${t.accent.text} first:mt-0`}
         >
           {renderInlineBold(line.slice(3).trim(), `heading-${idx}`)}
         </h4>
@@ -73,7 +76,7 @@ export default function NotesRenderer({ text }: NotesRendererProps) {
     // Anything else -- including any off-format response -- is plain prose,
     // never mis-rendered as a heading.
     blocks.push(
-      <p key={`para-${idx}`} className="text-sm leading-relaxed text-slate-300">
+      <p key={`para-${idx}`} className={`text-sm leading-relaxed ${t.text.body}`}>
         {renderInlineBold(line, `para-${idx}`)}
       </p>
     );

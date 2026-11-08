@@ -12,6 +12,7 @@ import {
   Maximize2,
   Minimize2,
 } from "lucide-react";
+import { useTheme } from "../../theme/ThemeProvider";
 import { SourceType, LanguageCode } from "./types";
 
 type FilterOption = "all" | SourceType;
@@ -42,9 +43,6 @@ const LANGUAGES: { code: LanguageCode; label: string }[] = [
   { code: "mr", label: "मराठी" },
 ];
 
-const PANEL = "rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm";
-const LABEL = "block text-xs font-semibold uppercase tracking-wider text-slate-400";
-
 export default function FilterSidebar({
   searchQuery,
   onSearchChange,
@@ -57,19 +55,24 @@ export default function FilterSidebar({
   readCount,
   totalCount,
 }: FilterSidebarProps) {
+  const { theme: t } = useTheme();
+
+  const PANEL = `rounded-2xl border ${t.panel} p-4`;
+  const LABEL = `block text-xs font-semibold uppercase tracking-wider ${t.text.muted}`;
+
   return (
     <aside className="space-y-5">
       {/* Reading progress */}
       <div className={PANEL}>
         <div className="mb-2 flex items-center justify-between">
           <span className={LABEL}>Reading Progress</span>
-          <span className="font-mono text-[11px] font-semibold text-blue-400">
+          <span className={`font-mono text-[11px] font-semibold ${t.accent.text}`}>
             {readCount}/{totalCount}
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className={`h-1.5 w-full overflow-hidden rounded-full ${t.accent.track}`}>
           <div
-            className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300"
+            className={`h-1.5 rounded-full ${t.accent.gradient} transition-all duration-300`}
             style={{ width: `${totalCount > 0 ? (readCount / totalCount) * 100 : 0}%` }}
           />
         </div>
@@ -78,21 +81,21 @@ export default function FilterSidebar({
       {/* Focus mode toggle */}
       <button
         onClick={onToggleFocusMode}
-        className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-left backdrop-blur-sm transition-colors hover:border-blue-500/40"
+        className={`flex w-full items-center justify-between rounded-2xl border ${t.panel} p-4 text-left transition-colors ${t.accent.hoverBorder}`}
       >
         <div className="flex items-center gap-2.5">
           {isFocusMode ? (
-            <Minimize2 className="h-4 w-4 text-blue-400" />
+            <Minimize2 className={`h-4 w-4 ${t.accent.text}`} />
           ) : (
-            <Maximize2 className="h-4 w-4 text-slate-400" />
+            <Maximize2 className={`h-4 w-4 ${t.text.muted}`} />
           )}
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-200">
+          <span className={`text-xs font-semibold uppercase tracking-wider ${t.text.heading}`}>
             Focus Mode
           </span>
         </div>
         <span
           className={`relative h-5 w-9 rounded-full transition-colors ${
-            isFocusMode ? "bg-blue-600" : "bg-slate-700"
+            isFocusMode ? t.toggle.on : t.toggle.off
           }`}
         >
           <span
@@ -107,13 +110,13 @@ export default function FilterSidebar({
       <div className={`space-y-3 ${PANEL}`}>
         <label className={LABEL}>Search Capsule Index</label>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${t.text.faint}`} />
           <input
             type="text"
             placeholder="Type dynamic keywords..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950/50 py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+            className={`w-full rounded-xl border ${t.input} py-2.5 pl-10 pr-4 text-sm transition-all focus:outline-none focus:ring-1`}
           />
         </div>
       </div>
@@ -130,9 +133,7 @@ export default function FilterSidebar({
                 key={tab.id}
                 onClick={() => onFilterChange(tab.id)}
                 className={`flex w-full items-center gap-2.5 rounded-xl border px-4 py-3 text-left text-xs font-medium transition-all ${
-                  isSelected
-                    ? "border-blue-500/50 bg-blue-500/15 font-bold text-blue-300 shadow-sm"
-                    : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  isSelected ? `${t.filter.selected} font-bold shadow-sm` : t.filter.idle
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -145,21 +146,19 @@ export default function FilterSidebar({
 
       {/* Language */}
       <div className={`space-y-3 ${PANEL}`}>
-        <div className="flex items-center gap-1.5 text-slate-400">
+        <div className={`flex items-center gap-1.5 ${t.text.muted}`}>
           <Globe className="h-3.5 w-3.5" />
           <label className="block text-xs font-semibold uppercase tracking-wider">
             Translation Layer
           </label>
         </div>
-        <div className="grid grid-cols-3 rounded-xl border border-slate-800 bg-slate-950/50 p-1">
+        <div className={`grid grid-cols-3 rounded-xl border ${t.inset} p-1`}>
           {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               onClick={() => onLanguageChange(lang.code)}
               className={`rounded-lg py-2 text-xs font-bold transition-all duration-200 ${
-                language === lang.code
-                  ? "bg-blue-500/20 text-blue-300 shadow-sm"
-                  : "text-slate-500 hover:text-slate-300"
+                language === lang.code ? t.segmented.active : t.segmented.idle
               }`}
             >
               {lang.label}

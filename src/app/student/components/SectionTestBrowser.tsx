@@ -4,6 +4,7 @@
 import { useMemo, useState, ReactNode } from "react";
 import { ChevronDown, CheckCircle2, PlayCircle, Trophy, ListChecks, Layers } from "lucide-react";
 import type { TestRecord, ChapterRecord } from "../page";
+import { useTheme } from "../theme/ThemeProvider";
 
 interface Props {
   sectionId: string;
@@ -22,6 +23,7 @@ const bySeq = (a: TestRecord, b: TestRecord) =>
 const GRID = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5";
 
 export default function SectionTestBrowser({ sectionId, tests, chapters, renderTest }: Props) {
+  const { theme: th } = useTheme(); // `th` because many callbacks below use `t` for a test
   const [view, setView] = useState<View>("chapters");
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -68,8 +70,8 @@ export default function SectionTestBrowser({ sectionId, tests, chapters, renderT
     const pct = items.length ? Math.round((done / items.length) * 100) : 0;
     return (
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-xs text-slate-400 font-medium">{done}/{items.length} done</span>
-        <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden hidden sm:block">
+        <span className={`text-xs ${th.text.muted} font-medium`}>{done}/{items.length} done</span>
+        <div className={`w-20 h-1.5 ${th.accent.track} rounded-full overflow-hidden hidden sm:block`}>
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -84,13 +86,13 @@ export default function SectionTestBrowser({ sectionId, tests, chapters, renderT
     <div className="space-y-5">
       {/* Sub-section switcher */}
       {visibleTabs.length > 1 && (
-        <div className="inline-flex gap-1 bg-slate-900/70 border border-slate-800 p-1 rounded-xl">
+        <div className={`inline-flex gap-1 border p-1 rounded-xl ${th.ui.segWrap}`}>
           {visibleTabs.map(({ key, label, count, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setView(key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeView === key ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white"
+                activeView === key ? "bg-indigo-600 text-white shadow" : th.ui.segIdle
               }`}
             >
               <Icon size={13} /> {label}
@@ -103,13 +105,13 @@ export default function SectionTestBrowser({ sectionId, tests, chapters, renderT
       {activeView === "chapters" && (
         <div className="space-y-4">
           {nextUp && (
-            <div className="flex items-center gap-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl px-4 py-3">
-              <PlayCircle className="text-indigo-400 shrink-0" size={20} />
+            <div className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${th.ui.nextUpBanner}`}>
+              <PlayCircle className={`${th.ui.indigoText} shrink-0`} size={20} />
               <div className="text-xs min-w-0">
-                <div className="text-indigo-300 font-bold uppercase tracking-wider text-[10px]">Up next for you</div>
-                <div className="text-white font-semibold truncate">
+                <div className={`${th.ui.nextUpLabel} font-bold uppercase tracking-wider text-[10px]`}>Up next for you</div>
+                <div className={`${th.ui.textStrong} font-semibold truncate`}>
                   {nextUp.test_name}
-                  {nextChapter && <span className="text-slate-400 font-normal"> · {nextChapter.chapter.name}</span>}
+                  {nextChapter && <span className={`${th.text.muted} font-normal`}> · {nextChapter.chapter.name}</span>}
                 </div>
               </div>
             </div>
@@ -119,30 +121,30 @@ export default function SectionTestBrowser({ sectionId, tests, chapters, renderT
             const expanded = isOpen(chapter.id);
             const allDone = items.every((t) => t.userAttempt);
             return (
-              <div key={chapter.id} className="bg-[#1E293B]/50 border border-slate-800 rounded-2xl overflow-hidden">
+              <div key={chapter.id} className={`border rounded-2xl overflow-hidden ${th.ui.chapterWrap}`}>
                 <button
                   onClick={() => setOpen((p) => ({ ...p, [chapter.id]: !expanded }))}
-                  className="w-full flex items-center justify-between gap-3 p-4 hover:bg-slate-800/40 transition-colors text-left"
+                  className={`w-full flex items-center justify-between gap-3 p-4 ${th.ui.chapterHover} transition-colors text-left`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
-                      allDone ? "bg-emerald-500/15 text-emerald-400" : "bg-indigo-500/15 text-indigo-300"
+                      allDone ? th.ui.numDone : th.ui.numIdle
                     }`}>
                       {allDone ? <CheckCircle2 size={16} /> : idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Chapter {idx + 1}</div>
-                      <div className="text-sm font-bold text-white truncate">{chapter.name}</div>
+                      <div className={`text-[10px] uppercase tracking-widest ${th.text.faint} font-bold`}>Chapter {idx + 1}</div>
+                      <div className={`text-sm font-bold ${th.ui.textStrong} truncate`}>{chapter.name}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <Progress items={items} />
-                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    <ChevronDown size={16} className={`${th.text.muted} transition-transform ${expanded ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
                 {expanded && (
-                  <div className={`${GRID} p-4 pt-1 border-t border-slate-800/60`}>
+                  <div className={`${GRID} p-4 pt-1 border-t ${th.ui.dividerSoft}`}>
                     {items.map((t) => (
                       <div key={t.id} className={t.id === nextUp?.id ? "rounded-xl ring-2 ring-indigo-500/60" : ""}>
                         {renderTest(t)}
@@ -156,7 +158,7 @@ export default function SectionTestBrowser({ sectionId, tests, chapters, renderT
 
           {looseTests.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">
+              <h3 className={`text-xs font-black uppercase tracking-widest ${th.text.muted}`}>
                 {grouped.length > 0 ? "More Practice Tests" : "Tests"}
               </h3>
               {flat(looseTests)}

@@ -551,5 +551,5 @@ export default function TestResultDiagnostics({
         </div>
       </div>
     </div>
-  );
+  )
 }

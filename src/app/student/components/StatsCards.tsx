@@ -1,6 +1,7 @@
 //src\app\student\components\StatsCards.tsx
 "use client";
 import { CheckCircle, AlertCircle, Award, Target } from "lucide-react";
+import { useTheme } from "../theme/ThemeProvider";
 
 interface StatsCardsProps {
   total: number;
@@ -10,37 +11,42 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ total, completed, pending, avgScore }: StatsCardsProps) {
+  const { theme: t } = useTheme();
+  const CARD = `${t.ui.statSolid} border p-4 rounded-xl flex items-center gap-3`;
+  const LABEL = `${t.text.faint} text-[9px] uppercase font-bold tracking-wider`;
+  const VALUE = `text-base font-black ${t.ui.textStrong}`;
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-500">
-      <div className="bg-[#1E293B] border border-slate-800/80 p-4 rounded-xl flex items-center gap-3">
-        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 border border-blue-500/20"><Target size={16} /></div>
+      <div className={CARD}>
+        <div className={`p-2 rounded-lg border ${t.ui.iconBlue}`}><Target size={16} /></div>
         <div>
-          <div className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">Total Available</div>
-          <div className="text-base font-black text-white">{total} Units</div>
+          <div className={LABEL}>Total Available</div>
+          <div className={VALUE}>{total} Units</div>
         </div>
       </div>
 
-      <div className="bg-[#1E293B] border border-slate-800/80 p-4 rounded-xl flex items-center gap-3">
-        <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400 border border-emerald-500/20"><CheckCircle size={16} /></div>
+      <div className={CARD}>
+        <div className={`p-2 rounded-lg border ${t.ui.iconEmerald}`}><CheckCircle size={16} /></div>
         <div>
-          <div className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">Completed</div>
-          <div className="text-base font-black text-white">{completed} Units</div>
+          <div className={LABEL}>Completed</div>
+          <div className={VALUE}>{completed} Units</div>
         </div>
       </div>
 
-      <div className="bg-[#1E293B] border border-slate-800/80 p-4 rounded-xl flex items-center gap-3">
-        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20"><AlertCircle size={16} /></div>
+      <div className={CARD}>
+        <div className={`p-2 rounded-lg border ${t.ui.iconAmber}`}><AlertCircle size={16} /></div>
         <div>
-          <div className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">Pending Action</div>
-          <div className="text-base font-black text-white">{pending} Units</div>
+          <div className={LABEL}>Pending Action</div>
+          <div className={VALUE}>{pending} Units</div>
         </div>
       </div>
 
-      <div className="bg-[#1E293B] border border-slate-800/80 p-4 rounded-xl flex items-center gap-3">
-        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400 border border-purple-500/20"><Award size={16} /></div>
+      <div className={CARD}>
+        <div className={`p-2 rounded-lg border ${t.ui.iconPurple}`}><Award size={16} /></div>
         <div>
-          <div className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">Accuracy Mean</div>
-          <div className="text-base font-black text-white">{avgScore}% Ratio</div>
+          <div className={LABEL}>Accuracy Mean</div>
+          <div className={VALUE}>{avgScore}% Ratio</div>
         </div>
       </div>
     </div>
