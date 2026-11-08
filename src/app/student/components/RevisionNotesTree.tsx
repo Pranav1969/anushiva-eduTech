@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk";
+import FocusReader from "./FocusReader"; // NEW: full-screen reading workspace
 
 // ==========================================
 // TYPES & THEMES TYPES
@@ -906,12 +907,13 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
           ))}
         </div>
 
+        {/* Opens the new full-screen reading workspace (FocusReader) */}
         <button
           onClick={() => setIsFullscreenMode(!isFullscreenMode)}
-          className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-lg transition-all"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-lg transition-all"
         >
           {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          <span>{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
+          <span className="hidden sm:inline">{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
         </button>
       </div>
     </div>
@@ -964,7 +966,7 @@ interface ChapterAccordionUnitProps {
   completedTopics: Record<string, boolean>;
   selectedTopicIdMap: Record<string, string>;
   setSelectedTopicIdMap: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  toggleTopicCompletion: (id: string, e: React.MouseEvent) => void;
+  toggleTopicCompletion: (id: string, e?: React.MouseEvent) => void;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (val: boolean) => void;
   imageMap: Record<string, string>;
@@ -1175,9 +1177,6 @@ export default function RevisionNotesTree({
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const [studentId, setStudentId] = useState<string>("");
-  
-  // New state to toggle AI Guruji layout dynamically inside Focus Canvas mode
-  const [isAiOpenInFocus, setIsAiOpenInFocus] = useState<boolean>(false);
 
   // Preferred notes language -- persisted so it sticks across sessions.
   const [contentLang, setContentLang] = useState<ContentLang>("en");
@@ -1277,8 +1276,9 @@ export default function RevisionNotesTree({
     return { total, done, percentage: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [currentActiveSection, completedTopics]);
 
-  const toggleTopicCompletion = (topicId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // `e` is optional so FocusReader can call this without a click event.
+  const toggleTopicCompletion = (topicId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const updatedProgress = { ...completedTopics, [topicId]: !completedTopics[topicId] };
     setCompletedTopics(updatedProgress);
     const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
@@ -1312,18 +1312,54 @@ export default function RevisionNotesTree({
     );
   }
 
+  // ==========================================
+  // 🎯 FOCUS CANVAS: full-screen 3-pane reading workspace
+  // ==========================================
+  if (isFullscreenMode) {
+    return (
+      <FocusReader
+        courseContentTree={courseContentTree}
+        activeSectionId={activeSectionId}
+        setActiveSectionId={setActiveSectionId}
+        contentLang={contentLang}
+        setContentLang={setContentLang}
+        languageOptions={LANGUAGE_OPTIONS}
+        completedTopics={completedTopics}
+        onToggleComplete={(id) => toggleTopicCompletion(id)}
+        imageMap={imageMap}
+        studentPlan={studentPlan}
+        planHierarchy={PLAN_HIERARCHY}
+        getLabel={getLocalizedLabel}
+        getParagraph={getLocalizedParagraph}
+        renderContent={renderNarrativeWithImages}
+        initialChapterId={openChapterId}
+        initialTopicId={openChapterId ? selectedTopicIdMap[openChapterId] : null}
+        aiPanel={(close) => (
+          <StudyDesk
+            fullHeight
+            onClose={close}
+            currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"}
+          />
+        )}
+        onExit={(pos) => {
+          setIsFullscreenMode(false);
+          if (pos) {
+            // Land the student on the same chapter + topic in the normal view
+            setOpenChapterId(pos.chapterId);
+            setSelectedTopicIdMap((prev) => ({ ...prev, [pos.chapterId]: pos.topicId }));
+          }
+        }}
+      />
+    );
+  }
+
+  // ==========================================
+  // NORMAL (non-focus) VIEW
+  // ==========================================
   return (
-    <div className={`grid grid-cols-1 gap-3 items-stretch w-full transition-all duration-300 ${
-      isFullscreenMode 
-        ? "fixed inset-2 z-50 bg-[#FDFBF7] p-3 rounded-2xl border shadow-2xl h-[calc(100vh-16px)] lg:grid-cols-4" 
-        : "h-[calc(100vh-140px)] lg:grid-cols-4"
-    }`}>
-      {/* Notes Canvas Container Layout Grid Adjuster */}
-      <div className={`overflow-hidden h-full flex flex-col space-y-2 transition-all duration-300 ${
-        isFullscreenMode 
-          ? isAiOpenInFocus ? "lg:col-span-3" : "lg:col-span-4" 
-          : "lg:col-span-3"
-      }`}>
+    <div className="grid grid-cols-1 gap-3 items-stretch w-full transition-all duration-300 h-[calc(100vh-140px)] lg:grid-cols-4">
+      {/* Notes Canvas Container */}
+      <div className="overflow-hidden h-full flex flex-col space-y-2 transition-all duration-300 lg:col-span-3">
         <div className="flex flex-col gap-2">
           <CourseSwitcher 
             courseContentTree={courseContentTree} 
@@ -1334,19 +1370,6 @@ export default function RevisionNotesTree({
             contentLang={contentLang}
             setContentLang={setContentLang}
           />
-          
-          {/* Small Option to trigger AI-Guruji when hidden in Focus mode */}
-          {isFullscreenMode && !isAiOpenInFocus && (
-            <div className="flex justify-end pr-1">
-              <button
-                onClick={() => setIsAiOpenInFocus(true)}
-                className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-3 py-1 rounded-lg transition-all shadow-3xs"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                <span>Ask AI-Guruji</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {currentActiveSection && (
@@ -1388,21 +1411,8 @@ export default function RevisionNotesTree({
         )}
       </div>
 
-      {/* AI Guruji Right Hand Sidebar Grid System Column */}
-      <div className={`h-full min-h-[480px] relative transition-all duration-300 ${
-        isFullscreenMode 
-          ? isAiOpenInFocus ? "lg:col-span-1 block" : "hidden" 
-          : "lg:col-span-1 block"
-      }`}>
-        {/* Compact close overlay option inside Focus Canvas view */}
-        {isFullscreenMode && isAiOpenInFocus && (
-          <button
-            onClick={() => setIsAiOpenInFocus(false)}
-            className="absolute top-3 left-3 z-40 bg-stone-900/90 text-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest hover:bg-stone-800 shadow-sm transition-all"
-          >
-            &times; Hide AI
-          </button>
-        )}
+      {/* AI Guruji Right Hand Sidebar Column */}
+      <div className="h-full min-h-[480px] relative transition-all duration-300 lg:col-span-1 block">
         <StudyDesk currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"} />
       </div>
     </div>
