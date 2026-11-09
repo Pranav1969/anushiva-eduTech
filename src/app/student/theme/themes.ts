@@ -563,7 +563,7 @@ const anushivaDefault: Theme = {
     tabIconIdle: "text-[#CBD5E1]",
     tabCountIdle: "bg-slate-900 text-[#CBD5E1]",
 
-    statSolid: "bg-[#1E293B] border-slate-800/80",
+    statSolid: "bg-white border-indigo-100 shadow-[0_6px_20px_-10px_rgba(79,70,229,0.25)]",
     iconBlue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     iconEmerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     iconAmber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
@@ -740,17 +740,17 @@ const anushivaLight: Theme = {
   name: "Anushiva Light",
   mode: "light",
 
-  page: "bg-[#F4F6FA] text-slate-900",
+    page: "bg-gradient-to-br from-[#EEF2FF] via-[#F7F9FF] to-[#EAF0FB] text-slate-900",
   pageNotes: "bg-[#FDFBF7]",
-  glow: "bg-[#6366F1]/10",
+    glow: "bg-[#6366F1]/25",
   selection: "selection:bg-blue-200 selection:text-blue-900",
-  header: "border-slate-200 bg-[#F4F6FA]/90",
+    header: "border-indigo-100 bg-white/70 backdrop-blur-md",
   iconButton:
-    "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900",
+    "border-indigo-100 bg-white/90 text-slate-600 shadow-sm shadow-indigo-100/60 hover:border-indigo-300 hover:text-indigo-700",
 
-  panel: "border-slate-200 bg-white shadow-sm",
-  panelDashed: "border-slate-300 bg-white/70",
-  inset: "border-slate-200 bg-slate-50",
+  panel: "border-indigo-100/80 bg-white/80 backdrop-blur-md shadow-[0_10px_40px_-15px_rgba(67,56,202,0.25)]",
+  panelDashed: "border-indigo-200 bg-white/60",
+  inset: "border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60",
   input:
     "border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-blue-500/50 focus:ring-blue-500/20",
   divider: "border-slate-200",
@@ -766,9 +766,9 @@ const anushivaLight: Theme = {
   accent: {
     text: "text-blue-600",
     textStrong: "text-blue-700",
-    soft: "border-blue-200 bg-blue-50",
-    iconWrap: "border-blue-200 bg-blue-100",
-    solid: "bg-blue-600 text-white",
+        soft: "border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50",
+    iconWrap: "border-indigo-200 bg-gradient-to-br from-indigo-100 to-blue-100",
+    solid: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white",
     solidHover: "hover:bg-blue-700",
     solidGroupHover: "group-hover:bg-blue-700",
     gradient: "bg-gradient-to-r from-blue-500 to-indigo-500",
@@ -780,8 +780,8 @@ const anushivaLight: Theme = {
     hoverBoth: "hover:border-blue-400 hover:text-blue-600",
     linkHover: "hover:text-blue-600",
     titleHover: "group-hover:text-blue-700",
-    callout:
-      "border-blue-300 bg-white shadow-sm hover:border-blue-500 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.3)]",
+        callout:
+      "border-indigo-200 bg-gradient-to-br from-white to-indigo-50/70 shadow-sm hover:border-indigo-400 hover:shadow-[0_8px_30px_-10px_rgba(79,70,229,0.4)]",
   },
 
   amber: {
@@ -806,11 +806,11 @@ const anushivaLight: Theme = {
   },
   toggle: { on: "bg-blue-600", off: "bg-slate-300" },
 
-  card: {
+    card: {
     hover:
-      "border-slate-200 bg-white shadow-sm hover:border-blue-400 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.25)]",
-    read: "border-slate-200 bg-white/70 opacity-70",
-    locked: "border-amber-300 bg-white",
+      "border-indigo-100 bg-white shadow-[0_6px_24px_-10px_rgba(67,56,202,0.25)] hover:border-indigo-400 hover:shadow-[0_12px_34px_-10px_rgba(79,70,229,0.4)]",
+    read: "border-indigo-100 bg-white/70 opacity-70",
+    locked: "border-amber-300 bg-gradient-to-br from-white to-amber-50/60",
     groupHoverBody: "group-hover:text-slate-700",
   },
   bookmark: {
@@ -880,9 +880,9 @@ const anushivaLight: Theme = {
     fillBlue: "bg-blue-500",
     ringBlue: "border-slate-200 border-t-blue-500 text-blue-600",
     ringCyan: "border-slate-200 border-t-cyan-500 text-cyan-600",
-    statCard: "bg-white border-slate-200 shadow-sm",
-    softCard: "bg-white border-slate-200 shadow-sm",
-    insightCard: "bg-gradient-to-br from-indigo-50 via-white to-slate-50 border-indigo-200 shadow-sm",
+        statCard: "bg-gradient-to-br from-white via-white to-indigo-50/70 border-indigo-100 shadow-[0_10px_30px_-12px_rgba(79,70,229,0.3)]",
+    softCard: "bg-gradient-to-br from-white to-slate-50 border-indigo-100 shadow-[0_8px_24px_-12px_rgba(79,70,229,0.2)]",
+    insightCard: "bg-gradient-to-br from-indigo-100/70 via-white to-sky-50 border-indigo-200 shadow-[0_10px_30px_-12px_rgba(79,70,229,0.3)]",
     indigoIconBox: "bg-indigo-50 border-indigo-200 text-indigo-600",
     positiveRow: "bg-emerald-50 border-emerald-200",
     positiveBadge: "text-emerald-700 bg-emerald-100 border-emerald-300",
@@ -890,9 +890,9 @@ const anushivaLight: Theme = {
     negativeBadge: "text-rose-700 bg-rose-100 border-rose-300",
 
     premiumCard:
-      "bg-gradient-to-br from-indigo-50 via-white to-violet-50 border-indigo-300 hover:border-indigo-400 shadow-indigo-200/60",
-    pipelineCard: "bg-white border-slate-200 hover:border-slate-300 shadow-slate-200/70",
-    testCard: "bg-white border-slate-200 hover:border-slate-300 shadow-slate-200/70",
+    "bg-gradient-to-br from-indigo-50 via-white to-violet-50 border-indigo-300 hover:border-indigo-400 shadow-indigo-200/60",
+    pipelineCard: "bg-gradient-to-br from-white to-indigo-50/50 border-indigo-100 hover:border-indigo-300 shadow-indigo-200/50",
+    testCard: "bg-gradient-to-br from-white to-slate-50 border-indigo-100 hover:border-indigo-300 shadow-indigo-200/50",
     premiumStrip: "bg-gradient-to-r from-amber-400 via-indigo-500 to-violet-500",
     normalStrip: "bg-gradient-to-r from-[#2563EB] via-[#8B5CF6] to-[#22D3EE]",
     chipBlue: "text-blue-700 bg-blue-50 border-blue-200",
@@ -920,7 +920,7 @@ const anushivaLight: Theme = {
     segIdle: "text-slate-500 hover:text-slate-900",
     nextUpBanner: "bg-indigo-50 border-indigo-200",
     nextUpLabel: "text-indigo-600",
-    chapterWrap: "bg-white border-slate-200 shadow-sm",
+    chapterWrap: "bg-white/90 border-indigo-100 shadow-[0_6px_20px_-10px_rgba(79,70,229,0.25)]",
     chapterHover: "hover:bg-slate-50",
     numDone: "bg-emerald-100 text-emerald-700",
     numIdle: "bg-indigo-100 text-indigo-700",
