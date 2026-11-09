@@ -1,24 +1,28 @@
 //src/app/student/components/DashboardHeader.tsx
 "use client";
-import { Sparkles, UserCheck, LogOut } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, UserCheck, LogOut, ChevronRight } from "lucide-react";
 import { StudentSession } from "@/utils/auth";
 import { useTheme } from "../theme/ThemeProvider";
 import ThemeToggle from "../theme/ThemeToggle";
+import ProfileDrawer, { StudentProfile } from "./ProfileDrawer";
+
 interface DashboardHeaderProps {
-  student: StudentSession;
+  // StudentSession must carry the profile columns (exam, state, phone, plan...).
+  student: StudentSession & Partial<StudentProfile>;
   onLogout: () => void;
   subtitle?: string;
 }
 
 export default function DashboardHeader({ student, onLogout, subtitle }: DashboardHeaderProps) {
   const { theme: t } = useTheme();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <div className={`relative p-6 md:p-8 rounded-2xl border shadow-xl overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${t.panel}`}>
       <div className="absolute top-0 right-0 w-[320px] h-full bg-gradient-to-l from-[#2563EB]/5 to-transparent pointer-events-none" />
-      
+
       <div className="space-y-2 max-w-2xl relative z-10">
-        {/* FIX: t.accent.soft only holds border/background COLORS, so the chip needs `border` and a text color */}
         <div className={`inline-flex items-center gap-2 px-3 py-1 border ${t.accent.soft} ${t.accent.text} text-[11px] font-bold uppercase tracking-wider rounded-md`}>
           <Sparkles size={12} className="animate-pulse" /> Authorized Terminal Workspace
         </div>
@@ -31,21 +35,25 @@ export default function DashboardHeader({ student, onLogout, subtitle }: Dashboa
       </div>
 
       <div className={`flex items-center gap-3 p-3 rounded-xl border w-full md:w-auto justify-between shrink-0 relative z-10 ${t.inset}`}>
-        <div className="flex items-center gap-2">
-          {/* FIX: icon needs its own color (it was inheriting the page text color) */}
+        {/* Clicking the identity block opens the profile drawer */}
+        <button
+          onClick={() => setProfileOpen(true)}
+          aria-label="Open my profile"
+          className="group flex items-center gap-2 rounded-lg text-left transition-all active:scale-[0.98]"
+        >
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${t.accent.iconWrap} ${t.accent.text}`}>
             <UserCheck size={14} />
           </div>
-          <div className="text-left">
+          <div>
             <div className={`text-xs font-bold leading-none ${t.text.heading}`}>{student.username}</div>
             <div className={`text-[10px] font-mono mt-0.5 ${t.text.faint}`}>UID: {student.id.substring(0, 8)}</div>
           </div>
-        </div>
-        {/* FIX: logout hover now comes from the theme (dark red tint on Dark, soft red on Light) */}
-                <div className="flex items-center gap-2">
-          {/* DARK / LIGHT SWITCH: now lives inside the header, next to logout */}
+          <ChevronRight size={14} className={`${t.text.faint} transition-transform group-hover:translate-x-0.5`} />
+        </button>
+
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button 
+          <button
             onClick={onLogout}
             className={`p-2 border rounded-lg transition-all active:scale-95 ${t.dash.logoutButton}`}
             title="Terminate secure session"
@@ -54,6 +62,8 @@ export default function DashboardHeader({ student, onLogout, subtitle }: Dashboa
           </button>
         </div>
       </div>
+
+      <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} student={student} />
     </div>
   );
 }
