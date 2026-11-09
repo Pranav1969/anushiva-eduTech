@@ -3,7 +3,7 @@
 import { Sparkles, UserCheck, LogOut } from "lucide-react";
 import { StudentSession } from "@/utils/auth";
 import { useTheme } from "../theme/ThemeProvider";
-
+import ThemeToggle from "../theme/ThemeToggle";
 interface DashboardHeaderProps {
   student: StudentSession;
   onLogout: () => void;
@@ -18,7 +18,8 @@ export default function DashboardHeader({ student, onLogout, subtitle }: Dashboa
       <div className="absolute top-0 right-0 w-[320px] h-full bg-gradient-to-l from-[#2563EB]/5 to-transparent pointer-events-none" />
       
       <div className="space-y-2 max-w-2xl relative z-10">
-        <div className={`inline-flex items-center gap-2 px-3 py-1 ${t.accent.soft} text-[11px] font-bold uppercase tracking-wider rounded-md`}>
+        {/* FIX: t.accent.soft only holds border/background COLORS, so the chip needs `border` and a text color */}
+        <div className={`inline-flex items-center gap-2 px-3 py-1 border ${t.accent.soft} ${t.accent.text} text-[11px] font-bold uppercase tracking-wider rounded-md`}>
           <Sparkles size={12} className="animate-pulse" /> Authorized Terminal Workspace
         </div>
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight flex flex-wrap items-center gap-2">
@@ -31,7 +32,8 @@ export default function DashboardHeader({ student, onLogout, subtitle }: Dashboa
 
       <div className={`flex items-center gap-3 p-3 rounded-xl border w-full md:w-auto justify-between shrink-0 relative z-10 ${t.inset}`}>
         <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${t.accent.iconWrap}`}>
+          {/* FIX: icon needs its own color (it was inheriting the page text color) */}
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${t.accent.iconWrap} ${t.accent.text}`}>
             <UserCheck size={14} />
           </div>
           <div className="text-left">
@@ -39,13 +41,18 @@ export default function DashboardHeader({ student, onLogout, subtitle }: Dashboa
             <div className={`text-[10px] font-mono mt-0.5 ${t.text.faint}`}>UID: {student.id.substring(0, 8)}</div>
           </div>
         </div>
-        <button 
-          onClick={onLogout}
-          className={`p-2 border rounded-lg transition-all active:scale-95 ${t.iconButton} hover:border-red-900/50 hover:text-red-400 hover:bg-red-950/40`}
-          title="Terminate secure session"
-        >
-          <LogOut size={14} />
-        </button>
+        {/* FIX: logout hover now comes from the theme (dark red tint on Dark, soft red on Light) */}
+                <div className="flex items-center gap-2">
+          {/* DARK / LIGHT SWITCH: now lives inside the header, next to logout */}
+          <ThemeToggle />
+          <button 
+            onClick={onLogout}
+            className={`p-2 border rounded-lg transition-all active:scale-95 ${t.dash.logoutButton}`}
+            title="Terminate secure session"
+          >
+            <LogOut size={14} />
+          </button>
+        </div>
       </div>
     </div>
   );

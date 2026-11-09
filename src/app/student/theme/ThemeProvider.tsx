@@ -52,7 +52,18 @@ function RootThemeProvider({ children }: { children: ReactNode }) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-
+  // Tell the browser which mode is active so native scrollbars, form controls etc. match.
+  // Also exposes the mode to CSS (see globals.css) for the slim custom scrollbar.
+  useEffect(() => {
+    const mode = THEMES[themeId].mode;
+    const root = document.documentElement;
+    root.style.colorScheme = mode;
+    root.setAttribute("data-student-theme", mode);
+    return () => {
+      root.style.colorScheme = "";
+      root.removeAttribute("data-student-theme");
+    };
+  }, [themeId]);
   const setThemeId = useCallback((id: ThemeId) => {
     setThemeIdState(id);
     try {

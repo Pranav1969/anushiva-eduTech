@@ -17,6 +17,7 @@ import FormManageExamBuckets from "./components/FormManageExamBuckets";
 import FormManageTestSequence from "./components/FormManageTestSequence";
 import TestCatalogs from "./components/TestCatalogs";
 import AnalyticsMatrix from "./components/AnalyticsMatrix";
+import Pranav from "./components/Pranav";
 
 type FormTab = "onboard" | "group" | "link" | "distribute" | "notes" | "plans" | "buckets" | "sequence";
 

@@ -1,4 +1,4 @@
-//srcappstudentcomponentsRevisionNotesTree.tsx
+// src/app/student/components/RevisionNotesTree.tsx
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { 
@@ -10,6 +10,19 @@ import {
 import { supabase } from "@/utils/supabase";
 import StudyDesk from "./StudyDesk";
 import FocusReader from "./FocusReader"; // NEW: full-screen reading workspace
+import { useTheme } from "../theme/ThemeProvider";
+import ThemeToggle from "../theme/ThemeToggle"; // Dark / Light switch also available on the notes page
+import type { NotesTokens } from "../theme/themes";
+
+// ==========================================
+// THEME NOTE
+// Colors for this whole notes section now come from the theme file
+// (src/app/student/theme/themes.ts -> `notes`).
+//   AnushivaLight   = the original warm notes colors (unchanged)
+//   AnushivaDefault = dark notes that match the rest of the website
+// The renderers below are plain functions, so they receive the notes tokens as `nt`.
+// ==========================================
+type NT = NotesTokens;
 
 // ==========================================
 // TYPES & THEMES TYPES
@@ -22,7 +35,10 @@ interface RevisionNotesTreeProps {
   studentPlan?: string; // Passed to evaluate hierarchical gates
 }
 
+type SubjectKey = "reasoning" | "quant" | "english" | "other";
+
 type SubjectTheme = {
+  key: SubjectKey; // used to pick the theme-aware badge colors
   bg: string;
   accent: string;
   border: string;
@@ -80,6 +96,7 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
   const normalized = name.toLowerCase();
   if (normalized.includes("reasoning")) {
     return {
+      key: "reasoning",
       bg: "bg-blue-50/40", accent: "bg-blue-600 hover:bg-blue-700 text-white",
       border: "border-blue-100", text: "text-blue-900", ring: "focus-within:ring-blue-500/20",
       badge: "bg-blue-100 text-blue-800 border-blue-200", progress: "bg-blue-600"
@@ -87,6 +104,7 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
   }
   if (normalized.includes("quantitative") || normalized.includes("math") || normalized.includes("numerical")) {
     return {
+      key: "quant",
       bg: "bg-indigo-50/40", accent: "bg-indigo-600 hover:bg-indigo-700 text-white",
       border: "border-indigo-100", text: "text-indigo-900", ring: "focus-within:ring-indigo-500/20",
       badge: "bg-indigo-100 text-indigo-800 border-indigo-200", progress: "bg-indigo-600"
@@ -94,12 +112,14 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
   }
   if (normalized.includes("english") || normalized.includes("verbal") || normalized.includes("lang")) {
     return {
+      key: "english",
       bg: "bg-emerald-50/40", accent: "bg-emerald-600 hover:bg-emerald-700 text-white",
       border: "border-emerald-100", text: "text-emerald-900", ring: "focus-within:ring-emerald-500/20",
       badge: "bg-emerald-100 text-emerald-800 border-emerald-200", progress: "bg-emerald-600"
     };
   }
   return {
+    key: "other",
     bg: "bg-amber-50/40", accent: "bg-amber-600 hover:bg-amber-700 text-slate-950",
     border: "border-amber-100", text: "text-amber-900", ring: "focus-within:ring-amber-500/20",
     badge: "bg-amber-100 text-amber-900 border-amber-200", progress: "bg-amber-600"
@@ -107,41 +127,21 @@ const getSubjectTheme = (name: string = ""): SubjectTheme => {
 };
 
 // ==========================================================================
-// 🎨 NEW STYLE SYSTEM (ADDITIVE ONLY)
+// 🎨 STYLE SYSTEM (ADDITIVE ONLY)
 // Everything in this section is NEW. The old syntax (==highlight==, **bold**,
 // $latex$, `code`, [EXAMPLE], [QUESTION], [MOTIVATION], tables, lists, ---, >,
 // **Header**, [img:name]) is untouched and renders exactly as before.
 //
 // HOW TO ADD YOUR OWN STYLE LATER:
-//   - New colour        -> add one line in ACCENTS
-//   - New box (callout) -> add one entry in CALLOUTS
+//   - New colour        -> add its name in ACCENT_NAMES and its classes in themes.ts (notes.accents)
+//   - New box (callout) -> add one entry in CALLOUT_META and its classes in themes.ts (notes.callouts)
 //   - New inline tag    -> add a case in renderInlineTag + its name in INLINE_TAG_NAMES
 //   - New line style    -> add a case in renderNewLineStyle
 // ==========================================================================
 
-type AccentStyle = {
-  text: string;   // coloured text
-  bar: string;    // solid bar / dot colour
-  border: string; // border colour
-  hl: string;     // highlight (marker pen)
-  badge: string;  // pill badge
-};
-
-// NOTE: Tailwind needs full class names written out, so do not build these dynamically.
-const ACCENTS: Record<string, AccentStyle> = {
-  red:    { text: "text-red-600",    bar: "bg-red-500",    border: "border-red-300",    hl: "bg-red-100 text-red-950 border-b border-red-200",       badge: "bg-red-50 text-red-700 border-red-200" },
-  green:  { text: "text-emerald-600",bar: "bg-emerald-500",border: "border-emerald-300",hl: "bg-emerald-100 text-emerald-950 border-b border-emerald-200", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  blue:   { text: "text-blue-600",   bar: "bg-blue-500",   border: "border-blue-300",   hl: "bg-blue-100 text-blue-950 border-b border-blue-200",     badge: "bg-blue-50 text-blue-700 border-blue-200" },
-  purple: { text: "text-purple-600", bar: "bg-purple-500", border: "border-purple-300", hl: "bg-purple-100 text-purple-950 border-b border-purple-200", badge: "bg-purple-50 text-purple-700 border-purple-200" },
-  orange: { text: "text-orange-600", bar: "bg-orange-500", border: "border-orange-300", hl: "bg-orange-100 text-orange-950 border-b border-orange-200", badge: "bg-orange-50 text-orange-700 border-orange-200" },
-  pink:   { text: "text-pink-600",   bar: "bg-pink-500",   border: "border-pink-300",   hl: "bg-pink-100 text-pink-950 border-b border-pink-200",     badge: "bg-pink-50 text-pink-700 border-pink-200" },
-  teal:   { text: "text-teal-600",   bar: "bg-teal-500",   border: "border-teal-300",   hl: "bg-teal-100 text-teal-950 border-b border-teal-200",     badge: "bg-teal-50 text-teal-700 border-teal-200" },
-  indigo: { text: "text-indigo-600", bar: "bg-indigo-500", border: "border-indigo-300", hl: "bg-indigo-100 text-indigo-950 border-b border-indigo-200", badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  amber:  { text: "text-amber-600",  bar: "bg-amber-500",  border: "border-amber-300",  hl: "bg-amber-100 text-amber-950 border-b border-amber-200",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
-  gray:   { text: "text-slate-500",  bar: "bg-slate-400",  border: "border-slate-300",  hl: "bg-slate-200 text-slate-900 border-b border-slate-300",   badge: "bg-slate-100 text-slate-700 border-slate-200" },
-};
-
-const ACCENT_NAMES = Object.keys(ACCENTS);
+// Colour names available to the {red}..{/red} / {hl-green}..{/hl-green} / [H2:blue] tags.
+// (The actual classes live in the theme file so they can change per theme.)
+const ACCENT_NAMES = ["red", "green", "blue", "purple", "orange", "pink", "teal", "indigo", "amber", "gray"];
 
 // ---- Inline tags:  {red}text{/red}  {hl-green}text{/hl-green}  {u}text{/u} ...
 const INLINE_TAG_NAMES: string[] = [
@@ -155,36 +155,35 @@ const INLINE_TAG_NAMES: string[] = [
 const INLINE_TAG_REGEX = new RegExp(`\\{(${INLINE_TAG_NAMES.join("|")})\\}([\\s\\S]*?)\\{\\/\\1\\}`, "g");
 
 // ---- Callout boxes:  [NOTE] ... [/NOTE]   or with custom title  [NOTE: My title] ... [/NOTE]
-type CalloutConfig = {
+// Structure (icon / label / layout) stays here; the COLORS come from the theme (notes.callouts).
+type CalloutMeta = {
   icon: string;
   label: string;
-  box: string;
-  title: string;
   body?: string;
   center?: boolean;
 };
 
-const CALLOUTS: Record<string, CalloutConfig> = {
-  NOTE:       { icon: "📝", label: "NOTE",               box: "bg-slate-50/70 border-slate-200 border-l-slate-500",     title: "text-slate-600" },
-  TIP:        { icon: "💡", label: "PRO TIP",            box: "bg-emerald-50/60 border-emerald-200 border-l-emerald-500", title: "text-emerald-700" },
-  WARNING:    { icon: "⚠️", label: "WARNING",            box: "bg-rose-50/60 border-rose-200 border-l-rose-500",         title: "text-rose-700" },
-  IMPORTANT:  { icon: "❗", label: "IMPORTANT",          box: "bg-orange-50/60 border-orange-200 border-l-orange-500",   title: "text-orange-700" },
-  FORMULA:    { icon: "🧮", label: "FORMULA",            box: "bg-indigo-50/60 border-indigo-200 border-l-indigo-500",   title: "text-indigo-700", body: "font-serif italic text-[15px] font-medium", center: true },
-  TRICK:      { icon: "⚡", label: "SHORTCUT TRICK",     box: "bg-teal-50/60 border-teal-200 border-l-teal-500",         title: "text-teal-700" },
-  REMEMBER:   { icon: "📌", label: "REMEMBER",           box: "bg-yellow-50/70 border-yellow-200 border-l-yellow-500",   title: "text-yellow-700" },
-  DEFINITION: { icon: "📖", label: "DEFINITION",         box: "bg-cyan-50/60 border-cyan-200 border-l-cyan-500",         title: "text-cyan-700" },
-  MNEMONIC:   { icon: "🧠", label: "MEMORY TRICK",       box: "bg-fuchsia-50/60 border-fuchsia-200 border-l-fuchsia-500", title: "text-fuchsia-700" },
-  PYQ:        { icon: "🎯", label: "PREVIOUS YEAR QUESTION", box: "bg-stone-100/80 border-stone-300 border-l-stone-800", title: "text-stone-700" },
-  SUMMARY:    { icon: "✅", label: "QUICK REVISION",     box: "bg-sky-50/60 border-sky-200 border-l-sky-500",            title: "text-sky-700" },
-  KEYPOINTS:  { icon: "🔑", label: "KEY POINTS",         box: "bg-blue-50/60 border-blue-200 border-l-blue-500",         title: "text-blue-700" },
-  SOLUTION:   { icon: "✔️", label: "SOLUTION",           box: "bg-green-50/60 border-green-200 border-l-green-500",      title: "text-green-700" },
-  MISTAKE:    { icon: "❌", label: "COMMON MISTAKE",     box: "bg-red-50/60 border-red-200 border-l-red-500",            title: "text-red-700" },
-  FUN:        { icon: "✨", label: "DID YOU KNOW?",      box: "bg-violet-50/60 border-violet-200 border-l-violet-500",   title: "text-violet-700" },
+const CALLOUT_META: Record<string, CalloutMeta> = {
+  NOTE:       { icon: "📝", label: "NOTE" },
+  TIP:        { icon: "💡", label: "PRO TIP" },
+  WARNING:    { icon: "⚠️", label: "WARNING" },
+  IMPORTANT:  { icon: "❗", label: "IMPORTANT" },
+  FORMULA:    { icon: "🧮", label: "FORMULA", body: "font-serif italic text-[15px] font-medium", center: true },
+  TRICK:      { icon: "⚡", label: "SHORTCUT TRICK" },
+  REMEMBER:   { icon: "📌", label: "REMEMBER" },
+  DEFINITION: { icon: "📖", label: "DEFINITION" },
+  MNEMONIC:   { icon: "🧠", label: "MEMORY TRICK" },
+  PYQ:        { icon: "🎯", label: "PREVIOUS YEAR QUESTION" },
+  SUMMARY:    { icon: "✅", label: "QUICK REVISION" },
+  KEYPOINTS:  { icon: "🔑", label: "KEY POINTS" },
+  SOLUTION:   { icon: "✔️", label: "SOLUTION" },
+  MISTAKE:    { icon: "❌", label: "COMMON MISTAKE" },
+  FUN:        { icon: "✨", label: "DID YOU KNOW?" },
 };
 
 // Blocks that have their own special layout (not a plain coloured box)
 const SPECIAL_BLOCKS = ["STEPS", "TIMELINE", "CHECKLIST", "TOGGLE", "COLUMNS", "QUOTE"];
-const NEW_BLOCK_NAMES = [...Object.keys(CALLOUTS), ...SPECIAL_BLOCKS];
+const NEW_BLOCK_NAMES = [...Object.keys(CALLOUT_META), ...SPECIAL_BLOCKS];
 
 // Splits text into [normal text][block][normal text]... Old 3 blocks are kept exactly as before.
 const OLD_BLOCK_ALTERNATIVES = [
@@ -203,38 +202,40 @@ const bodyLines = (body: string): string[] =>
 
 // ---- Collapsible block (for answers / hidden hints)
 const CollapsibleNote: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+  const { theme } = useTheme();
+  const nt = theme.notes;
   const [open, setOpen] = useState(false);
   return (
-    <div className="my-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div className={`my-3 rounded-xl border overflow-hidden ${nt.collapsibleWrap}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left bg-slate-50 hover:bg-slate-100 transition-colors text-[12px] font-bold text-slate-800"
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors text-[12px] font-bold ${nt.collapsibleBtn}`}
       >
         <span className="flex items-center gap-1.5"><span>👁️</span>{title}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 ${nt.ink500} transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && <div className="p-3 border-t border-slate-100">{children}</div>}
+      {open && <div className={`p-3 border-t ${nt.b100}`}>{children}</div>}
     </div>
   );
 };
 
 // Inline tag renderer ------------------------------------------------------
-const renderInlineTag = (name: string, inner: string, key: string): React.ReactNode => {
-  const content = processInlineStyles(inner);
+const renderInlineTag = (name: string, inner: string, key: string, nt: NT): React.ReactNode => {
+  const content = processInlineStyles(inner, nt);
 
-  if (ACCENTS[name]) {
-    return <span key={key} className={`${ACCENTS[name].text} font-semibold`}>{content}</span>;
+  if (nt.accents[name]) {
+    return <span key={key} className={`${nt.accents[name].text} font-semibold`}>{content}</span>;
   }
-  if (name.startsWith("hl-") && ACCENTS[name.slice(3)]) {
+  if (name.startsWith("hl-") && nt.accents[name.slice(3)]) {
     return (
-      <mark key={key} className={`${ACCENTS[name.slice(3)].hl} font-bold px-1 py-0.5 rounded-xs mx-0.5 antialiased text-[12px]`}>
+      <mark key={key} className={`${nt.accents[name.slice(3)].hl} font-bold px-1 py-0.5 rounded-xs mx-0.5 antialiased text-[12px]`}>
         {content}
       </mark>
     );
   }
-  if (name === "badge" || (name.startsWith("badge-") && ACCENTS[name.slice(6)])) {
-    const cls = name === "badge" ? ACCENTS.gray.badge : ACCENTS[name.slice(6)].badge;
+  if (name === "badge" || (name.startsWith("badge-") && nt.accents[name.slice(6)])) {
+    const cls = name === "badge" ? nt.accents.gray.badge : nt.accents[name.slice(6)].badge;
     return (
       <span key={key} className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border mx-0.5 align-middle ${cls}`}>
         {content}
@@ -244,16 +245,16 @@ const renderInlineTag = (name: string, inner: string, key: string): React.ReactN
   switch (name) {
     case "u":     return <span key={key} className="underline decoration-2 underline-offset-4 decoration-amber-400">{content}</span>;
     case "wavy":  return <span key={key} className="underline decoration-wavy decoration-rose-400 underline-offset-4">{content}</span>;
-    case "s":     return <span key={key} className="line-through text-slate-400">{content}</span>;
+    case "s":     return <span key={key} className={`line-through ${nt.ink400}`}>{content}</span>;
     case "sub":   return <sub key={key} className="text-[10px]">{content}</sub>;
     case "sup":   return <sup key={key} className="text-[10px]">{content}</sup>;
-    case "small": return <span key={key} className="text-[11px] text-slate-500">{content}</span>;
+    case "small": return <span key={key} className={`text-[11px] ${nt.ink500}`}>{content}</span>;
     case "big":   return <span key={key} className="text-[16px] font-bold">{content}</span>;
     case "xl":    return <span key={key} className="text-[19px] font-extrabold tracking-tight">{content}</span>;
     case "xxl":   return <span key={key} className="text-[24px] font-black tracking-tight">{content}</span>;
     case "kbd":
       return (
-        <kbd key={key} className="px-1.5 py-0.5 mx-0.5 rounded border border-b-2 border-slate-300 bg-slate-50 font-mono text-[11px] font-semibold text-slate-800">
+        <kbd key={key} className={`px-1.5 py-0.5 mx-0.5 rounded border border-b-2 font-mono text-[11px] font-semibold ${nt.kbd}`}>
           {content}
         </kbd>
       );
@@ -264,16 +265,16 @@ const renderInlineTag = (name: string, inner: string, key: string): React.ReactN
 
 // Line-level new styles ------------------------------------------------------
 // Returns null when the line is NOT a new style, so old behaviour continues untouched.
-const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode | null => {
+const renderNewLineStyle = (trimmedLine: string, keyId: string, nt: NT): React.ReactNode | null => {
   // Headings with different sizes:  [H1] Title   [H2:blue] Title   (H1 biggest ... H4 smallest)
   const hMatch = trimmedLine.match(/^\[H([1-4])(?::([a-z]+))?\]\s*(.*)$/i);
   if (hMatch) {
     const level = hMatch[1];
-    const accent = ACCENTS[(hMatch[2] || "amber").toLowerCase()] || ACCENTS.amber;
-    const text = processInlineStyles(hMatch[3]);
+    const accent = nt.accents[(hMatch[2] || "amber").toLowerCase()] || nt.accents.amber;
+    const text = processInlineStyles(hMatch[3], nt);
     if (level === "1") {
       return (
-        <h3 key={`nh1-${keyId}`} className="mt-6 mb-3 text-[22px] leading-tight font-black tracking-tight text-slate-900 flex items-center gap-2.5">
+        <h3 key={`nh1-${keyId}`} className={`mt-6 mb-3 text-[22px] leading-tight font-black tracking-tight ${nt.ink900} flex items-center gap-2.5`}>
           <span className={`w-1.5 h-7 rounded-full inline-block shrink-0 ${accent.bar}`}></span>
           {text}
         </h3>
@@ -281,7 +282,7 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
     }
     if (level === "2") {
       return (
-        <h4 key={`nh2-${keyId}`} className={`mt-5 mb-2.5 pb-1 text-[18px] leading-snug font-extrabold tracking-tight text-slate-900 border-b-2 ${accent.border}`}>
+        <h4 key={`nh2-${keyId}`} className={`mt-5 mb-2.5 pb-1 text-[18px] leading-snug font-extrabold tracking-tight ${nt.ink900} border-b-2 ${accent.border}`}>
           {text}
         </h4>
       );
@@ -305,13 +306,13 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
   const pMatch = trimmedLine.match(/^\[(LEAD|LARGE|SMALL|CENTER|RIGHT)\]\s*(.*)$/);
   if (pMatch) {
     const kind = pMatch[1];
-    const content = processInlineStyles(pMatch[2]);
+    const content = processInlineStyles(pMatch[2], nt);
     const cls: Record<string, string> = {
-      LEAD:   "mb-3 text-[15px] leading-loose font-medium text-slate-800",
-      LARGE:  "mb-2 text-[16px] leading-relaxed font-semibold text-slate-800",
-      SMALL:  "mb-2 text-[11px] leading-relaxed text-slate-500",
-      CENTER: "mb-2 text-[13px] leading-relaxed text-center text-slate-700",
-      RIGHT:  "mb-2 text-[13px] leading-relaxed text-right text-slate-700",
+      LEAD:   `mb-3 text-[15px] leading-loose font-medium ${nt.ink800}`,
+      LARGE:  `mb-2 text-[16px] leading-relaxed font-semibold ${nt.ink800}`,
+      SMALL:  `mb-2 text-[11px] leading-relaxed ${nt.ink500}`,
+      CENTER: `mb-2 text-[13px] leading-relaxed text-center ${nt.ink700}`,
+      RIGHT:  `mb-2 text-[13px] leading-relaxed text-right ${nt.ink700}`,
     };
     return <p key={`np-${keyId}`} className={`font-sans antialiased tracking-wide ${cls[kind]}`}>{content}</p>;
   }
@@ -327,10 +328,10 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
       return <div key={`nd-${keyId}`} className="my-4 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>;
     }
     const map: Record<string, string> = {
-      line:   "border-t border-slate-300",
-      dots:   "border-t-2 border-dotted border-slate-300",
-      dashed: "border-t-2 border-dashed border-slate-300",
-      thick:  "border-t-4 border-slate-200 rounded-full",
+      line:   `border-t ${nt.b300}`,
+      dots:   `border-t-2 border-dotted ${nt.b300}`,
+      dashed: `border-t-2 border-dashed ${nt.b300}`,
+      thick:  `border-t-4 ${nt.b200} rounded-full`,
     };
     return <hr key={`nd-${keyId}`} className={`my-4 ${map[kind] || map.line}`} />;
   }
@@ -348,16 +349,16 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
   if (bMatch) {
     const sym = bMatch[1];
     const map: Record<string, { icon: string; cls: string }> = {
-      "+": { icon: "+", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-      "-": { icon: "−", cls: "bg-rose-100 text-rose-700 border-rose-200" },
-      ">": { icon: "→", cls: "bg-blue-100 text-blue-700 border-blue-200" },
-      "*": { icon: "★", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+      "+": { icon: "+", cls: nt.bulletPlus },
+      "-": { icon: "−", cls: nt.bulletMinus },
+      ">": { icon: "→", cls: nt.bulletArrow },
+      "*": { icon: "★", cls: nt.bulletStar },
     };
     const cfg = map[sym];
     return (
-      <div key={`nb-${keyId}`} className="flex items-start gap-2 mb-1.5 text-[13px] leading-relaxed text-slate-700 font-sans antialiased">
+      <div key={`nb-${keyId}`} className={`flex items-start gap-2 mb-1.5 text-[13px] leading-relaxed ${nt.ink700} font-sans antialiased`}>
         <span className={`shrink-0 w-4 h-4 mt-0.5 rounded-full border text-[9px] font-black flex items-center justify-center ${cfg.cls}`}>{cfg.icon}</span>
-        <span>{processInlineStyles(bMatch[2])}</span>
+        <span>{processInlineStyles(bMatch[2], nt)}</span>
       </div>
     );
   }
@@ -368,10 +369,10 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
     const checked = cMatch[1].toLowerCase() === "x";
     return (
       <div key={`nc-${keyId}`} className="flex items-start gap-2 mb-1.5 text-[13px] leading-relaxed font-sans antialiased">
-        <span className={`shrink-0 w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${checked ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"}`}>
+        <span className={`shrink-0 w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${checked ? "bg-emerald-600 border-emerald-600 text-white" : nt.checkOffPlain}`}>
           {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
         </span>
-        <span className={checked ? "text-slate-400 line-through" : "text-slate-700"}>{processInlineStyles(cMatch[2])}</span>
+        <span className={checked ? `${nt.ink400} line-through` : nt.ink700}>{processInlineStyles(cMatch[2], nt)}</span>
       </div>
     );
   }
@@ -383,7 +384,8 @@ const renderNewLineStyle = (trimmedLine: string, keyId: string): React.ReactNode
 const renderNewBlock = (
   trimmedSection: string,
   secIndex: number,
-  imageMap: Record<string, string>
+  imageMap: Record<string, string>,
+  nt: NT
 ): React.ReactNode | null => {
   const m = trimmedSection.match(NEW_BLOCK_PARSE_REGEX);
   if (!m) return null;
@@ -394,15 +396,16 @@ const renderNewBlock = (
   const key = `nblk-${name}-${secIndex}`;
 
   // Plain coloured callout boxes (config driven)
-  const cfg = CALLOUTS[name];
-  if (cfg) {
+  const meta = CALLOUT_META[name];
+  if (meta) {
+    const colors = nt.callouts[name];
     return (
-      <div key={key} className={`my-3 p-3.5 rounded-xl border border-l-4 text-[13px] leading-relaxed ${cfg.box}`}>
-        <div className={`text-[10px] font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1.5 select-none ${cfg.title}`}>
-          <span>{cfg.icon}</span> {customTitle || cfg.label}
+      <div key={key} className={`my-3 p-3.5 rounded-xl border border-l-4 text-[13px] leading-relaxed ${colors.box}`}>
+        <div className={`text-[10px] font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1.5 select-none ${colors.title}`}>
+          <span>{meta.icon}</span> {customTitle || meta.label}
         </div>
-        <div className={`text-slate-800 ${cfg.center ? "text-center" : ""} ${cfg.body || ""}`}>
-          {renderNarrativeWithImages(body, imageMap)}
+        <div className={`${nt.ink800} ${meta.center ? "text-center" : ""} ${meta.body || ""}`}>
+          {renderNarrativeWithImages(body, imageMap, nt)}
         </div>
       </div>
     );
@@ -413,11 +416,11 @@ const renderNewBlock = (
     const lines = bodyLines(body);
     return (
       <div key={key} className="my-3 space-y-2">
-        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 select-none">{customTitle}</div>}
+        {customTitle && <div className={`text-[10px] font-extrabold uppercase tracking-wider ${nt.ink500} select-none`}>{customTitle}</div>}
         {lines.map((line, idx) => (
-          <div key={`${key}-s${idx}`} className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-200 bg-white shadow-3xs">
-            <span className="shrink-0 w-6 h-6 rounded-full bg-stone-950 text-amber-400 text-[11px] font-black flex items-center justify-center">{idx + 1}</span>
-            <span className="text-[13px] leading-relaxed text-slate-700 pt-0.5">{processInlineStyles(line.replace(/^(\d+[.)]|[-*•])\s+/, ""))}</span>
+          <div key={`${key}-s${idx}`} className={`flex items-start gap-3 p-2.5 rounded-lg border ${nt.stepCard}`}>
+            <span className={`shrink-0 w-6 h-6 rounded-full text-[11px] font-black flex items-center justify-center ${nt.stepNum}`}>{idx + 1}</span>
+            <span className={`text-[13px] leading-relaxed ${nt.ink700} pt-0.5`}>{processInlineStyles(line.replace(/^(\d+[.)]|[-*•])\s+/, ""), nt)}</span>
           </div>
         ))}
       </div>
@@ -429,17 +432,17 @@ const renderNewBlock = (
     const lines = bodyLines(body);
     return (
       <div key={key} className="my-3">
-        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-2 select-none">{customTitle}</div>}
-        <div className="border-l-2 border-amber-300 ml-1.5 space-y-3">
+        {customTitle && <div className={`text-[10px] font-extrabold uppercase tracking-wider ${nt.ink500} mb-2 select-none`}>{customTitle}</div>}
+        <div className={`border-l-2 ${nt.timelineLine} ml-1.5 space-y-3`}>
           {lines.map((line, idx) => {
             const pipe = line.indexOf("|");
             const label = pipe > -1 ? line.slice(0, pipe).trim() : "";
             const text = pipe > -1 ? line.slice(pipe + 1).trim() : line;
             return (
               <div key={`${key}-t${idx}`} className="relative pl-4">
-                <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-amber-500"></span>
-                {label && <div className="text-[11px] font-black text-amber-700 tracking-wide">{processInlineStyles(label)}</div>}
-                <div className="text-[13px] leading-relaxed text-slate-700">{processInlineStyles(text)}</div>
+                <span className={`absolute -left-[7px] top-1.5 w-3 h-3 rounded-full border-2 ${nt.timelineDot}`}></span>
+                {label && <div className={`text-[11px] font-black ${nt.timelineLabel} tracking-wide`}>{processInlineStyles(label, nt)}</div>}
+                <div className={`text-[13px] leading-relaxed ${nt.ink700}`}>{processInlineStyles(text, nt)}</div>
               </div>
             );
           })}
@@ -452,14 +455,14 @@ const renderNewBlock = (
   if (name === "CHECKLIST") {
     const lines = bodyLines(body);
     return (
-      <div key={key} className="my-3 p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 space-y-1.5">
-        {customTitle && <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 select-none">{customTitle}</div>}
+      <div key={key} className={`my-3 p-3 rounded-xl border space-y-1.5 ${nt.checklistBox}`}>
+        {customTitle && <div className={`text-[10px] font-extrabold uppercase tracking-wider ${nt.checklistTitle} select-none`}>{customTitle}</div>}
         {lines.map((line, idx) => (
-          <div key={`${key}-c${idx}`} className="flex items-start gap-2 text-[13px] leading-relaxed text-slate-700">
+          <div key={`${key}-c${idx}`} className={`flex items-start gap-2 text-[13px] leading-relaxed ${nt.ink700}`}>
             <span className="shrink-0 w-4 h-4 mt-0.5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
               <Check className="w-2.5 h-2.5 stroke-[3]" />
             </span>
-            <span>{processInlineStyles(line.replace(/^[-*•]\s+/, ""))}</span>
+            <span>{processInlineStyles(line.replace(/^[-*•]\s+/, ""), nt)}</span>
           </div>
         ))}
       </div>
@@ -470,7 +473,7 @@ const renderNewBlock = (
   if (name === "TOGGLE") {
     return (
       <CollapsibleNote key={key} title={customTitle || "Click to reveal"}>
-        {renderNarrativeWithImages(body, imageMap)}
+        {renderNarrativeWithImages(body, imageMap, nt)}
       </CollapsibleNote>
     );
   }
@@ -482,8 +485,8 @@ const renderNewBlock = (
     return (
       <div key={key} className={`my-3 grid grid-cols-1 gap-3 ${grid}`}>
         {cols.map((col, idx) => (
-          <div key={`${key}-col${idx}`} className="p-3 rounded-xl border border-slate-200 bg-white">
-            {renderNarrativeWithImages(col, imageMap)}
+          <div key={`${key}-col${idx}`} className={`p-3 rounded-xl border ${nt.colBox}`}>
+            {renderNarrativeWithImages(col, imageMap, nt)}
           </div>
         ))}
       </div>
@@ -493,9 +496,9 @@ const renderNewBlock = (
   // Quote with author:  [QUOTE: Author] text [/QUOTE]
   if (name === "QUOTE") {
     return (
-      <figure key={key} className="my-4 pl-4 pr-3 py-2 border-l-4 border-amber-400 bg-amber-50/30 rounded-r-xl">
-        <blockquote className="text-[14px] leading-relaxed italic font-medium text-slate-800">{processInlineStyles(body)}</blockquote>
-        {customTitle && <figcaption className="mt-1 text-[11px] font-bold text-amber-700">— {customTitle}</figcaption>}
+      <figure key={key} className={`my-4 pl-4 pr-3 py-2 border-l-4 rounded-r-xl ${nt.quoteBox}`}>
+        <blockquote className={`text-[14px] leading-relaxed italic font-medium ${nt.ink800}`}>{processInlineStyles(body, nt)}</blockquote>
+        {customTitle && <figcaption className={`mt-1 text-[11px] font-bold ${nt.amberStrong}`}>— {customTitle}</figcaption>}
       </figure>
     );
   }
@@ -504,9 +507,9 @@ const renderNewBlock = (
 };
 
 // ==========================================================================
-// ORIGINAL INLINE STYLES (UNCHANGED)
+// ORIGINAL INLINE STYLES (UNCHANGED LOGIC)
 // ==========================================================================
-const processBaseInline = (text: string): React.ReactNode => {
+const processBaseInline = (text: string, nt: NT): React.ReactNode => {
   if (!text) return "";
   const renderTextNodes = (rawStr: string): React.ReactNode[] => {
     const highlightRegex = /==([\s\S]*?)==/g;
@@ -514,7 +517,7 @@ const processBaseInline = (text: string): React.ReactNode => {
     return subParts.map((part, i) => {
       if (i % 2 === 1) {
         return (
-          <mark key={`hl-${i}`} className="bg-amber-100 text-amber-950 font-bold px-1 py-0.5 rounded-xs mx-0.5 border-b border-amber-200 antialiased text-[12px]">
+          <mark key={`hl-${i}`} className={`${nt.mark} font-bold px-1 py-0.5 rounded-xs mx-0.5 border-b antialiased text-[12px]`}>
             {part}
           </mark>
         );
@@ -525,7 +528,7 @@ const processBaseInline = (text: string): React.ReactNode => {
         return latexParts.map((lPart, lIdx) => {
           if (lIdx % 2 === 1) {
             return (
-              <span key={`latex-${lIdx}`} className="font-serif italic font-medium text-slate-900 bg-slate-50/60 px-1 py-0.5 rounded border border-slate-200/40 tracking-wide mx-0.5 select-all">
+              <span key={`latex-${lIdx}`} className={`font-serif italic font-medium ${nt.latex} px-1 py-0.5 rounded border tracking-wide mx-0.5 select-all`}>
                 {lPart}
               </span>
             );
@@ -533,7 +536,7 @@ const processBaseInline = (text: string): React.ReactNode => {
           
           if (lPart.includes("**")) {
             const boldParts = lPart.split(/\*\*([\s\S]*?)\*\*/g);
-            return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className="font-extrabold text-slate-900">{bPart}</strong> : bPart);
+            return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className={`font-extrabold ${nt.ink900}`}>{bPart}</strong> : bPart);
           }
           return lPart;
         });
@@ -541,7 +544,7 @@ const processBaseInline = (text: string): React.ReactNode => {
       
       if (part.includes("**")) {
         const boldParts = part.split(/\*\*([\s\S]*?)\*\*/g);
-        return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className="font-extrabold text-slate-900">{bPart}</strong> : bPart);
+        return boldParts.map((bPart, bIdx) => bIdx % 2 === 1 ? <strong key={`b-${bIdx}`} className={`font-extrabold ${nt.ink900}`}>{bPart}</strong> : bPart);
       }
       
       return part;
@@ -552,7 +555,7 @@ const processBaseInline = (text: string): React.ReactNode => {
   return splitByCode.map((segment, index) => {
     if (index % 2 === 1) {
       return (
-        <code key={`code-${index}`} className="bg-slate-100 text-slate-900 font-mono font-semibold px-1.5 py-0.5 rounded text-[12px] border border-slate-200/60 mx-0.5">
+        <code key={`code-${index}`} className={`${nt.code} font-mono font-semibold px-1.5 py-0.5 rounded text-[12px] border mx-0.5`}>
           {segment}
         </code>
       );
@@ -563,27 +566,27 @@ const processBaseInline = (text: string): React.ReactNode => {
 
 // NEW wrapper: handles {tag}...{/tag} first, then hands everything else to the
 // original renderer above. If a text has no new tags the output is identical to before.
-const processInlineStyles = (text: string): React.ReactNode => {
+const processInlineStyles = (text: string, nt: NT): React.ReactNode => {
   if (!text) return "";
-  if (!text.includes("{")) return processBaseInline(text);
+  if (!text.includes("{")) return processBaseInline(text, nt);
 
   const parts = text.split(INLINE_TAG_REGEX);
-  if (parts.length === 1) return processBaseInline(text);
+  if (parts.length === 1) return processBaseInline(text, nt);
 
   const out: React.ReactNode[] = [];
   for (let i = 0; i < parts.length; i += 3) {
     if (parts[i]) {
-      out.push(<React.Fragment key={`it-${i}`}>{processBaseInline(parts[i])}</React.Fragment>);
+      out.push(<React.Fragment key={`it-${i}`}>{processBaseInline(parts[i], nt)}</React.Fragment>);
     }
     const tagName = parts[i + 1];
     if (tagName !== undefined) {
-      out.push(renderInlineTag(tagName, parts[i + 2] || "", `itag-${i}`));
+      out.push(renderInlineTag(tagName, parts[i + 2] || "", `itag-${i}`, nt));
     }
   }
   return out;
 };
 
-const renderNarrativeWithImages = (text: string, imageMap: Record<string, string>): React.ReactNode => {
+const renderNarrativeWithImages = (text: string, imageMap: Record<string, string>, nt: NT): React.ReactNode => {
   if (!text) return null;
 
   // Same split as before, but now also recognises the new block names.
@@ -595,11 +598,11 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     if (trimmedSection.startsWith("[EXAMPLE]") && trimmedSection.endsWith("[/EXAMPLE]")) {
       const exampleContent = section.replace("[EXAMPLE]", "").replace("[/EXAMPLE]", "").trim();
       return (
-        <div key={`ex-block-${secIndex}`} className="my-2 p-3 rounded-lg bg-blue-50/40 border border-blue-100/60 text-slate-800 text-[13px] leading-relaxed">
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 mb-1 flex items-center gap-1.5 select-none">
+        <div key={`ex-block-${secIndex}`} className={`my-2 p-3 rounded-lg border text-[13px] leading-relaxed ${nt.exampleBox}`}>
+          <div className={`text-[10px] font-extrabold uppercase tracking-wider ${nt.exampleTitle} mb-1 flex items-center gap-1.5 select-none`}>
             <span>💡</span> INTERACTIVE EXAMPLE
           </div>
-          <div className="whitespace-pre-wrap">{processInlineStyles(exampleContent)}</div>
+          <div className="whitespace-pre-wrap">{processInlineStyles(exampleContent, nt)}</div>
         </div>
       );
     }
@@ -607,11 +610,11 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     if (trimmedSection.startsWith("[QUESTION]") && trimmedSection.endsWith("[/QUESTION]")) {
       const questionContent = section.replace("[QUESTION]", "").replace("[/QUESTION]", "").trim();
       return (
-        <div key={`q-block-${secIndex}`} className="my-2 p-3 rounded-lg bg-purple-50/40 border border-purple-100/60 text-slate-800 text-[13px] leading-relaxed">
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 mb-1 flex items-center gap-1.5 select-none">
+        <div key={`q-block-${secIndex}`} className={`my-2 p-3 rounded-lg border text-[13px] leading-relaxed ${nt.questionBox}`}>
+          <div className={`text-[10px] font-extrabold uppercase tracking-wider ${nt.questionTitle} mb-1 flex items-center gap-1.5 select-none`}>
             <span>❓</span> PRACTICE CONCEPT BOX
           </div>
-          <div className="whitespace-pre-wrap font-sans font-normal antialiased tracking-wide">{processInlineStyles(questionContent)}</div>
+          <div className="whitespace-pre-wrap font-sans font-normal antialiased tracking-wide">{processInlineStyles(questionContent, nt)}</div>
         </div>
       );
     }
@@ -619,17 +622,17 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     if (trimmedSection.startsWith("[MOTIVATION]") && trimmedSection.endsWith("[/MOTIVATION]")) {
       const motivationContent = section.replace("[MOTIVATION]", "").replace("[/MOTIVATION]", "").trim();
       return (
-        <div key={`mot-block-${secIndex}`} className="my-3 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/70 text-slate-900 text-[13px] leading-relaxed shadow-3xs">
-          <div className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1.5 flex items-center gap-1.5 select-none">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> ASPIRANT CORE INSIGHT
+        <div key={`mot-block-${secIndex}`} className={`my-3 p-3.5 rounded-xl border text-[13px] leading-relaxed ${nt.motivationBox}`}>
+          <div className={`text-[10px] font-black uppercase tracking-widest ${nt.motivationTitle} mb-1.5 flex items-center gap-1.5 select-none`}>
+            <Sparkles className={`w-3.5 h-3.5 ${nt.motivationIcon} animate-pulse`} /> ASPIRANT CORE INSIGHT
           </div>
-          <div className="whitespace-pre-wrap font-medium text-amber-950 italic">{processInlineStyles(motivationContent)}</div>
+          <div className={`whitespace-pre-wrap font-medium ${nt.motivationText} italic`}>{processInlineStyles(motivationContent, nt)}</div>
         </div>
       );
     }
 
     // ✨ NEW blocks ([NOTE], [TIP], [STEPS], [TOGGLE] ...)
-    const newBlock = renderNewBlock(trimmedSection, secIndex, imageMap);
+    const newBlock = renderNewBlock(trimmedSection, secIndex, imageMap, nt);
     if (newBlock) return newBlock;
 
     const lines = section.split(/\r?\n/);
@@ -646,14 +649,14 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     const flushTable = (keyIndex: string) => {
       if (tableRows.length > 0 || tableHeaders.length > 0) {
         renderedElements.push(
-          <div key={`table-wrapper-${keyIndex}`} className="my-3 overflow-x-auto border border-slate-200 rounded-lg shadow-3xs max-w-full">
+          <div key={`table-wrapper-${keyIndex}`} className={`my-3 overflow-x-auto border rounded-lg max-w-full ${nt.tableWrap}`}>
             <table className="w-full text-left border-collapse text-[12px]">
               {tableHeaders.length > 0 && (
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
+                  <tr className={`border-b ${nt.tableHead}`}>
                     {tableHeaders.map((h, idx) => (
-                      <th key={`th-${idx}`} className="p-2.5 font-bold text-slate-700 border-r border-slate-200 last:border-r-0">
-                        {processInlineStyles(h)}
+                      <th key={`th-${idx}`} className={`p-2.5 font-bold border-r last:border-r-0 ${nt.th}`}>
+                        {processInlineStyles(h, nt)}
                       </th>
                     ))}
                   </tr>
@@ -661,10 +664,10 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
               )}
               <tbody>
                 {tableRows.map((row, rIdx) => (
-                  <tr key={`tr-${rIdx}`} className="border-b border-slate-150 last:border-b-0 hover:bg-slate-50/50 transition-colors">
+                  <tr key={`tr-${rIdx}`} className={`border-b last:border-b-0 transition-colors ${nt.tr}`}>
                     {row.map((cell, cIdx) => (
-                      <td key={`td-${cIdx}`} className="p-2.5 text-slate-800 font-medium border-r border-slate-150 last:border-r-0">
-                        {processInlineStyles(cell)}
+                      <td key={`td-${cIdx}`} className={`p-2.5 font-medium border-r last:border-r-0 ${nt.td}`}>
+                        {processInlineStyles(cell, nt)}
                       </td>
                     ))}
                   </tr>
@@ -682,7 +685,7 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     const flushOL = (keyIndex: string) => {
       if (activeOL.length > 0) {
         renderedElements.push(
-          <ol key={`ol-${keyIndex}`} className="list-decimal pl-5 mb-3 space-y-1 text-slate-700 text-[13px] leading-relaxed font-sans antialiased">
+          <ol key={`ol-${keyIndex}`} className={`list-decimal pl-5 mb-3 space-y-1 ${nt.ink700} text-[13px] leading-relaxed font-sans antialiased`}>
             {activeOL}
           </ol>
         );
@@ -693,7 +696,7 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
     const flushUL = (keyIndex: string) => {
       if (activeUL.length > 0) {
         renderedElements.push(
-          <ul key={`ul-${keyIndex}`} className="list-disc pl-5 mb-3 space-y-1 text-slate-700 text-[13px] leading-relaxed font-sans antialiased">
+          <ul key={`ul-${keyIndex}`} className={`list-disc pl-5 mb-3 space-y-1 ${nt.ink700} text-[13px] leading-relaxed font-sans antialiased`}>
             {activeUL}
           </ul>
         );
@@ -734,13 +737,13 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
         renderedElements.push(
-          <hr key={`hr-${secIndex}-${i}`} className="my-4 border-t border-slate-200/80" />
+          <hr key={`hr-${secIndex}-${i}`} className={`my-4 border-t ${nt.hr}`} />
         );
         continue;
       }
 
       // ✨ NEW line styles ([H1]..[H4], [LEAD], [CENTER], [DIVIDER], [+] ...)
-      const newLineStyle = renderNewLineStyle(trimmedLine, `${secIndex}-${i}`);
+      const newLineStyle = renderNewLineStyle(trimmedLine, `${secIndex}-${i}`, nt);
       if (newLineStyle) {
         flushOL(`${secIndex}-${i}`);
         flushUL(`${secIndex}-${i}`);
@@ -753,8 +756,8 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         flushUL(`${secIndex}-${i}`);
         const quoteContent = trimmedLine.substring(1).trim();
         renderedElements.push(
-          <blockquote key={`quote-${secIndex}-${i}`} className="my-3 pl-3 py-1 border-l-4 border-slate-300 text-slate-700 bg-slate-50/40 rounded-r-md text-[13px] leading-relaxed font-sans antialiased">
-            {processInlineStyles(quoteContent)}
+          <blockquote key={`quote-${secIndex}-${i}`} className={`my-3 pl-3 py-1 border-l-4 rounded-r-md text-[13px] leading-relaxed font-sans antialiased ${nt.quoteBlock}`}>
+            {processInlineStyles(quoteContent, nt)}
           </blockquote>
         );
         continue;
@@ -768,9 +771,9 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         if (headerText === lastRenderedHeader) continue;
         lastRenderedHeader = headerText;
         renderedElements.push(
-          <h5 key={`h-${secIndex}-${i}`} className="text-[14px] font-extrabold text-slate-900 mt-4 mb-2 pb-0.5 border-b border-slate-100 tracking-tight flex items-center gap-2">
+          <h5 key={`h-${secIndex}-${i}`} className={`text-[14px] font-extrabold ${nt.ink900} mt-4 mb-2 pb-0.5 border-b ${nt.b100} tracking-tight flex items-center gap-2`}>
             <span className="w-1 h-3.5 bg-amber-500 rounded-xs inline-block"></span>
-            {processInlineStyles(headerText)}
+            {processInlineStyles(headerText, nt)}
           </h5>
         );
         continue;
@@ -782,7 +785,7 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         const liContent = olMatch[2].trim();
         activeOL.push(
           <li key={`oli-${secIndex}-${i}`} className="pl-0.5">
-            {processInlineStyles(liContent)}
+            {processInlineStyles(liContent, nt)}
           </li>
         );
         continue;
@@ -794,7 +797,7 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
         const bulletContent = ulMatch[1].trim();
         activeUL.push(
           <li key={`uli-${secIndex}-${i}`} className="pl-0.5">
-            {processInlineStyles(bulletContent)}
+            {processInlineStyles(bulletContent, nt)}
           </li>
         );
         continue;
@@ -818,15 +821,15 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
                       <img 
                         src={imageUrl} 
                         alt={`Syllabus Diagram Asset: ${part}`} 
-                        className="mx-auto rounded-lg border border-slate-200 shadow-xs max-h-[300px] object-contain bg-white p-1 hover:scale-[1.01] transition-transform duration-200"
+                        className={`mx-auto rounded-lg border shadow-xs max-h-[300px] object-contain p-1 hover:scale-[1.01] transition-transform duration-200 ${nt.imgWrap}`}
                         loading="lazy"
                       />
                     </span>
                   );
                 }
-                return <span key={index} className="text-[11px] font-mono text-rose-500 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">Image Token Missing: "{part}"</span>;
+                return <span key={index} className={`text-[11px] font-mono border px-1.5 py-0.5 rounded ${nt.imgMissing}`}>Image Token Missing: "{part}"</span>;
               }
-              return <React.Fragment key={index}>{processInlineStyles(part)}</React.Fragment>;
+              return <React.Fragment key={index}>{processInlineStyles(part, nt)}</React.Fragment>;
             })}
           </div>
         );
@@ -834,8 +837,8 @@ const renderNarrativeWithImages = (text: string, imageMap: Record<string, string
       }
 
       renderedElements.push(
-        <p key={`p-${secIndex}-${i}`} className="mb-2 text-slate-700 leading-relaxed text-[13px] font-sans font-normal antialiased tracking-wide">
-          {processInlineStyles(line)}
+        <p key={`p-${secIndex}-${i}`} className={`mb-2 ${nt.ink700} leading-relaxed text-[13px] font-sans font-normal antialiased tracking-wide`}>
+          {processInlineStyles(line, nt)}
         </p>
       );
     }
@@ -870,8 +873,10 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
   contentLang,
   setContentLang
 }) => {
+  const { theme } = useTheme();
+  const nt = theme.notes;
   return (
-    <div className="flex items-center justify-between gap-4 bg-white p-1 rounded-xl border border-slate-200 sticky top-0 z-30 shrink-0 shadow-xs">
+    <div className={`flex items-center justify-between gap-4 p-1 rounded-xl border sticky top-0 z-30 shrink-0 ${nt.bar}`}>
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         {courseContentTree.map((sec) => {
           const isActive = activeSectionId === sec.id;
@@ -880,10 +885,10 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
               key={sec.id}
               onClick={() => setActiveSectionId(sec.id)}
               className={`px-3 py-1 text-xs font-bold tracking-tight rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                isActive ? "bg-stone-950 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-slate-50"
+                isActive ? nt.segActive : nt.tabIdle
               }`}
             >
-              <Book className={`w-3.5 h-3.5 ${isActive ? "text-amber-400" : "text-slate-400"}`} />
+              <Book className={`w-3.5 h-3.5 ${isActive ? nt.tabIconActive : nt.tabIconIdle}`} />
               <span>{getLocalizedLabel(sec, contentLang)}</span>
             </button>
           );
@@ -891,15 +896,18 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        {/* DARK / LIGHT THEME SWITCH */}
+        <ThemeToggle />
+
         {/* NOTES LANGUAGE TOGGLE */}
-        <div className="flex items-center gap-0.5 bg-stone-50 border border-stone-200 rounded-lg p-0.5">
-          <Languages className="w-3 h-3 text-slate-400 ml-1 mr-0.5" />
+        <div className={`flex items-center gap-0.5 border rounded-lg p-0.5 ${nt.chipWrap}`}>
+          <Languages className={`w-3 h-3 ${nt.ink400} ml-1 mr-0.5`} />
           {LANGUAGE_OPTIONS.map(({ code, label }) => (
             <button
               key={code}
               onClick={() => setContentLang(code)}
               className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
-                contentLang === code ? "bg-stone-950 text-white shadow-sm" : "text-slate-500 hover:text-stone-900"
+                contentLang === code ? nt.segActive : nt.segIdle
               }`}
             >
               {label}
@@ -910,7 +918,7 @@ const CourseSwitcher: React.FC<CourseSwitcherProps> = ({
         {/* Opens the new full-screen reading workspace (FocusReader) */}
         <button
           onClick={() => setIsFullscreenMode(!isFullscreenMode)}
-          className="flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-lg transition-all"
+          className={`flex items-center gap-1.5 text-[11px] font-bold border px-2.5 py-1 rounded-lg transition-all ${nt.exitBtn}`}
         >
           {isFullscreenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           <span className="hidden sm:inline">{isFullscreenMode ? "Minimize" : "Focus Canvas"}</span>
@@ -934,21 +942,23 @@ const MilestoneDashboard: React.FC<MilestoneDashboardProps> = ({
   theme,
   metrics
 }) => {
+  const { theme: appTheme } = useTheme();
+  const nt = appTheme.notes;
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-xs flex items-center justify-between gap-4">
+    <div className={`border rounded-xl p-2.5 flex items-center justify-between gap-4 ${nt.bar}`}>
       <div className="flex items-center gap-2">
-        <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md border ${theme.badge}`}>
+        <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md border ${nt.subjectBadge[theme.key]}`}>
           {currentActiveSection.exams?.name || "ARCHIVES"}
         </span>
-        <span className="text-[11px] font-semibold text-slate-500">Study Materials Blueprint</span>
+        <span className={`text-[11px] font-semibold ${nt.ink500}`}>Study Materials Blueprint</span>
       </div>
 
       <div className="flex items-center gap-2.5 shrink-0">
-        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+        <div className={`text-[11px] font-bold ${nt.ink700} flex items-center gap-1`}>
           <Trophy className="w-3.5 h-3.5 text-amber-500" /> 
           <span>{metrics.done}/{metrics.total} Done</span>
         </div>
-        <div className="w-20 bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200/60">
+        <div className={`w-20 h-1 rounded-full overflow-hidden border ${nt.track}`}>
           <div className={`h-full rounded-full transition-all duration-500 ${theme.progress}`} style={{ width: `${metrics.percentage}%` }} />
         </div>
       </div>
@@ -988,6 +998,8 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   studentPlan,
   contentLang
 }) => {
+  const { theme } = useTheme();
+  const nt = theme.notes;
   const totalTopics = chap.notes_topics || [];
   const totalInChapter = totalTopics.length;
   const doneInChapter = totalTopics.filter((t: any) => completedTopics[t.id]).length;
@@ -1009,31 +1021,31 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   };
 
   return (
-    <div className={`border rounded-xl bg-white shadow-xs transition-all ${isChapterComplete ? "border-emerald-200" : "border-slate-200"}`}>
+    <div className={`border rounded-xl transition-all ${nt.card} ${isChapterComplete ? nt.cardBorderDone : nt.cardBorder}`}>
       <button
         onClick={() => onToggleChapter(chap.id)}
-        className="w-full flex items-center justify-between p-3 text-left bg-slate-50/40 hover:bg-slate-50 transition-colors"
+        className={`w-full flex items-center justify-between p-3 text-left transition-colors ${nt.chapHead}`}
       >
         <div className="flex items-center gap-2.5 truncate">
           {/* INSERT GATING CHECK CHIPS HERE */}
           {chap.required_plan && chap.required_plan !== 'free' && (
-            <span className="flex items-center gap-1 text-[8px] font-black tracking-wider uppercase px-1 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-600 shrink-0">
+            <span className={`flex items-center gap-1 text-[8px] font-black tracking-wider uppercase px-1 py-0.5 rounded border shrink-0 ${nt.planChip}`}>
               <Lock className="w-2 h-2" />
               {chap.required_plan}
             </span>
           )}
 
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-slate-700 bg-white border-slate-200"}`}>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase ${isChapterComplete ? nt.chBadgeDone : nt.chBadge}`}>
             {isChapterComplete ? "Done" : `CH ${chap.sequence_order}`}
           </span>
-          <span className="text-xs font-bold text-slate-800 truncate">{getLocalizedLabel(chap, contentLang)}</span>
-          <span className="text-[11px] text-slate-400 font-medium font-mono shrink-0">({doneInChapter}/{totalInChapter} Read)</span>
+          <span className={`text-xs font-bold ${nt.ink800} truncate`}>{getLocalizedLabel(chap, contentLang)}</span>
+          <span className={`text-[11px] ${nt.ink400} font-medium font-mono shrink-0`}>({doneInChapter}/{totalInChapter} Read)</span>
         </div>
-        <div className="text-slate-400 shrink-0">
+        <div className={`${nt.ink400} shrink-0`}>
           {isLocked ? (
             <Lock className="w-4 h-4 text-amber-500" />
           ) : isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-slate-800" />
+            <ChevronDown className={`w-4 h-4 ${nt.ink800}`} />
           ) : (
             <ChevronRight className="w-4 h-4" />
           )}
@@ -1041,16 +1053,16 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
       </button>
 
       {isExpanded && !isLocked && (
-        <div className="border-t border-slate-100 bg-white flex h-[620px] relative overflow-hidden transition-all duration-300">
+        <div className={`border-t flex h-[620px] relative overflow-hidden transition-all duration-300 ${nt.chapBody}`}>
           
           {/* 📖 TOPIC INDEX SIDEBAR */}
           <div 
-            className={`bg-stone-50/40 border-r border-slate-100 flex flex-col gap-1 p-1.5 overflow-y-auto transition-all duration-300 ease-in-out shrink-0 h-full select-none ${
+            className={`border-r flex flex-col gap-1 p-1.5 overflow-y-auto transition-all duration-300 ease-in-out shrink-0 h-full select-none ${nt.idxPane} ${
               isSidebarOpen ? "w-1/4 opacity-100" : "w-0 !p-0 opacity-0 pointer-events-none"
             }`}
           >
             {totalInChapter === 0 ? (
-              <div className="p-3 text-[11px] text-slate-400 italic">No topics mapped.</div>
+              <div className={`p-3 text-[11px] ${nt.ink400} italic`}>No topics mapped.</div>
             ) : (
               totalTopics.map((topic: any) => {
                 const isTopicActive = topic.id === activeTopicId;
@@ -1060,17 +1072,17 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                     key={topic.id}
                     onClick={() => setSelectedTopicIdMap(prev => ({ ...prev, [chap.id]: topic.id }))}
                     className={`w-full text-left px-2 py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-between gap-1.5 border ${
-                      isTopicActive ? "bg-white border-slate-200 shadow-2xs font-bold text-slate-900" : "border-transparent text-slate-600 hover:bg-slate-100"
+                      isTopicActive ? nt.idxActive : nt.idxIdle
                     }`}
                   >
                     <div className="flex items-center gap-1.5 truncate">
                       <div 
                         onClick={(e) => toggleTopicCompletion(topic.id, e)}
-                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isTopicDone ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"}`}
+                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isTopicDone ? "bg-emerald-600 border-emerald-600 text-white" : nt.checkOffPlain}`}
                       >
                         {isTopicDone && <Check className="w-2 h-2 stroke-[3]" />}
                       </div>
-                      <span className={`truncate ${isTopicDone ? "text-slate-400 line-through font-normal" : ""}`}>
+                      <span className={`truncate ${isTopicDone ? `${nt.ink400} line-through font-normal` : ""}`}>
                         {topic.sequence_order}. {getLocalizedLabel(topic, contentLang)}
                       </span>
                     </div>
@@ -1088,47 +1100,47 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="w-5 h-10 bg-white border border-slate-200 shadow-xs rounded-full flex items-center justify-center text-slate-600 hover:text-stone-900 hover:bg-slate-50 transition-all active:scale-95"
+              className={`w-5 h-10 border rounded-full flex items-center justify-center transition-all active:scale-95 ${nt.pillBtn}`}
             >
               {isSidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           </div>
 
           {/* HIGH VISIBILITY FOCUS CANVAS DISPLAY */}
-          <div className={`overflow-y-auto p-4 md:p-5 bg-white flex flex-col scrollbar-thin h-full transition-all duration-300 ${
+          <div className={`overflow-y-auto p-4 md:p-5 flex flex-col scrollbar-thin h-full transition-all duration-300 ${nt.pane} ${
             isSidebarOpen ? "w-3/4" : "w-full"
           }`}>
             {currentActiveTopic ? (
               <div className="space-y-3 h-full flex flex-col justify-between">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs md:text-sm font-extrabold text-slate-900 tracking-tight">{getLocalizedLabel(currentActiveTopic, contentLang)}</h4>
+                  <div className={`flex items-center justify-between border-b ${nt.b100} pb-2`}>
+                    <h4 className={`text-xs md:text-sm font-extrabold ${nt.ink900} tracking-tight`}>{getLocalizedLabel(currentActiveTopic, contentLang)}</h4>
                     <button
                       onClick={(e) => toggleTopicCompletion(currentActiveTopic.id, e)}
                       className={`text-[11px] px-2.5 py-1 rounded-md border font-medium flex items-center gap-1.5 transition-all ${
-                        completedTopics[currentActiveTopic.id] ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
+                        completedTopics[currentActiveTopic.id] ? nt.doneBtn : nt.undoneBtnSoft
                       }`}
                     >
-                      <CheckCircle2 className={`w-3.5 h-3.5 ${completedTopics[currentActiveTopic.id] ? "text-emerald-600 fill-emerald-100" : "text-slate-300"}`} />
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${completedTopics[currentActiveTopic.id] ? nt.doneIconFill : nt.todoIcon}`} />
                       <span>{completedTopics[currentActiveTopic.id] ? "Completed" : "Mark Done"}</span>
                     </button>
                   </div>
                   
                   {contentLang !== "en" && !currentActiveTopic[`paragraph_text_${contentLang}`]?.trim() && (
-                    <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 w-fit">
+                    <div className={`text-[10px] font-bold border px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 w-fit ${nt.notice}`}>
                       <Languages className="w-3 h-3" />
                       Translation not available yet -- showing English
                     </div>
                   )}
-                  <div dir="auto" className="text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide bg-stone-50/30 p-4 rounded-xl border border-stone-100/60 select-text">
-                    {renderNarrativeWithImages(getLocalizedParagraph(currentActiveTopic, contentLang), imageMap)}
+                  <div dir="auto" className={`text-[13px] leading-relaxed whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide p-4 rounded-xl border select-text ${nt.contentBox}`}>
+                    {renderNarrativeWithImages(getLocalizedParagraph(currentActiveTopic, contentLang), imageMap, nt)}
                   </div>
 
                   {currentActiveTopic.test_id && (
-                    <div className="mt-4 p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all">
+                    <div className={`mt-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${nt.testBoxSoft}`}>
                       <div className="space-y-0.5">
-                        <span className="text-[10px] font-mono font-bold tracking-wider text-indigo-600 uppercase block">Assessment Milestone</span>
-                        <p className="text-xs font-semibold text-slate-800">An evaluation module has been linked to this target framework.</p>
+                        <span className={`text-[10px] font-mono font-bold tracking-wider ${nt.testLabel} uppercase block`}>Assessment Milestone</span>
+                        <p className={`text-xs font-semibold ${nt.ink800}`}>An evaluation module has been linked to this target framework.</p>
                       </div>
                       <button
                         type="button"
@@ -1142,12 +1154,12 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                   )}
                 </div>
 
-                <div className="pt-4 text-center border-t border-slate-50 shrink-0">
-                  <span className="text-[9px] text-slate-300 tracking-widest font-bold uppercase block">End of Module Material</span>
+                <div className={`pt-4 text-center border-t ${nt.b50} shrink-0`}>
+                  <span className={`text-[9px] ${nt.ink300} tracking-widest font-bold uppercase block`}>End of Module Material</span>
                 </div>
               </div>
             ) : (
-              <div className="m-auto text-center space-y-1 text-slate-400">
+              <div className={`m-auto text-center space-y-1 ${nt.ink400}`}>
                 <FileText className="w-7 h-7 mx-auto stroke-1" />
                 <p className="text-xs italic">Select a lesson node item from index tracking sheet.</p>
               </div>
@@ -1169,6 +1181,9 @@ export default function RevisionNotesTree({
   onToggleChapter,
   studentPlan = "free",
 }: RevisionNotesTreeProps) {
+  const { theme: appTheme } = useTheme();
+  const nt = appTheme.notes;
+
   const [openChapterId, setOpenChapterId] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<string>("");
   const [completedTopics, setCompletedTopics] = useState<Record<string, boolean>>({});
@@ -1295,19 +1310,19 @@ export default function RevisionNotesTree({
 
   if (loadingNotes) {
     return (
-      <div className="text-center py-24 flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 rounded-2xl shadow-xs w-full max-w-5xl mx-auto">
-        <Loader2 className="animate-spin text-slate-800 w-7 h-7" />
-        <p className="text-xs font-medium text-slate-600 tracking-wide">Assembling syllabus volumes...</p>
+      <div className={`text-center py-24 flex flex-col items-center justify-center gap-2 border rounded-2xl w-full max-w-5xl mx-auto ${nt.loadCard}`}>
+        <Loader2 className={`animate-spin ${nt.ink800} w-7 h-7`} />
+        <p className={`text-xs font-medium ${nt.ink600} tracking-wide`}>Assembling syllabus volumes...</p>
       </div>
     );
   }
 
   if (courseContentTree.length === 0) {
     return (
-      <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300 max-w-xl mx-auto px-6 shadow-xs">
-        <BookOpen className="w-9 h-9 text-slate-400 mx-auto mb-2" />
-        <h3 className="text-xs font-bold text-slate-800 mb-1">Library Volume Missing</h3>
-        <p className="text-[11px] text-slate-500 leading-relaxed">No lecture blueprints mapped onto this configuration yet.</p>
+      <div className={`text-center py-20 rounded-2xl border border-dashed max-w-xl mx-auto px-6 ${nt.emptyCard}`}>
+        <BookOpen className={`w-9 h-9 ${nt.ink400} mx-auto mb-2`} />
+        <h3 className={`text-xs font-bold ${nt.ink800} mb-1`}>Library Volume Missing</h3>
+        <p className={`text-[11px] ${nt.ink500} leading-relaxed`}>No lecture blueprints mapped onto this configuration yet.</p>
       </div>
     );
   }
@@ -1331,7 +1346,7 @@ export default function RevisionNotesTree({
         planHierarchy={PLAN_HIERARCHY}
         getLabel={getLocalizedLabel}
         getParagraph={getLocalizedParagraph}
-        renderContent={renderNarrativeWithImages}
+        renderContent={(text, map) => renderNarrativeWithImages(text, map, nt)}
         initialChapterId={openChapterId}
         initialTopicId={openChapterId ? selectedTopicIdMap[openChapterId] : null}
         aiPanel={(close) => (
@@ -1377,10 +1392,10 @@ export default function RevisionNotesTree({
             <MilestoneDashboard currentActiveSection={currentActiveSection} theme={theme} metrics={metrics} />
             <div className="space-y-4 pb-2">
               {currentActiveSection.notes_phases?.map((phase: any) => (
-                <div key={phase.id} className="space-y-2.5 bg-[#f8fafc]/50 border border-slate-100 rounded-xl p-3">
+                <div key={phase.id} className={`space-y-2.5 border rounded-xl p-3 ${nt.phaseBox}`}>
                   <div className="flex items-center gap-1.5 px-0.5">
                     <div className="w-1 h-3 bg-indigo-500 rounded-xs"></div>
-                    <span className="text-[10px] font-mono tracking-wider font-bold text-slate-400 uppercase">
+                    <span className={`text-[10px] font-mono tracking-wider font-bold ${nt.ink400} uppercase`}>
                       Phase {phase.sequence_order}: {getLocalizedLabel(phase, contentLang)}
                     </span>
                   </div>

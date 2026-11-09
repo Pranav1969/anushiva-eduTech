@@ -38,6 +38,153 @@ interface Tag {
   border: string;
 }
 
+// ---------------------------------------------------------------------------
+// Notes section (RevisionNotesTree + FocusReader).
+// In AnushivaLight these are the ORIGINAL warm classes (unchanged look).
+// In AnushivaDefault they give the notes pages the same dark look as the rest.
+// ---------------------------------------------------------------------------
+export interface NotesAccent {
+  text: string;
+  bar: string;
+  border: string;
+  hl: string;
+  badge: string;
+}
+
+export interface NotesTokens {
+  // content style system ({red}..{/red}, [NOTE]..[/NOTE] etc.)
+  accents: Record<string, NotesAccent>;
+  callouts: Record<string, { box: string; title: string }>;
+
+  // text scale (replaces text-slate-900 ... text-slate-300)
+  ink900: string;
+  ink800: string;
+  ink700: string;
+  ink600: string;
+  ink500: string;
+  ink400: string;
+  ink300: string;
+
+  // border colors
+  b50: string;
+  b100: string;
+  b200: string;
+  b300: string;
+  bStone100: string;
+  bStone200: string;
+
+  // normal (non-focus) view surfaces
+  bar: string;
+  card: string;
+  cardBorder: string;
+  cardBorderDone: string;
+  chapHead: string;
+  chapBody: string;
+  idxPane: string;
+  idxActive: string;
+  idxIdle: string;
+  pillBtn: string;
+  pane: string;
+  contentBox: string;
+  phaseBox: string;
+  emptyCard: string;
+  loadCard: string;
+  track: string;
+  trackStone: string;
+  trackStone2: string;
+  subjectBadge: Record<"reasoning" | "quant" | "english" | "other", string>;
+
+  // controls
+  chipWrap: string;
+  chipBtn: string;
+  segActive: string;
+  segIdle: string;
+  tabIdle: string;
+  tabIconActive: string;
+  tabIconIdle: string;
+  exitBtn: string;
+  iconBtn: string;
+  iconBtnSoft: string;
+  closeBtn: string;
+
+  // focus reader
+  focusRoot: string;
+  focusHeader: string;
+  sectionTabIdle: string;
+  popover: string;
+  popFooter: string;
+  kbd: string;
+  aiIdle: string;
+  navAside: string;
+  searchInput: string;
+  rowHover: string;
+  rowActive: string;
+  checkOff: string;
+  checkOffPlain: string;
+  handleLine: string;
+  handleGrip: string;
+  article: string;
+  navCard: string;
+  nextCard: string;
+  nextLabel: string;
+
+  // status colors
+  doneText: string;
+  amberText: string;
+  amberStrong: string;
+  planChip: string;
+  chBadge: string;
+  chBadgeDone: string;
+  pill: string;
+  doneBtn: string;
+  undoneBtn: string;
+  undoneBtnSoft: string;
+  doneIcon: string;
+  doneIconFill: string;
+  todoIcon: string;
+  notice: string;
+  testBox: string;
+  testBoxSoft: string;
+  testLabel: string;
+
+  // content renderer pieces
+  collapsibleWrap: string;
+  collapsibleBtn: string;
+  stepCard: string;
+  stepNum: string;
+  timelineLine: string;
+  timelineDot: string;
+  timelineLabel: string;
+  checklistBox: string;
+  checklistTitle: string;
+  colBox: string;
+  quoteBox: string;
+  exampleBox: string;
+  exampleTitle: string;
+  questionBox: string;
+  questionTitle: string;
+  motivationBox: string;
+  motivationTitle: string;
+  motivationIcon: string;
+  motivationText: string;
+  mark: string;
+  latex: string;
+  code: string;
+  tableWrap: string;
+  tableHead: string;
+  th: string;
+  tr: string;
+  td: string;
+  hr: string;
+  quoteBlock: string;
+  imgWrap: string;
+  imgMissing: string;
+  bulletPlus: string;
+  bulletMinus: string;
+  bulletArrow: string;
+  bulletStar: string;
+}
+
 export interface Theme {
   id: ThemeId;
   name: string;
@@ -134,6 +281,7 @@ export interface Theme {
     lockOverlay: string;
     lockIcon: string;
     lockBadge: string;
+    logoutButton: string;
   };
 
   // Dashboard components (PerformanceOverview, RecentAssignedTests, TestCard,
@@ -208,6 +356,9 @@ export interface Theme {
     iconAmber: string;
     iconPurple: string;
   };
+
+  // Notes section (RevisionNotesTree + FocusReader)
+  notes: NotesTokens;
 }
 
 /* ------------------------------------------------------------------ */
@@ -219,7 +370,7 @@ const anushivaDefault: Theme = {
   mode: "dark",
 
   page: "bg-[#0F172A] text-[#F8FAFC]",
-  pageNotes: "bg-[#FDFBF7]",
+  pageNotes: "bg-[#0F172A] text-[#F8FAFC]", // notes are dark too in the dark theme
   glow: "bg-[#312E81]/15",
   selection: "selection:bg-blue-500/30 selection:text-blue-100",
   header: "border-slate-800 bg-[#0F172A]/90",
@@ -333,16 +484,18 @@ const anushivaDefault: Theme = {
 
   dash: {
     barBorder: "border-slate-800",
-    barBorderNotes: "border-stone-200",
+    barBorderNotes: "border-slate-800",
     tabAssessActive: "border-blue-500 text-blue-400",
     tabAssessIdle: "border-transparent text-slate-400 hover:text-slate-200",
-    tabNotesActive: "border-amber-700 text-amber-800",
-    tabNotesIdle: "border-transparent text-slate-400 hover:text-slate-500",
+    tabNotesActive: "border-amber-500 text-amber-400",
+    tabNotesIdle: "border-transparent text-slate-400 hover:text-slate-200",
     tabCurrentAffairs: "border-transparent text-slate-400 hover:text-emerald-400",
-    backToDashboard: "text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80",
+    backToDashboard: "text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700",
     lockOverlay: "bg-slate-950/80 border-amber-500/30 hover:bg-slate-950/70",
     lockIcon: "bg-amber-500/10 border-amber-500/40 text-amber-400 shadow-black/60",
     lockBadge: "text-amber-400 bg-slate-900 border-slate-800",
+    logoutButton:
+      "border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900/50 hover:text-red-400 hover:bg-red-950/40",
   },
 
   ui: {
@@ -415,6 +568,167 @@ const anushivaDefault: Theme = {
     iconEmerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     iconAmber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
     iconPurple: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  },
+
+  notes: {
+    accents: {
+      red:    { text: "text-red-400",     bar: "bg-red-500",     border: "border-red-500/40",     hl: "bg-red-500/20 text-red-100 border-b border-red-500/40",             badge: "bg-red-500/10 text-red-300 border-red-500/30" },
+      green:  { text: "text-emerald-400", bar: "bg-emerald-500", border: "border-emerald-500/40", hl: "bg-emerald-500/20 text-emerald-100 border-b border-emerald-500/40", badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" },
+      blue:   { text: "text-blue-400",    bar: "bg-blue-500",    border: "border-blue-500/40",    hl: "bg-blue-500/20 text-blue-100 border-b border-blue-500/40",          badge: "bg-blue-500/10 text-blue-300 border-blue-500/30" },
+      purple: { text: "text-purple-400",  bar: "bg-purple-500",  border: "border-purple-500/40",  hl: "bg-purple-500/20 text-purple-100 border-b border-purple-500/40",    badge: "bg-purple-500/10 text-purple-300 border-purple-500/30" },
+      orange: { text: "text-orange-400",  bar: "bg-orange-500",  border: "border-orange-500/40",  hl: "bg-orange-500/20 text-orange-100 border-b border-orange-500/40",    badge: "bg-orange-500/10 text-orange-300 border-orange-500/30" },
+      pink:   { text: "text-pink-400",    bar: "bg-pink-500",    border: "border-pink-500/40",    hl: "bg-pink-500/20 text-pink-100 border-b border-pink-500/40",          badge: "bg-pink-500/10 text-pink-300 border-pink-500/30" },
+      teal:   { text: "text-teal-400",    bar: "bg-teal-500",    border: "border-teal-500/40",    hl: "bg-teal-500/20 text-teal-100 border-b border-teal-500/40",          badge: "bg-teal-500/10 text-teal-300 border-teal-500/30" },
+      indigo: { text: "text-indigo-400",  bar: "bg-indigo-500",  border: "border-indigo-500/40",  hl: "bg-indigo-500/20 text-indigo-100 border-b border-indigo-500/40",    badge: "bg-indigo-500/10 text-indigo-300 border-indigo-500/30" },
+      amber:  { text: "text-amber-400",   bar: "bg-amber-500",   border: "border-amber-500/40",   hl: "bg-amber-500/20 text-amber-100 border-b border-amber-500/40",       badge: "bg-amber-500/10 text-amber-300 border-amber-500/30" },
+      gray:   { text: "text-slate-400",   bar: "bg-slate-500",   border: "border-slate-600",      hl: "bg-slate-700 text-slate-100 border-b border-slate-600",             badge: "bg-slate-800 text-slate-300 border-slate-700" },
+    },
+    callouts: {
+      NOTE:       { box: "bg-slate-800/50 border-slate-700 border-l-slate-400",          title: "text-slate-300" },
+      TIP:        { box: "bg-emerald-500/10 border-emerald-500/30 border-l-emerald-500", title: "text-emerald-300" },
+      WARNING:    { box: "bg-rose-500/10 border-rose-500/30 border-l-rose-500",          title: "text-rose-300" },
+      IMPORTANT:  { box: "bg-orange-500/10 border-orange-500/30 border-l-orange-500",    title: "text-orange-300" },
+      FORMULA:    { box: "bg-indigo-500/10 border-indigo-500/30 border-l-indigo-500",    title: "text-indigo-300" },
+      TRICK:      { box: "bg-teal-500/10 border-teal-500/30 border-l-teal-500",          title: "text-teal-300" },
+      REMEMBER:   { box: "bg-yellow-500/10 border-yellow-500/30 border-l-yellow-500",    title: "text-yellow-300" },
+      DEFINITION: { box: "bg-cyan-500/10 border-cyan-500/30 border-l-cyan-500",          title: "text-cyan-300" },
+      MNEMONIC:   { box: "bg-fuchsia-500/10 border-fuchsia-500/30 border-l-fuchsia-500", title: "text-fuchsia-300" },
+      PYQ:        { box: "bg-slate-800/60 border-slate-600 border-l-slate-300",          title: "text-slate-300" },
+      SUMMARY:    { box: "bg-sky-500/10 border-sky-500/30 border-l-sky-500",             title: "text-sky-300" },
+      KEYPOINTS:  { box: "bg-blue-500/10 border-blue-500/30 border-l-blue-500",          title: "text-blue-300" },
+      SOLUTION:   { box: "bg-green-500/10 border-green-500/30 border-l-green-500",       title: "text-green-300" },
+      MISTAKE:    { box: "bg-red-500/10 border-red-500/30 border-l-red-500",             title: "text-red-300" },
+      FUN:        { box: "bg-violet-500/10 border-violet-500/30 border-l-violet-500",    title: "text-violet-300" },
+    },
+
+    ink900: "text-slate-100",
+    ink800: "text-slate-200",
+    ink700: "text-slate-300",
+    ink600: "text-slate-400",
+    ink500: "text-slate-400",
+    ink400: "text-slate-500",
+    ink300: "text-slate-600",
+
+    b50: "border-slate-800",
+    b100: "border-slate-800",
+    b200: "border-slate-800",
+    b300: "border-slate-700",
+    bStone100: "border-slate-800",
+    bStone200: "border-slate-800",
+
+    bar: "bg-slate-900/60 border-slate-800",
+    card: "bg-slate-900/60",
+    cardBorder: "border-slate-800",
+    cardBorderDone: "border-emerald-500/40",
+    chapHead: "bg-slate-800/30 hover:bg-slate-800/60",
+    chapBody: "border-slate-800 bg-slate-900/40",
+    idxPane: "bg-slate-950/40 border-slate-800",
+    idxActive: "bg-slate-800 border-slate-700 font-bold text-slate-100",
+    idxIdle: "border-transparent text-slate-400 hover:bg-slate-800/60",
+    pillBtn: "bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700",
+    pane: "bg-transparent",
+    contentBox: "text-slate-200 bg-slate-950/40 border-slate-800",
+    phaseBox: "bg-slate-900/30 border-slate-800",
+    emptyCard: "bg-slate-900/60 border-slate-700",
+    loadCard: "bg-slate-900/60 border-slate-800",
+    track: "bg-slate-800 border-slate-700/60",
+    trackStone: "bg-slate-800 border-slate-700/70",
+    trackStone2: "bg-slate-800",
+    subjectBadge: {
+      reasoning: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+      quant: "bg-indigo-500/10 text-indigo-300 border-indigo-500/30",
+      english: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+      other: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+    },
+
+    chipWrap: "bg-slate-800/60 border-slate-700",
+    chipBtn: "text-slate-300 hover:bg-slate-700",
+    segActive: "bg-slate-100 text-slate-900 shadow-sm",
+    segIdle: "text-slate-400 hover:text-slate-100",
+    tabIdle: "bg-transparent text-slate-400 hover:bg-slate-800",
+    tabIconActive: "text-amber-600",
+    tabIconIdle: "text-slate-500",
+    exitBtn: "text-slate-300 hover:text-white bg-slate-800/60 border-slate-700",
+    iconBtn: "text-slate-400 hover:bg-slate-800",
+    iconBtnSoft: "text-slate-400 hover:bg-slate-800",
+    closeBtn: "text-slate-400 hover:bg-slate-800",
+
+    focusRoot: "bg-[#0F172A] text-slate-200",
+    focusHeader: "border-slate-800 bg-[#0F172A]/90",
+    sectionTabIdle: "text-slate-400 hover:bg-slate-800",
+    popover: "border-slate-700 bg-slate-900 shadow-lg text-slate-300",
+    popFooter: "border-slate-800 text-slate-500",
+    kbd: "border-slate-600 bg-slate-800 text-slate-200",
+    aiIdle: "bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20",
+    navAside: "bg-slate-900 border-slate-800",
+    searchInput:
+      "bg-slate-800/60 border-slate-700 placeholder-slate-500 focus:border-amber-400 focus:bg-slate-800",
+    rowHover: "hover:bg-slate-800/60",
+    rowActive: "bg-amber-500/10 border-amber-500",
+    checkOff: "bg-slate-800 border-slate-600 hover:border-emerald-400",
+    checkOffPlain: "bg-slate-800 border-slate-600",
+    handleLine:
+      "bg-slate-700 group-hover:w-0.5 group-hover:bg-amber-400 group-focus-visible:w-0.5 group-focus-visible:bg-amber-500",
+    handleGrip: "bg-slate-600 group-hover:bg-amber-400 group-focus-visible:bg-amber-500",
+    article: "bg-slate-900/60 border-slate-800 shadow-sm text-slate-200",
+    navCard: "border-slate-800 bg-slate-900/60 hover:border-slate-700",
+    nextCard: "bg-amber-500 text-slate-950 hover:bg-amber-400",
+    nextLabel: "text-amber-900",
+
+    doneText: "text-emerald-400",
+    amberText: "text-amber-400",
+    amberStrong: "text-amber-400",
+    planChip: "bg-amber-500/10 border-amber-500/20 text-amber-400",
+    chBadge: "text-slate-300 bg-slate-800 border-slate-700",
+    chBadgeDone: "text-emerald-300 bg-emerald-500/10 border-emerald-500/30",
+    pill: "text-slate-400 bg-slate-800/60 border-slate-700",
+    doneBtn: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    undoneBtn:
+      "bg-slate-800/60 text-slate-300 border-slate-700 hover:border-emerald-500/50 hover:text-emerald-300",
+    undoneBtnSoft: "bg-slate-800/60 text-slate-300 hover:bg-slate-700 border-slate-700",
+    doneIcon: "text-emerald-400",
+    doneIconFill: "text-emerald-400 fill-emerald-500/20",
+    todoIcon: "text-slate-600",
+    notice: "text-amber-300 bg-amber-500/10 border-amber-500/30",
+    testBox: "border-indigo-500/30 bg-indigo-500/10",
+    testBoxSoft: "border-indigo-500/30 bg-indigo-500/10",
+    testLabel: "text-indigo-300",
+
+    collapsibleWrap: "border-slate-700 bg-slate-800/50",
+    collapsibleBtn: "bg-slate-800 hover:bg-slate-700 text-slate-100",
+    stepCard: "border-slate-700 bg-slate-800/60",
+    stepNum: "bg-amber-500 text-slate-950",
+    timelineLine: "border-amber-500/50",
+    timelineDot: "bg-slate-900 border-amber-500",
+    timelineLabel: "text-amber-400",
+    checklistBox: "border-emerald-500/30 bg-emerald-500/10",
+    checklistTitle: "text-emerald-400",
+    colBox: "border-slate-700 bg-slate-800/60",
+    quoteBox: "border-amber-500 bg-amber-500/10",
+    exampleBox: "bg-blue-500/10 border-blue-500/30 text-slate-200",
+    exampleTitle: "text-blue-300",
+    questionBox: "bg-purple-500/10 border-purple-500/30 text-slate-200",
+    questionTitle: "text-purple-300",
+    motivationBox: "bg-amber-500/10 border-amber-500/30 text-slate-100",
+    motivationTitle: "text-amber-300",
+    motivationIcon: "text-amber-400",
+    motivationText: "text-amber-100",
+    mark: "bg-amber-500/20 text-amber-100 border-amber-500/40",
+    latex: "text-slate-100 bg-slate-800/60 border-slate-700/40",
+    code: "bg-slate-800 text-slate-100 border-slate-700/60",
+    tableWrap: "border-slate-700",
+    tableHead: "bg-slate-800 border-slate-700",
+    th: "text-slate-200 border-slate-700",
+    tr: "border-slate-800 hover:bg-slate-800/40",
+    td: "text-slate-200 border-slate-800",
+    hr: "border-slate-700",
+    quoteBlock: "border-slate-600 text-slate-300 bg-slate-800/40",
+    imgWrap: "border-slate-700 bg-slate-800",
+    imgMissing: "text-rose-300 bg-rose-500/10 border-rose-500/30",
+    bulletPlus: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    bulletMinus: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+    bulletArrow: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+    bulletStar: "bg-amber-500/15 text-amber-300 border-amber-500/30",
   },
 };
 
@@ -551,6 +865,8 @@ const anushivaLight: Theme = {
     lockOverlay: "bg-white/85 border-amber-300 hover:bg-white/75",
     lockIcon: "bg-amber-50 border-amber-300 text-amber-600 shadow-amber-200/60",
     lockBadge: "text-amber-700 bg-white border-slate-200",
+    logoutButton:
+      "border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50",
   },
 
   ui: {
@@ -621,6 +937,168 @@ const anushivaLight: Theme = {
     iconEmerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
     iconAmber: "bg-amber-50 text-amber-600 border-amber-200",
     iconPurple: "bg-purple-50 text-purple-600 border-purple-200",
+  },
+
+  // ORIGINAL warm notes classes: the Light notes look is unchanged.
+  notes: {
+    accents: {
+      red:    { text: "text-red-600",     bar: "bg-red-500",     border: "border-red-300",     hl: "bg-red-100 text-red-950 border-b border-red-200",             badge: "bg-red-50 text-red-700 border-red-200" },
+      green:  { text: "text-emerald-600", bar: "bg-emerald-500", border: "border-emerald-300", hl: "bg-emerald-100 text-emerald-950 border-b border-emerald-200", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      blue:   { text: "text-blue-600",    bar: "bg-blue-500",    border: "border-blue-300",    hl: "bg-blue-100 text-blue-950 border-b border-blue-200",          badge: "bg-blue-50 text-blue-700 border-blue-200" },
+      purple: { text: "text-purple-600",  bar: "bg-purple-500",  border: "border-purple-300",  hl: "bg-purple-100 text-purple-950 border-b border-purple-200",    badge: "bg-purple-50 text-purple-700 border-purple-200" },
+      orange: { text: "text-orange-600",  bar: "bg-orange-500",  border: "border-orange-300",  hl: "bg-orange-100 text-orange-950 border-b border-orange-200",    badge: "bg-orange-50 text-orange-700 border-orange-200" },
+      pink:   { text: "text-pink-600",    bar: "bg-pink-500",    border: "border-pink-300",    hl: "bg-pink-100 text-pink-950 border-b border-pink-200",          badge: "bg-pink-50 text-pink-700 border-pink-200" },
+      teal:   { text: "text-teal-600",    bar: "bg-teal-500",    border: "border-teal-300",    hl: "bg-teal-100 text-teal-950 border-b border-teal-200",          badge: "bg-teal-50 text-teal-700 border-teal-200" },
+      indigo: { text: "text-indigo-600",  bar: "bg-indigo-500",  border: "border-indigo-300",  hl: "bg-indigo-100 text-indigo-950 border-b border-indigo-200",    badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+      amber:  { text: "text-amber-600",   bar: "bg-amber-500",   border: "border-amber-300",   hl: "bg-amber-100 text-amber-950 border-b border-amber-200",       badge: "bg-amber-50 text-amber-700 border-amber-200" },
+      gray:   { text: "text-slate-500",   bar: "bg-slate-400",   border: "border-slate-300",   hl: "bg-slate-200 text-slate-900 border-b border-slate-300",       badge: "bg-slate-100 text-slate-700 border-slate-200" },
+    },
+    callouts: {
+      NOTE:       { box: "bg-slate-50/70 border-slate-200 border-l-slate-500",           title: "text-slate-600" },
+      TIP:        { box: "bg-emerald-50/60 border-emerald-200 border-l-emerald-500",     title: "text-emerald-700" },
+      WARNING:    { box: "bg-rose-50/60 border-rose-200 border-l-rose-500",              title: "text-rose-700" },
+      IMPORTANT:  { box: "bg-orange-50/60 border-orange-200 border-l-orange-500",        title: "text-orange-700" },
+      FORMULA:    { box: "bg-indigo-50/60 border-indigo-200 border-l-indigo-500",        title: "text-indigo-700" },
+      TRICK:      { box: "bg-teal-50/60 border-teal-200 border-l-teal-500",              title: "text-teal-700" },
+      REMEMBER:   { box: "bg-yellow-50/70 border-yellow-200 border-l-yellow-500",        title: "text-yellow-700" },
+      DEFINITION: { box: "bg-cyan-50/60 border-cyan-200 border-l-cyan-500",              title: "text-cyan-700" },
+      MNEMONIC:   { box: "bg-fuchsia-50/60 border-fuchsia-200 border-l-fuchsia-500",     title: "text-fuchsia-700" },
+      PYQ:        { box: "bg-stone-100/80 border-stone-300 border-l-stone-800",          title: "text-stone-700" },
+      SUMMARY:    { box: "bg-sky-50/60 border-sky-200 border-l-sky-500",                 title: "text-sky-700" },
+      KEYPOINTS:  { box: "bg-blue-50/60 border-blue-200 border-l-blue-500",              title: "text-blue-700" },
+      SOLUTION:   { box: "bg-green-50/60 border-green-200 border-l-green-500",           title: "text-green-700" },
+      MISTAKE:    { box: "bg-red-50/60 border-red-200 border-l-red-500",                 title: "text-red-700" },
+      FUN:        { box: "bg-violet-50/60 border-violet-200 border-l-violet-500",        title: "text-violet-700" },
+    },
+
+    ink900: "text-slate-900",
+    ink800: "text-slate-800",
+    ink700: "text-slate-700",
+    ink600: "text-slate-600",
+    ink500: "text-slate-500",
+    ink400: "text-slate-400",
+    ink300: "text-slate-300",
+
+    b50: "border-slate-50",
+    b100: "border-slate-100",
+    b200: "border-slate-200",
+    b300: "border-slate-300",
+    bStone100: "border-stone-100",
+    bStone200: "border-stone-200",
+
+    bar: "bg-white border-slate-200 shadow-xs",
+    card: "bg-white shadow-xs",
+    cardBorder: "border-slate-200",
+    cardBorderDone: "border-emerald-200",
+    chapHead: "bg-slate-50/40 hover:bg-slate-50",
+    chapBody: "border-slate-100 bg-white",
+    idxPane: "bg-stone-50/40 border-slate-100",
+    idxActive: "bg-white border-slate-200 shadow-2xs font-bold text-slate-900",
+    idxIdle: "border-transparent text-slate-600 hover:bg-slate-100",
+    pillBtn: "bg-white border-slate-200 shadow-xs text-slate-600 hover:text-stone-900 hover:bg-slate-50",
+    pane: "bg-white",
+    contentBox: "text-slate-800 bg-stone-50/30 border-stone-100/60",
+    phaseBox: "bg-[#f8fafc]/50 border-slate-100",
+    emptyCard: "bg-white border-slate-300 shadow-xs",
+    loadCard: "bg-white border-slate-200 shadow-xs",
+    track: "bg-slate-100 border-slate-200/60",
+    trackStone: "bg-stone-100 border-stone-200/70",
+    trackStone2: "bg-stone-100",
+    subjectBadge: {
+      reasoning: "bg-blue-100 text-blue-800 border-blue-200",
+      quant: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      english: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      other: "bg-amber-100 text-amber-900 border-amber-200",
+    },
+
+    chipWrap: "bg-stone-50 border-stone-200",
+    chipBtn: "text-slate-600 hover:bg-white",
+    segActive: "bg-stone-950 text-white shadow-sm",
+    segIdle: "text-slate-500 hover:text-stone-900",
+    tabIdle: "bg-white text-slate-600 hover:bg-slate-50",
+    tabIconActive: "text-amber-400",
+    tabIconIdle: "text-slate-400",
+    exitBtn: "text-stone-600 hover:text-stone-900 bg-stone-50 border-stone-200",
+    iconBtn: "text-stone-600 hover:bg-stone-100",
+    iconBtnSoft: "text-stone-500 hover:bg-stone-100",
+    closeBtn: "text-slate-500 hover:bg-stone-100",
+
+    focusRoot: "bg-[#FBF9F4] text-slate-800",
+    focusHeader: "border-stone-200 bg-white/90",
+    sectionTabIdle: "text-slate-600 hover:bg-stone-100",
+    popover: "border-stone-200 bg-white shadow-lg text-slate-600",
+    popFooter: "border-stone-100 text-slate-400",
+    kbd: "border-slate-300 bg-slate-50 text-slate-800",
+    aiIdle: "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100",
+    navAside: "bg-white border-stone-200",
+    searchInput:
+      "bg-stone-50 border-stone-200 focus:border-amber-400 focus:bg-white",
+    rowHover: "hover:bg-stone-50",
+    rowActive: "bg-amber-50 border-amber-500",
+    checkOff: "bg-white border-slate-300 hover:border-emerald-400",
+    checkOffPlain: "bg-white border-slate-300",
+    handleLine:
+      "bg-stone-200 group-hover:w-0.5 group-hover:bg-amber-400 group-focus-visible:w-0.5 group-focus-visible:bg-amber-500",
+    handleGrip: "bg-stone-300 group-hover:bg-amber-400 group-focus-visible:bg-amber-500",
+    article: "bg-white border-stone-200 shadow-sm text-slate-800",
+    navCard: "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm",
+    nextCard: "bg-stone-950 text-white hover:bg-stone-800",
+    nextLabel: "text-amber-400",
+
+    doneText: "text-emerald-600",
+    amberText: "text-amber-600",
+    amberStrong: "text-amber-700",
+    planChip: "bg-amber-500/10 border-amber-500/20 text-amber-600",
+    chBadge: "text-slate-700 bg-white border-slate-200",
+    chBadgeDone: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    pill: "text-slate-500 bg-white border-stone-200",
+    doneBtn: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    undoneBtn:
+      "bg-white text-slate-600 border-stone-200 hover:border-emerald-300 hover:text-emerald-700",
+    undoneBtnSoft: "bg-white text-slate-600 hover:bg-slate-50 border-slate-200",
+    doneIcon: "text-emerald-600",
+    doneIconFill: "text-emerald-600 fill-emerald-100",
+    todoIcon: "text-slate-300",
+    notice: "text-amber-700 bg-amber-50 border-amber-200",
+    testBox: "border-indigo-100 bg-indigo-50/40",
+    testBoxSoft: "border-indigo-100 bg-indigo-50/30",
+    testLabel: "text-indigo-600",
+
+    collapsibleWrap: "border-slate-200 bg-white",
+    collapsibleBtn: "bg-slate-50 hover:bg-slate-100 text-slate-800",
+    stepCard: "border-slate-200 bg-white shadow-3xs",
+    stepNum: "bg-stone-950 text-amber-400",
+    timelineLine: "border-amber-300",
+    timelineDot: "bg-white border-amber-500",
+    timelineLabel: "text-amber-700",
+    checklistBox: "border-emerald-100 bg-emerald-50/30",
+    checklistTitle: "text-emerald-700",
+    colBox: "border-slate-200 bg-white",
+    quoteBox: "border-amber-400 bg-amber-50/30",
+    exampleBox: "bg-blue-50/40 border-blue-100/60 text-slate-800",
+    exampleTitle: "text-blue-700",
+    questionBox: "bg-purple-50/40 border-purple-100/60 text-slate-800",
+    questionTitle: "text-purple-700",
+    motivationBox: "bg-amber-50/60 border-amber-200/70 text-slate-900 shadow-3xs",
+    motivationTitle: "text-amber-800",
+    motivationIcon: "text-amber-600",
+    motivationText: "text-amber-950",
+    mark: "bg-amber-100 text-amber-950 border-amber-200",
+    latex: "text-slate-900 bg-slate-50/60 border-slate-200/40",
+    code: "bg-slate-100 text-slate-900 border-slate-200/60",
+    tableWrap: "border-slate-200 shadow-3xs",
+    tableHead: "bg-slate-50 border-slate-200",
+    th: "text-slate-700 border-slate-200",
+    tr: "border-slate-150 hover:bg-slate-50/50",
+    td: "text-slate-800 border-slate-150",
+    hr: "border-slate-200/80",
+    quoteBlock: "border-slate-300 text-slate-700 bg-slate-50/40",
+    imgWrap: "border-slate-200 bg-white",
+    imgMissing: "text-rose-500 bg-rose-50 border-rose-100",
+    bulletPlus: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    bulletMinus: "bg-rose-100 text-rose-700 border-rose-200",
+    bulletArrow: "bg-blue-100 text-blue-700 border-blue-200",
+    bulletStar: "bg-amber-100 text-amber-700 border-amber-200",
   },
 };
 

@@ -6,6 +6,8 @@ import {
   Minimize2, Sparkles, Languages, ExternalLink, Search, PanelLeftClose,
   PanelLeftOpen, X, Trophy, Clock, ArrowRight, Type, Keyboard,
 } from "lucide-react";
+import { useTheme } from "../theme/ThemeProvider";
+import ThemeToggle from "../theme/ThemeToggle";
 
 type ContentLang = "en" | "hi" | "mr";
 
@@ -43,6 +45,7 @@ const AI_DEFAULT = 380;
 const MIN_CENTER = 360; // the reader never gets narrower than this
 const KEY_STEP = 16;
 
+
 // "Phase 1: Speed Booster" already contains its own prefix -> don't print it twice.
 const hasPrefix = (label: string, word: string) =>
   new RegExp(`^\\s*${word}\\s*\\d+`, "i").test(label || "");
@@ -54,6 +57,10 @@ export default function FocusReader({
   studentPlan, planHierarchy, getLabel, getParagraph, renderContent,
   initialTopicId, aiPanel, onExit,
 }: FocusReaderProps) {
+  // ---- theme: every color on this page comes from theme.notes ----
+  const { theme } = useTheme();
+  const nt = theme.notes;
+
   const [activeTopicId, setActiveTopicId] = useState<string>("");
   const [navOpen, setNavOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
@@ -233,14 +240,12 @@ export default function FocusReader({
     >
       <span
         className={`w-px transition-all ${
-          dragging === side
-            ? "w-0.5 bg-amber-500"
-            : "bg-stone-200 group-hover:w-0.5 group-hover:bg-amber-400 group-focus-visible:w-0.5 group-focus-visible:bg-amber-500"
+          dragging === side ? "w-0.5 bg-amber-500" : nt.handleLine
         }`}
       />
       <span
         className={`absolute top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-full transition-colors ${
-          dragging === side ? "bg-amber-500" : "bg-stone-300 group-hover:bg-amber-400 group-focus-visible:bg-amber-500"
+          dragging === side ? "bg-amber-500" : nt.handleGrip
         }`}
       />
     </div>
@@ -336,14 +341,14 @@ export default function FocusReader({
 
   // ---------- render ----------
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#FBF9F4] text-slate-800">
+    <div className={`fixed inset-0 z-50 flex flex-col ${nt.focusRoot}`}>
       {/* ===== TOP BAR ===== */}
       {/* relative + z-40: the header (and its shortcuts popover) must sit ABOVE the body panes */}
-      <header className="relative z-40 shrink-0 h-12 flex items-center gap-2 px-2 md:px-3 border-b border-stone-200 bg-white/90 backdrop-blur">
+      <header className={`relative z-40 shrink-0 h-12 flex items-center gap-2 px-2 md:px-3 border-b backdrop-blur ${nt.focusHeader}`}>
         <button
           onClick={() => setNavOpen((v) => !v)}
           title="Toggle contents  [ [ ]"
-          className="p-1.5 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors shrink-0"
+          className={`p-1.5 rounded-lg transition-colors shrink-0 ${nt.iconBtn}`}
         >
           {navOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
         </button>
@@ -356,7 +361,7 @@ export default function FocusReader({
                 key={sec.id}
                 onClick={() => setActiveSectionId(sec.id)}
                 className={`px-2.5 py-1 text-xs font-bold rounded-lg whitespace-nowrap transition-all ${
-                  active ? "bg-stone-950 text-white" : "text-slate-600 hover:bg-stone-100"
+                  active ? nt.segActive : nt.sectionTabIdle
                 }`}
               >
                 {getLabel(sec, contentLang)}
@@ -369,42 +374,42 @@ export default function FocusReader({
           {/* progress (desktop) */}
           <div className="hidden lg:flex items-center gap-2 mr-1" title={`${doneCount} of ${totalCount} topics done`}>
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            <span className="text-[11px] font-bold text-slate-600">{doneCount}/{totalCount}</span>
-            <div className="w-20 h-1.5 bg-stone-100 rounded-full overflow-hidden border border-stone-200/70">
+            <span className={`text-[11px] font-bold ${nt.ink600}`}>{doneCount}/{totalCount}</span>
+            <div className={`w-20 h-1.5 rounded-full overflow-hidden border ${nt.trackStone}`}>
               <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
           </div>
 
           {/* text size */}
-          <div className="hidden sm:flex items-center bg-stone-50 border border-stone-200 rounded-lg p-0.5">
+          <div className={`hidden sm:flex items-center border rounded-lg p-0.5 ${nt.chipWrap}`}>
             <button
               onClick={() => setFontScale((s) => Math.max(MIN_SCALE, +(s - 0.1).toFixed(2)))}
               disabled={fontScale <= MIN_SCALE}
               title="Smaller text"
-              className="px-1.5 py-1 rounded-md text-slate-600 hover:bg-white disabled:opacity-30"
+              className={`px-1.5 py-1 rounded-md disabled:opacity-30 ${nt.chipBtn}`}
             >
               <Type className="w-3 h-3" />
             </button>
-            <span className="text-[10px] font-bold text-slate-500 w-8 text-center select-none">{Math.round(fontScale * 100)}%</span>
+            <span className={`text-[10px] font-bold w-8 text-center select-none ${nt.ink500}`}>{Math.round(fontScale * 100)}%</span>
             <button
               onClick={() => setFontScale((s) => Math.min(MAX_SCALE, +(s + 0.1).toFixed(2)))}
               disabled={fontScale >= MAX_SCALE}
               title="Larger text"
-              className="px-1.5 py-1 rounded-md text-slate-600 hover:bg-white disabled:opacity-30"
+              className={`px-1.5 py-1 rounded-md disabled:opacity-30 ${nt.chipBtn}`}
             >
               <Type className="w-4 h-4" />
             </button>
           </div>
 
           {/* language */}
-          <div className="flex items-center gap-0.5 bg-stone-50 border border-stone-200 rounded-lg p-0.5">
-            <Languages className="w-3 h-3 text-slate-400 ml-1 mr-0.5 hidden sm:block" />
+          <div className={`flex items-center gap-0.5 border rounded-lg p-0.5 ${nt.chipWrap}`}>
+            <Languages className={`w-3 h-3 ml-1 mr-0.5 hidden sm:block ${nt.ink400}`} />
             {languageOptions.map(({ code, label }) => (
               <button
                 key={code}
                 onClick={() => setContentLang(code)}
                 className={`px-1.5 sm:px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
-                  contentLang === code ? "bg-stone-950 text-white shadow-sm" : "text-slate-500 hover:text-stone-900"
+                  contentLang === code ? nt.segActive : nt.segIdle
                 }`}
               >
                 {label}
@@ -412,20 +417,23 @@ export default function FocusReader({
             ))}
           </div>
 
+          {/* DARK / LIGHT THEME SWITCH (same control as the dashboard) */}
+          <ThemeToggle />
+
           {/* keyboard shortcuts */}
           <div className="relative hidden md:block">
             <button
               onClick={() => setShowKeys((v) => !v)}
               title="Keyboard shortcuts"
-              className="p-1.5 rounded-lg text-stone-500 hover:bg-stone-100 transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${nt.iconBtnSoft}`}
             >
               <Keyboard className="w-4 h-4" />
             </button>
             {showKeys && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowKeys(false)} />
-                <div className="absolute right-0 top-full mt-1.5 z-50 w-60 p-3 rounded-xl border border-stone-200 bg-white shadow-lg text-[11px] text-slate-600 space-y-1.5">
-                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Shortcuts</div>
+                <div className={`absolute right-0 top-full mt-1.5 z-50 w-60 p-3 rounded-xl border text-[11px] space-y-1.5 ${nt.popover}`}>
+                  <div className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${nt.ink400}`}>Shortcuts</div>
                   {[
                     ["← / →", "Previous / next topic"],
                     ["M", "Mark topic done"],
@@ -434,11 +442,11 @@ export default function FocusReader({
                     ["Esc", "Exit focus mode"],
                   ].map(([k, d]) => (
                     <div key={k} className="flex items-center justify-between gap-3">
-                      <kbd className="px-1.5 py-0.5 rounded border border-b-2 border-slate-300 bg-slate-50 font-mono text-[10px] font-semibold text-slate-800">{k}</kbd>
+                      <kbd className={`px-1.5 py-0.5 rounded border border-b-2 font-mono text-[10px] font-semibold ${nt.kbd}`}>{k}</kbd>
                       <span>{d}</span>
                     </div>
                   ))}
-                  <div className="pt-1.5 mt-1 border-t border-stone-100 text-slate-400">
+                  <div className={`pt-1.5 mt-1 border-t ${nt.popFooter}`}>
                     Drag the panel dividers to resize. Double-click a divider to reset it.
                   </div>
                 </div>
@@ -450,7 +458,7 @@ export default function FocusReader({
             onClick={() => setAiOpen((v) => !v)}
             title="Ask AI-Guruji  [ ] ]"
             className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-all ${
-              aiOpen ? "bg-amber-500 text-stone-950 border-amber-500" : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+              aiOpen ? "bg-amber-500 text-stone-950 border-amber-500" : nt.aiIdle
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -460,7 +468,7 @@ export default function FocusReader({
           <button
             onClick={exit}
             title="Exit focus mode  [Esc]"
-            className="flex items-center gap-1.5 text-[11px] font-bold text-stone-600 hover:text-stone-900 bg-stone-50 border border-stone-200 px-2 py-1.5 rounded-lg transition-all"
+            className={`flex items-center gap-1.5 text-[11px] font-bold border px-2 py-1.5 rounded-lg transition-all ${nt.exitBtn}`}
           >
             <Minimize2 className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Exit</span>
@@ -469,7 +477,7 @@ export default function FocusReader({
       </header>
 
       {/* reading progress hairline */}
-      <div className="h-0.5 bg-stone-100 shrink-0">
+      <div className={`h-0.5 shrink-0 ${nt.trackStone2}`}>
         <div className="h-full bg-amber-500 transition-[width] duration-150" style={{ width: `${readPct}%` }} />
       </div>
 
@@ -481,31 +489,31 @@ export default function FocusReader({
         {/* ---- LEFT: CONTENTS ---- */}
         <aside
           style={{ "--nav-w": `${navWidth}px` } as React.CSSProperties}
-          className={`${navOpen ? "flex" : "hidden"} flex-col shrink-0 bg-white
+          className={`${navOpen ? "flex" : "hidden"} flex-col shrink-0 ${nt.navAside}
             absolute md:static inset-y-0 left-0 z-30 w-[85%] max-w-xs md:max-w-none md:w-[var(--nav-w)]
-            shadow-xl md:shadow-none border-r border-stone-200 md:border-r-0`}
+            shadow-xl md:shadow-none border-r md:border-r-0`}
         >
-          <div className="p-3 border-b border-stone-100 space-y-2.5 shrink-0">
+          <div className={`p-3 border-b space-y-2.5 shrink-0 ${nt.bStone100}`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Contents</span>
-              <button onClick={() => setNavOpen(false)} className="md:hidden p-1 rounded text-slate-500 hover:bg-stone-100">
+              <span className={`text-[10px] font-extrabold uppercase tracking-widest ${nt.ink400}`}>Contents</span>
+              <button onClick={() => setNavOpen(false)} className={`md:hidden p-1 rounded ${nt.iconBtnSoft}`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${nt.ink400}`} />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search topics..."
-                className="w-full pl-8 pr-2 py-1.5 text-xs rounded-lg bg-stone-50 border border-stone-200 focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
+                className={`w-full pl-8 pr-2 py-1.5 text-xs rounded-lg border focus:outline-none transition-colors ${nt.ink800} ${nt.searchInput}`}
               />
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex-1 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${nt.trackStone2}`}>
                 <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
               </div>
-              <span className="text-[10px] font-bold text-slate-500">{doneCount}/{totalCount}</span>
+              <span className={`text-[10px] font-bold ${nt.ink500}`}>{doneCount}/{totalCount}</span>
             </div>
           </div>
 
@@ -523,7 +531,7 @@ export default function FocusReader({
 
               return (
                 <div key={phase.id} className="space-y-1">
-                  <div className="px-2 flex items-start gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-snug">
+                  <div className={`px-2 flex items-start gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider leading-snug ${nt.ink400}`}>
                     <span className="w-1 h-3 mt-px bg-indigo-500 rounded-sm shrink-0" />
                     <span>{phaseTitle(phase)}</span>
                   </div>
@@ -538,40 +546,40 @@ export default function FocusReader({
                         <button
                           onClick={() => !locked && setNavChapters((p) => ({ ...p, [chap.id]: !p[chap.id] }))}
                           className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
-                            locked ? "opacity-70 cursor-not-allowed" : "hover:bg-stone-50"
+                            locked ? "opacity-70 cursor-not-allowed" : nt.rowHover
                           }`}
                         >
-                          <span className="shrink-0 text-slate-400 mt-0.5">
+                          <span className={`shrink-0 mt-0.5 ${nt.ink400}`}>
                             {locked ? <Lock className="w-3.5 h-3.5 text-amber-500" />
                               : open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                           </span>
                           <span className="flex-1 min-w-0">
-                            <span className="block text-xs font-bold text-slate-800 leading-snug line-clamp-2">
-                              {complete && <Check className="inline w-3 h-3 mr-1 text-emerald-600 stroke-[3]" />}
+                            <span className={`block text-xs font-bold leading-snug line-clamp-2 ${nt.ink800}`}>
+                              {complete && <Check className={`inline w-3 h-3 mr-1 stroke-[3] ${nt.doneText}`} />}
                               {chapterNavTitle(chap)}
                             </span>
                             {locked ? (
-                              <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                              <span className={`block text-[10px] font-bold uppercase tracking-wide ${nt.amberText}`}>
                                 {chap.required_plan} plan
                               </span>
                             ) : (
                               <span className="flex items-center gap-1.5 mt-1">
-                                <span className="flex-1 h-1 bg-stone-100 rounded-full overflow-hidden">
+                                <span className={`flex-1 h-1 rounded-full overflow-hidden ${nt.trackStone2}`}>
                                   <span
                                     className="block h-full bg-emerald-500 rounded-full"
                                     style={{ width: `${topics.length ? (done / topics.length) * 100 : 0}%` }}
                                   />
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400">{done}/{topics.length}</span>
+                                <span className={`text-[10px] font-mono ${nt.ink400}`}>{done}/{topics.length}</span>
                               </span>
                             )}
                           </span>
                         </button>
 
                         {open && !locked && (
-                          <div className="ml-3 pl-2 border-l border-stone-200 mt-0.5 mb-1.5 space-y-0.5">
+                          <div className={`ml-3 pl-2 border-l mt-0.5 mb-1.5 space-y-0.5 ${nt.bStone200}`}>
                             {shown.length === 0 && (
-                              <div className="px-2 py-1 text-[11px] italic text-slate-400">No topics mapped.</div>
+                              <div className={`px-2 py-1 text-[11px] italic ${nt.ink400}`}>No topics mapped.</div>
                             )}
                             {shown.map((topic: any) => {
                               const isActive = topic.id === activeTopicId;
@@ -580,14 +588,14 @@ export default function FocusReader({
                                 <div
                                   key={topic.id}
                                   className={`flex items-start gap-2 pr-2 rounded-md border-l-2 transition-colors ${
-                                    isActive ? "bg-amber-50 border-amber-500" : "border-transparent hover:bg-stone-50"
+                                    isActive ? nt.rowActive : `border-transparent ${nt.rowHover}`
                                   }`}
                                 >
                                   <button
                                     onClick={() => onToggleComplete(topic.id)}
                                     title={isDone ? "Mark as unread" : "Mark as done"}
                                     className={`ml-1.5 mt-2 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
-                                      isDone ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300 hover:border-emerald-400"
+                                      isDone ? "bg-emerald-600 border-emerald-600 text-white" : nt.checkOff
                                     }`}
                                   >
                                     {isDone && <Check className="w-2.5 h-2.5 stroke-[3]" />}
@@ -595,8 +603,8 @@ export default function FocusReader({
                                   <button
                                     onClick={() => goTo(topic.id)}
                                     className={`flex-1 min-w-0 text-left py-1.5 text-[12px] leading-snug ${
-                                      isActive ? "font-bold text-slate-900"
-                                        : isDone ? "text-slate-400" : "text-slate-600 font-medium"
+                                      isActive ? `font-bold ${nt.ink900}`
+                                        : isDone ? nt.ink400 : `${nt.ink600} font-medium`
                                     }`}
                                   >
                                     <span className="block line-clamp-2">{getLabel(topic, contentLang)}</span>
@@ -623,38 +631,36 @@ export default function FocusReader({
             <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-10" style={{ zoom: fontScale } as React.CSSProperties}>
               {/* header */}
               <div className="mb-5">
-                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-extrabold uppercase tracking-wider ${nt.ink400}`}>
                   <span>{phaseTitle(current.phase)}</span>
                   <ChevronRight className="w-3 h-3 shrink-0" />
-                  <span className="text-amber-700">{chapterTitle(current.chap)}</span>
+                  <span className={nt.amberStrong}>{chapterTitle(current.chap)}</span>
                 </div>
 
-                <h1 dir="auto" className="mt-2 text-2xl md:text-[28px] leading-tight font-black tracking-tight text-slate-900">
+                <h1 dir="auto" className={`mt-2 text-2xl md:text-[28px] leading-tight font-black tracking-tight ${nt.ink900}`}>
                   {getLabel(current.topic, contentLang)}
                 </h1>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold text-slate-500 bg-white border border-stone-200 px-2 py-0.5 rounded-full">
+                  <span className={`text-[11px] font-bold border px-2 py-0.5 rounded-full ${nt.pill}`}>
                     Topic {index + 1} of {totalCount}
                   </span>
-                  <span className="text-[11px] font-bold text-slate-500 bg-white border border-stone-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className={`text-[11px] font-bold border px-2 py-0.5 rounded-full flex items-center gap-1 ${nt.pill}`}>
                     <Clock className="w-3 h-3" /> {readMins} min read
                   </span>
                   <button
                     onClick={() => onToggleComplete(current.topic.id)}
                     className={`ml-auto text-[11px] px-3 py-1 rounded-full border font-bold flex items-center gap-1.5 transition-all ${
-                      completedTopics[current.topic.id]
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-white text-slate-600 border-stone-200 hover:border-emerald-300 hover:text-emerald-700"
+                      completedTopics[current.topic.id] ? nt.doneBtn : nt.undoneBtn
                     }`}
                   >
-                    <CheckCircle2 className={`w-3.5 h-3.5 ${completedTopics[current.topic.id] ? "text-emerald-600" : "text-slate-300"}`} />
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${completedTopics[current.topic.id] ? nt.doneIcon : nt.todoIcon}`} />
                     {completedTopics[current.topic.id] ? "Completed" : "Mark done"}
                   </button>
                 </div>
 
                 {missingTranslation && (
-                  <div className="mt-3 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5">
+                  <div className={`mt-3 text-[10px] font-bold border px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 ${nt.notice}`}>
                     <Languages className="w-3 h-3" />
                     Translation not available yet -- showing English
                   </div>
@@ -664,17 +670,17 @@ export default function FocusReader({
               {/* content */}
               <article
                 dir="auto"
-                className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 md:p-8 text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap font-sans antialiased tracking-wide select-text"
+                className={`rounded-2xl border p-5 md:p-8 text-[13px] leading-relaxed whitespace-pre-wrap font-sans antialiased tracking-wide select-text ${nt.article}`}
               >
                 {renderContent(paragraph, imageMap)}
               </article>
 
               {/* linked test */}
               {current.topic.test_id && (
-                <div className="mt-5 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className={`mt-5 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${nt.testBox}`}>
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-mono font-bold tracking-wider text-indigo-600 uppercase block">Assessment Milestone</span>
-                    <p className="text-xs font-semibold text-slate-800">Test what you just learned with the linked evaluation.</p>
+                    <span className={`text-[10px] font-mono font-bold tracking-wider uppercase block ${nt.testLabel}`}>Assessment Milestone</span>
+                    <p className={`text-xs font-semibold ${nt.ink800}`}>Test what you just learned with the linked evaluation.</p>
                   </div>
                   <button
                     onClick={() => window.open(`/student/tests/${current.topic.test_id}`, "_blank")}
@@ -690,21 +696,21 @@ export default function FocusReader({
                 {prevItem ? (
                   <button
                     onClick={() => goTo(prevItem.topic.id)}
-                    className="group text-left p-3.5 rounded-2xl border border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm transition-all"
+                    className={`group text-left p-3.5 rounded-2xl border transition-all ${nt.navCard}`}
                   >
-                    <span className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                    <span className={`flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider ${nt.ink400}`}>
                       <ChevronLeft className="w-3 h-3" /> Previous
                     </span>
-                    <span className="block mt-1 text-[13px] font-bold text-slate-800 truncate">{getLabel(prevItem.topic, contentLang)}</span>
+                    <span className={`block mt-1 text-[13px] font-bold truncate ${nt.ink800}`}>{getLabel(prevItem.topic, contentLang)}</span>
                   </button>
                 ) : <div className="hidden sm:block" />}
 
                 {nextItem ? (
                   <button
                     onClick={markDoneAndNext}
-                    className="group text-left sm:text-right p-3.5 rounded-2xl bg-stone-950 text-white hover:bg-stone-800 transition-all shadow-sm"
+                    className={`group text-left sm:text-right p-3.5 rounded-2xl transition-all shadow-sm ${nt.nextCard}`}
                   >
-                    <span className="flex sm:justify-end items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                    <span className={`flex sm:justify-end items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider ${nt.nextLabel}`}>
                       {nextItem.chap.id !== current.chap.id ? "Next chapter" : "Next"}
                       {!completedTopics[current.topic.id] && " · marks this done"}
                       <ArrowRight className="w-3 h-3" />
@@ -724,9 +730,9 @@ export default function FocusReader({
               <div className="h-16" />
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-center text-slate-400 px-6">
+            <div className={`h-full flex items-center justify-center text-center px-6 ${nt.ink400}`}>
               <div>
-                <p className="text-sm font-semibold text-slate-500">No readable topics here yet</p>
+                <p className={`text-sm font-semibold ${nt.ink500}`}>No readable topics here yet</p>
                 <p className="text-xs mt-1">Pick another subject above, or check your plan for locked chapters.</p>
               </div>
             </div>
@@ -746,4 +752,4 @@ export default function FocusReader({
       </div>
     </div>
   );
-}   
+}

@@ -19,7 +19,6 @@ import PlanUpgradeModal from "./components/PlanUpgradeModal";
 import SectionTestBrowser from "./components/SectionTestBrowser"; // NEW: chapter-wise / sectional / mock view
 import { BrandBar, BrandFooter, BrandLoader } from "./components/StudentBrand"; // ANUSHIVA silver branding
 import { ThemeProvider, ThemeScope, useTheme } from "./theme/ThemeProvider"; // central theme system
-import ThemeToggle from "./theme/ThemeToggle"; // Dark / Light switch (lives ONLY on this page)
 
 // ---------------------------------------------------------------------------
 // THEME READINESS SWITCH
@@ -448,10 +447,10 @@ function StudentDashboardInner() {
         <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${t.glow} blur-[120px] rounded-full pointer-events-none transition-opacity duration-500`} />
       )}
 
-      <div className="w-full mx-auto space-y-5 relative z-10">
+      <div className="w-full mx-auto space-y-1 relative z-10">
 
         {/* ANUSHIVA BRAND BAR: always visible (even in notes focus), adapts to dark / cream surfaces */}
-        <BrandBar tone={dashboardFocus === "notes" ? "light" : undefined} />
+        <BrandBar tone={dashboardFocus === "notes" && t.mode === "light" ? "light" : undefined} />
 
         {/* ANIMATED HEADER COLLAPSE: Shrinks down when reading notes to save space */}
         <div className={`transition-all duration-500 ease-in-out transform origin-top overflow-hidden ${
@@ -461,11 +460,6 @@ function StudentDashboardInner() {
 
           {/* DARK / LIGHT SWITCH: sits right under the employee name + logout area (top-right).
               This is the ONLY place in the app with this control; every other page just follows it. */}
-          {DASHBOARD_THEMING_READY && (
-            <div className="mt-2 flex justify-end">
-              <ThemeToggle />
-            </div>
-          )}
         </div>
 
         {/* Workspace Mode Sub-Navigation System */}
@@ -598,7 +592,7 @@ function StudentDashboardInner() {
         )}
 
         {/* ANUSHIVA signature footer */}
-        <BrandFooter tone={dashboardFocus === "notes" ? "light" : undefined} />
+        <BrandFooter tone={dashboardFocus === "notes" && t.mode === "light" ? "light" : undefined} />
       </div>
 
       {/* Subscription Gating Interface Modal */}
