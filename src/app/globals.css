@@ -1,3 +1,4 @@
+/* src\app\globals.css */
 @import "tailwindcss";
 
 :root {
@@ -33,4 +34,244 @@ body {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* ================= Student area: slim scrollbars that follow the theme ================= */
+/* (:not(.no-scrollbar) keeps your existing .no-scrollbar helper working inside the student area) */
+
+/* Dark theme */
+html[data-student-theme="dark"] *:not(.no-scrollbar) {
+  scrollbar-width: thin;                       /* Firefox */
+  scrollbar-color: #334155 transparent;        /* thumb | track */
+}
+html[data-student-theme="dark"] *:not(.no-scrollbar)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-student-theme="dark"] *:not(.no-scrollbar)::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[data-student-theme="dark"] *:not(.no-scrollbar)::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+html[data-student-theme="dark"] *:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+html[data-student-theme="dark"] *::-webkit-scrollbar-button {
+  display: none;                               /* removes the up/down arrow buttons */
+}
+
+/* Light theme (premium violet → sky scrollbar) */
+html[data-student-theme="light"] *:not(.no-scrollbar) {
+  scrollbar-width: thin;
+  scrollbar-color: #b9b4f7 transparent;
+}
+html[data-student-theme="light"] *:not(.no-scrollbar)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-student-theme="light"] *:not(.no-scrollbar)::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[data-student-theme="light"] *:not(.no-scrollbar)::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a5b4fc, #c4b5fd 55%, #7dd3fc);
+  border-radius: 9999px;
+}
+html[data-student-theme="light"] *:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #818cf8, #a78bfa 55%, #38bdf8);
+}
+html[data-student-theme="light"] *::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* ================= Anushiva premium motion (shared) ================= */
+@keyframes anu-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes anu-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(48px, 34px, 0) scale(1.14); }
+}
+@keyframes anu-float-rev {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50%      { transform: translate3d(-44px, -30px, 0) scale(0.95); }
+}
+@keyframes anu-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes anu-gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+@keyframes anu-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+  50%      { box-shadow: 0 0 0 9px rgba(245, 158, 11, 0); }
+}
+
+.anu-rise  { animation: anu-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anu-float { animation: anu-float 16s ease-in-out infinite; }
+.anu-float-rev { animation: anu-float-rev 20s ease-in-out infinite; }
+.anu-pulse { animation: anu-pulse-ring 2.6s ease-in-out infinite; }
+
+.anu-gradient-move {
+  background-size: 200% 200%;
+  animation: anu-gradient 9s ease infinite;
+}
+
+/* ================= Anushiva premium decoration ================= */
+.anu-grid {
+  background-image:
+    linear-gradient(to right, rgba(79, 70, 229, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(79, 70, 229, 0.08) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 30%, transparent 78%);
+}
+html[data-student-theme="dark"] .anu-grid {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+}
+
+@keyframes anu-text-move {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.anu-text-gradient {
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: anu-text-move 7s linear infinite;
+}
+
+@keyframes anu-spin-slow { to { transform: rotate(360deg); } }
+.anu-spin-slow { animation: anu-spin-slow 40s linear infinite; }
+
+
+/* =====================================================================
+   LUX  —  light-theme-only premium styles ("Aurora Pearl")
+   Every class below starts with `lux-` and is used ONLY by the
+   AnushivaLight theme in themes.ts, so the dark theme is untouched.
+   ===================================================================== */
+
+/* ---- Page background: soft pearl + aurora wash (indigo / rose / sky / lilac) ---- */
+.lux-aurora {
+  background-color: #f6f5ff;
+  background-image:
+    radial-gradient(900px 520px at 6% -6%,  rgba(165, 180, 252, 0.60), transparent 62%),
+    radial-gradient(760px 480px at 96% 2%,  rgba(244, 143, 177, 0.24), transparent 62%),
+    radial-gradient(900px 620px at 88% 96%, rgba(125, 211, 252, 0.45), transparent 62%),
+    radial-gradient(760px 520px at 0% 100%, rgba(196, 181, 253, 0.45), transparent 62%),
+    radial-gradient(500px 360px at 50% 45%, rgba(167, 243, 208, 0.18), transparent 70%),
+    linear-gradient(180deg, #f9f8ff 0%, #eef4ff 100%);
+  background-attachment: fixed;
+}
+
+/* ---- Keyframes ---- */
+@keyframes lux-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); filter: blur(6px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes lux-sheen {
+  0%, 55% { transform: translateX(-130%); }
+  100%    { transform: translateX(130%); }
+}
+@keyframes lux-border-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+@keyframes lux-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  33%      { transform: translate3d(54px, 30px, 0) scale(1.12) rotate(6deg); }
+  66%      { transform: translate3d(-24px, 50px, 0) scale(0.96) rotate(-4deg); }
+}
+@keyframes lux-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.28); }
+  50%      { box-shadow: 0 0 0 12px rgba(139, 92, 246, 0); }
+}
+@keyframes lux-text-flow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ---- Entrance (soft blur-in) ---- */
+.lux-rise  { animation: lux-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lux-float { animation: lux-float 22s ease-in-out infinite; }
+.lux-breathe { animation: lux-breathe 3.2s ease-in-out infinite; }
+
+/* ---- Colourful flowing gradient text (optional: add to any heading) ---- */
+.lux-text-gradient {
+  background-image: linear-gradient(90deg, #4f46e5, #7c3aed, #db2777, #0ea5e9, #4f46e5);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: lux-text-flow 8s linear infinite;
+}
+
+/* Components layer: Tailwind utilities (relative / absolute / overflow-*) can still override these */
+@layer components {
+
+  /* Hover lift. Uses the `translate` property so it never fights the entrance animation. */
+  .lux-lift {
+    transition:
+      translate 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.3s ease,
+      background-color 0.3s ease;
+  }
+  .lux-lift:hover { translate: 0 -5px; }
+
+  /* Light streak sweeping across buttons / progress bars */
+  .lux-shine {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .lux-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.6) 50%, transparent 65%);
+    transform: translateX(-130%);
+    animation: lux-sheen 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+
+  /* Animated rainbow hairline border (indigo → rose → sky) drawn with a mask */
+  .lux-border { position: relative; }
+  .lux-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(129, 140, 248, 0.85),
+      rgba(244, 114, 182, 0.45),
+      rgba(56, 189, 248, 0.8),
+      rgba(167, 139, 250, 0.7)
+    );
+    background-size: 240% 240%;
+    animation: lux-border-flow 9s ease infinite;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+    opacity: 0.7;
+    transition: opacity 0.4s ease;
+  }
+  .lux-border:hover::before { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anu-text-gradient, .anu-spin-slow,
+  .lux-text-gradient, .lux-float, .lux-breathe,
+  .lux-shine::after, .lux-border::before { animation: none !important; }
+  .lux-rise { animation: none !important; }
 }

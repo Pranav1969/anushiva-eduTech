@@ -1,7 +1,7 @@
 //src\app\student\deep-analysis\page.tsx
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, animate, useScroll, useSpring } from "framer-motion";
 import {
@@ -17,17 +17,23 @@ import { supabase } from "@/utils/supabase";
 import { useStudentSession } from "@/utils/auth";
 import { getVerdict, resolveTaxonomy, Verdict } from "../components/resultMeta";
 import { BRAND, Wordmark, CardMark, StarMark } from "../components/AnushivaBrand";
+import { useTheme } from "../theme/ThemeProvider";
 
 const UPGRADE_ROUTE = "/student/plans"; // <- change to your pricing / plans page
 
 /* =====================================================================
-   DESIGN TOKENS  -  "Midnight Gold"
-   Navy surfaces, gold reserved for premium moments (badge, hero score, main buttons),
-   muted data colours so mistakes never feel alarming.
+   DESIGN TOKENS  -  "Midnight Gold" (dark)  +  "Aurora Pearl" (light)
+   DARK_PAL is exactly the original palette. LIGHT_PAL keeps the same roles
+   with deeper tones so data stays readable on a pearl background.
+   Palette is delivered through context (usePal) so every component follows
+   the student's chosen theme.
    ===================================================================== */
-const C = {
+const DARK_PAL = {
+  mode: "dark" as "dark" | "light",
+  bg: "#0B1220",
   gold: "#D4AF37",   // premium accent
   champ: "#F1D98B",  // soft gold / champagne
+  goldText: "#F1D98B", // gold used as TEXT colour
   you: "#4DA3FF",    // the student's own data
   top: "#F1D98B",    // topper benchmark
   avg: "#7C6CF2",    // average aspirant
@@ -35,48 +41,141 @@ const C = {
   warn: "#F5A524",   // needs improvement
   bad: "#E5606B",    // weak / wrong (muted coral, never pure red)
   skip: "#5B6785",   // skipped
+  hues: ["#4DA3FF", "#34C38F", "#F5A524", "#7C6CF2", "#E5606B", "#F1D98B"],
+  conf: ["#D4AF37", "#F1D98B", "#4DA3FF", "#34C38F", "#7C6CF2", "#FFFFFF"],
+  // chart chrome
+  axis: "#9AA4BA",
+  grid: "#26314A",
+  cursor: "rgba(255,255,255,0.05)",
+  dotStroke: "#0B1220",
+  lbl: "#C9D3EA",
+  radarLbl: "#B7C3E0",
+  skipTop: "#7A87A6",
+  skipBot: "#3A4560",
+  // donut
+  donutCore1: "#1E2A4A",
+  donutCore2: "#090F1C",
+  track: "#090F1C",
+  ringDash: "rgba(255,255,255,.12)",
+  centerInk: "#F5F6FA",
+  centerSub: "#9AA4BA",
 };
+type Pal = typeof DARK_PAL;
+
+const LIGHT_PAL: Pal = {
+  mode: "light",
+  bg: "#F5F6FF",
+  gold: "#D4AF37",
+  champ: "#F1D98B",
+  goldText: "#9A6F08",
+  you: "#2B7BE4",
+  top: "#B7791F",
+  avg: "#6D5BE0",
+  good: "#12A074",
+  warn: "#E08700",
+  bad: "#DC4A59",
+  skip: "#8B97B4",
+  hues: ["#4DA3FF", "#34C38F", "#F5A524", "#7C6CF2", "#E5606B", "#F1D98B"],
+  conf: ["#D4AF37", "#F1D98B", "#4DA3FF", "#34C38F", "#7C6CF2", "#F472B6"],
+  axis: "#64748B",
+  grid: "#E0E7FF",
+  cursor: "rgba(99,102,241,0.07)",
+  dotStroke: "#FFFFFF",
+  lbl: "#334155",
+  radarLbl: "#475569",
+  skipTop: "#B4BDD3",
+  skipBot: "#7C89A8",
+  donutCore1: "#E0E7FF",
+  donutCore2: "#F5F6FF",
+  track: "#E4E8F8",
+  ringDash: "rgba(99,102,241,.25)",
+  centerInk: "#0F172A",
+  centerSub: "#64748B",
+};
+
+const PalCtx = createContext<Pal>(DARK_PAL);
+const usePal = () => useContext(PalCtx);
+
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]; // shared entrance easing
-const SEC_HUES = ["#4DA3FF", "#34C38F", "#F5A524", "#7C6CF2", "#E5606B", "#F1D98B"];
-const CONF = ["#D4AF37", "#F1D98B", "#4DA3FF", "#34C38F", "#7C6CF2", "#FFFFFF"];
 
 const NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 @property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
 
-/* base + type: Playfair Display for headings, Inter for numbers and text */
+/* base + type: Playfair Display for headings, Inter for numbers and text.
+   Default variables below = DARK theme (original look). Light overrides follow. */
 .da-root{--bg:#0B1220;--panel:#141C2F;--panel2:#1A2440;--well:#090F1C;--line:#26314A;--ink:#F5F6FA;--mute:#9AA4BA;
+  --hair:rgba(255,255,255,.07);--hair2:rgba(255,255,255,.1);--tint:rgba(255,255,255,.04);--tint2:rgba(255,255,255,.05);
+  --bar:rgba(11,18,32,.75);--tip:rgba(9,15,28,.95);--tipShadow:0 20px 50px -10px rgba(0,0,0,.9);
+  --row:rgba(14,21,38,.7);--rowOpen:rgba(26,36,64,.85);--ghost:rgba(255,255,255,.05);
+  --card1:rgba(26,36,64,.78);--card2:rgba(15,22,40,.86);--cardShadow:0 1px 0 rgba(255,255,255,.06) inset,0 30px 60px -32px rgba(0,0,0,.8);--spot:rgba(241,217,139,.07);
+  --i4:inset 0 2px 4px rgba(0,0,0,.6);--i6:inset 0 2px 6px rgba(0,0,0,.7);--i10:inset 0 2px 10px rgba(0,0,0,.7);
+  --wbg:linear-gradient(180deg,#0B1220 0%,#0D1426 100%);
+  --bl1:radial-gradient(circle,rgba(77,99,214,.45),transparent 65%);--bl2:radial-gradient(circle,rgba(212,175,55,.38),transparent 65%);--bl3:radial-gradient(circle,rgba(124,108,242,.3),transparent 65%);
+  --grainO:.045;--lines:rgba(255,255,255,.02);--lines2:rgba(255,255,255,.03);
+  --chkA:#fff;--chkB:#090F1C;--thumb:linear-gradient(#26314A,#3A4A70);
+  --gradGold:linear-gradient(100deg,#F1D98B 0%,#D4AF37 50%,#F1D98B 100%);
+  --gradChalk:linear-gradient(100deg,#FFFFFF 0%,#E6EAF6 45%,#B7C3E0 100%);
+  --sel:rgba(212,175,55,.35);--selInk:#fff;
   font-family:'Inter',system-ui,sans-serif;position:relative;isolation:isolate;overflow-x:clip}
+
+/* LIGHT theme: Aurora Pearl */
+.da-root[data-mode="light"]{--bg:#F5F6FF;--panel:#FFFFFF;--panel2:#F3F1FF;--well:#EEF0FC;--line:#DCE2F5;--ink:#0F172A;--mute:#64748B;
+  --hair:rgba(99,102,241,.14);--hair2:rgba(99,102,241,.24);--tint:rgba(99,102,241,.05);--tint2:rgba(99,102,241,.09);
+  --bar:rgba(255,255,255,.78);--tip:rgba(255,255,255,.97);--tipShadow:0 20px 50px -10px rgba(99,102,241,.35);
+  --row:rgba(255,255,255,.72);--rowOpen:rgba(238,235,255,.95);--ghost:rgba(99,102,241,.09);
+  --card1:rgba(255,255,255,.92);--card2:rgba(246,245,255,.88);--cardShadow:0 1px 0 rgba(255,255,255,.9) inset,0 24px 50px -28px rgba(99,102,241,.38);--spot:rgba(124,108,242,.08);
+  --i4:inset 0 2px 4px rgba(99,102,241,.2);--i6:inset 0 2px 6px rgba(99,102,241,.2);--i10:inset 0 2px 10px rgba(99,102,241,.18);
+  --wbg:linear-gradient(180deg,#F8F7FF 0%,#EEF1FD 100%);
+  --bl1:radial-gradient(circle,rgba(129,140,248,.5),transparent 65%);--bl2:radial-gradient(circle,rgba(245,196,81,.42),transparent 65%);--bl3:radial-gradient(circle,rgba(167,139,250,.38),transparent 65%);
+  --grainO:.02;--lines:rgba(99,102,241,.05);--lines2:rgba(99,102,241,.06);
+  --chkA:#0F172A;--chkB:#fff;--thumb:linear-gradient(#C7D2FE,#A5B4FC);
+  --gradGold:linear-gradient(100deg,#A8780A 0%,#D4A017 50%,#A8780A 100%);
+  --gradChalk:linear-gradient(100deg,#0F172A 0%,#312E81 55%,#4F46E5 100%);
+  --sel:rgba(212,175,55,.35);--selInk:#0F172A}
+
 .da-head{font-family:'Playfair Display',Georgia,serif;letter-spacing:-0.01em}
 .da-num{font-family:'Inter',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
 .da-score{font-family:'Playfair Display',Georgia,serif;font-variant-numeric:lining-nums tabular-nums;font-weight:700;letter-spacing:-0.02em}
 
+/* theme helper classes (replace hard-coded white/navy utilities) */
+.da-hr{border-color:var(--hair)}
+.da-hr2{border-color:var(--hair2)}
+.da-hrh:hover{border-color:var(--hair2)}
+.da-tint{background:var(--tint)}
+.da-tinth:hover{background:var(--tint2)}
+.da-tip{background:var(--tip);box-shadow:var(--tipShadow)}
+.da-row{background:var(--row)}
+.da-ghost{color:var(--ghost)}
+.da-divide>:not(:last-child){border-color:var(--hair)}
+.da-i4{box-shadow:var(--i4)}.da-i6{box-shadow:var(--i6)}.da-i10{box-shadow:var(--i10)}
+
 /* ambient world: quiet navy with a faint gold + indigo glow */
-.da-world{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:linear-gradient(180deg,#0B1220 0%,#0D1426 100%)}
+.da-world{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:var(--wbg)}
 .da-blob{position:absolute;border-radius:50%;filter:blur(110px);will-change:transform}
-.da-b1{width:560px;height:560px;left:-140px;top:-120px;opacity:.5;background:radial-gradient(circle,rgba(77,99,214,.45),transparent 65%);animation:daDrift1 26s ease-in-out infinite alternate}
-.da-b2{width:620px;height:620px;right:-170px;top:-80px;opacity:.38;background:radial-gradient(circle,rgba(212,175,55,.38),transparent 65%);animation:daDrift2 30s ease-in-out infinite alternate}
-.da-b3{width:520px;height:520px;left:35%;bottom:-240px;opacity:.3;background:radial-gradient(circle,rgba(124,108,242,.3),transparent 65%);animation:daDrift3 34s ease-in-out infinite alternate}
-.da-grain{position:absolute;inset:0;opacity:.045;mix-blend-mode:overlay;background-image:${NOISE}}
-.da-lines{position:absolute;inset:0;opacity:.45;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 1px,transparent 1px 96px);mask-image:linear-gradient(180deg,#000,transparent 80%);-webkit-mask-image:linear-gradient(180deg,#000,transparent 80%)}
+.da-b1{width:560px;height:560px;left:-140px;top:-120px;opacity:.5;background:var(--bl1);animation:daDrift1 26s ease-in-out infinite alternate}
+.da-b2{width:620px;height:620px;right:-170px;top:-80px;opacity:.38;background:var(--bl2);animation:daDrift2 30s ease-in-out infinite alternate}
+.da-b3{width:520px;height:520px;left:35%;bottom:-240px;opacity:.3;background:var(--bl3);animation:daDrift3 34s ease-in-out infinite alternate}
+.da-grain{position:absolute;inset:0;opacity:var(--grainO);mix-blend-mode:overlay;background-image:${NOISE}}
+.da-lines{position:absolute;inset:0;opacity:.45;background-image:repeating-linear-gradient(90deg,var(--lines) 0 1px,transparent 1px 96px);mask-image:linear-gradient(180deg,#000,transparent 80%);-webkit-mask-image:linear-gradient(180deg,#000,transparent 80%)}
 @keyframes daDrift1{to{transform:translate(160px,120px) scale(1.12)}}
 @keyframes daDrift2{to{transform:translate(-140px,160px) scale(1.08)}}
 @keyframes daDrift3{to{transform:translate(-200px,-90px) scale(1.15)}}
 
 /* glass card: thin border, soft shadow, slow gold edge-light, cursor spotlight */
-.da-card{position:relative;background:linear-gradient(160deg,rgba(26,36,64,.78) 0%,rgba(15,22,40,.86) 100%);backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%);
-  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 30px 60px -32px rgba(0,0,0,.8)}
+.da-card{position:relative;background:linear-gradient(160deg,var(--card1) 0%,var(--card2) 100%);backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%);
+  box-shadow:var(--cardShadow)}
 .da-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
   background:conic-gradient(from var(--ang),transparent 0 66%,rgba(212,175,55,.75) 80%,rgba(241,217,139,.5) 90%,transparent 100%);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:daSpin 10s linear infinite;opacity:.4}
-.da-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s ease;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(241,217,139,.07),transparent 60%)}
+.da-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s ease;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),var(--spot),transparent 60%)}
 .da-card:hover::after{opacity:1}
 @keyframes daSpin{to{--ang:360deg}}
 
 /* living type */
-.da-grad{background:linear-gradient(100deg,#F1D98B 0%,#D4AF37 50%,#F1D98B 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 7s ease-in-out infinite alternate}
-.da-grad-chalk{background:linear-gradient(100deg,#FFFFFF 0%,#E6EAF6 45%,#B7C3E0 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 8s ease-in-out infinite alternate}
+.da-grad{background-image:var(--gradGold);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 7s ease-in-out infinite alternate}
+.da-grad-chalk{background-image:var(--gradChalk);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:daSheen 8s ease-in-out infinite alternate}
 @keyframes daSheen{to{background-position:100% 0}}
 
 /* bars, lights, pulses */
@@ -96,7 +195,7 @@ const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair
 @keyframes daConf{0%{transform:translateY(0) rotate(0);opacity:0}10%{opacity:1}100%{transform:translateY(190px) rotate(540deg);opacity:0}}
 .da-crown{animation:daWobble 3.5s ease-in-out infinite;transform-origin:50% 90%}
 @keyframes daWobble{0%,100%{transform:rotate(-6deg) scale(1)}50%{transform:rotate(6deg) scale(1.08)}}
-.da-chk{background-image:conic-gradient(#fff 25%,#090F1C 0 50%,#fff 0 75%,#090F1C 0);background-size:8px 8px;opacity:.8}
+.da-chk{background-image:conic-gradient(var(--chkA) 25%,var(--chkB) 0 50%,var(--chkA) 0 75%,var(--chkB) 0);background-size:8px 8px;opacity:.8}
 
 /* interactive */
 .da-tile{transition:transform .25s cubic-bezier(.2,.8,.2,1),border-color .25s ease,box-shadow .25s ease}
@@ -107,9 +206,10 @@ const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Playfair
 .da-chip{transition:all .2s ease}
 .da-chip:hover{transform:translateY(-1px)}
 .da-seg{transition:filter .15s ease,transform .15s ease}.da-seg:hover{filter:brightness(1.2) drop-shadow(0 0 8px currentColor);z-index:5;transform:scaleY(1.12)}
-.da-scroll::-webkit-scrollbar{width:6px;height:6px}.da-scroll::-webkit-scrollbar-thumb{background:linear-gradient(#26314A,#3A4A70);border-radius:6px}
+.da-scroll::-webkit-scrollbar{width:6px;height:6px}.da-scroll::-webkit-scrollbar-thumb{background:var(--thumb);border-radius:6px}
 .da-medal{background:linear-gradient(110deg,#F1D98B,#D4AF37,#F1D98B);background-size:200% 100%;animation:daSheen 3s ease-in-out infinite alternate}
-::selection{background:rgba(212,175,55,.35);color:#fff}
+::selection{background:var(--sel,rgba(212,175,55,.35));color:#fff}
+.da-root[data-mode="light"] ::selection{color:var(--selInk)}
 button:focus-visible,a:focus-visible{outline:2px solid #D4AF37;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.da-root *,.da-root *::before,.da-root *::after{animation:none!important;transition:none!important}}`;
 
@@ -127,7 +227,7 @@ const median = (a: number[]) => {
   const m = Math.floor(b.length / 2);
   return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
 };
-const verdictColor = (v?: Verdict) => (v === "correct" ? C.good : v === "wrong" ? C.bad : C.skip);
+const verdictColor = (C: Pal, v?: Verdict) => (v === "correct" ? C.good : v === "wrong" ? C.bad : C.skip);
 const tickStep = (span: number) => [30, 60, 120, 300, 600, 900].find((s) => span / s <= 10) || 900;
 
 interface Insight { tone: "warn" | "tip" | "good"; msg: string }
@@ -203,6 +303,7 @@ function CountUp({ value, format }: { value: number; format: (n: number) => stri
 function Card({ id, title, note, children, className = "", brand = false, footer }: {
   id?: string; title?: string; note?: string; children: React.ReactNode; className?: string; brand?: boolean; footer?: React.ReactNode;
 }) {
+  const C = usePal();
   const onMove = (e: React.MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
@@ -211,7 +312,7 @@ function Card({ id, title, note, children, className = "", brand = false, footer
   return (
     <motion.section id={id} onMouseMove={onMove}
       initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.7, ease: EASE }}
-      className={`da-card scroll-mt-20 overflow-hidden rounded-3xl border border-white/[0.06] p-5 md:p-8 ${className}`}>
+      className={`da-card scroll-mt-20 overflow-hidden rounded-3xl border da-hr p-5 md:p-8 ${className}`}>
       <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(241,217,139,.65), transparent)" }} />
       {title && (
         <header className="relative mb-6 flex items-start gap-3">
@@ -230,13 +331,14 @@ function Card({ id, title, note, children, className = "", brand = false, footer
 }
 
 function TopperBanner({ cohort, name, joint }: { cohort: number; name?: string; joint?: boolean }) {
+  const C = usePal();
   return (
     <motion.div initial={{ opacity: 0, y: -16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, ease: EASE }}
       className="relative overflow-hidden rounded-2xl border p-5 md:p-6"
       style={{ borderColor: "rgba(212,175,55,.5)", background: "linear-gradient(110deg, rgba(212,175,55,.18), rgba(241,217,139,.07) 50%, rgba(77,163,255,.08))", boxShadow: "0 0 60px -18px rgba(212,175,55,.5), inset 0 1px 0 rgba(255,255,255,.1)" }}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {Array.from({ length: 26 }).map((_, i) => (
-          <span key={i} className="da-conf" style={{ left: `${(i * 37) % 100}%`, background: CONF[i % CONF.length], animationDelay: `${(i % 9) * 0.35}s`, animationDuration: `${2.6 + (i % 5) * 0.4}s` }} />
+          <span key={i} className="da-conf" style={{ left: `${(i * 37) % 100}%`, background: C.conf[i % C.conf.length], animationDelay: `${(i % 9) * 0.35}s`, animationDuration: `${2.6 + (i % 5) * 0.4}s` }} />
         ))}
       </div>
       <div className="relative flex items-center gap-4">
@@ -266,17 +368,18 @@ function Legend({ items }: { items: { c: string; l: string; dashed?: boolean }[]
 }
 
 function ChartTip({ active, payload }: any) {
+  const C = usePal();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const delta = d.top != null ? d.you - d.top : null;
   return (
-    <div className="min-w-[180px] rounded-2xl border border-white/10 bg-[#090F1C]/95 p-3.5 text-xs shadow-[0_20px_50px_-10px_rgba(0,0,0,.9)] backdrop-blur-xl">
+    <div className="da-tip min-w-[180px] rounded-2xl border da-hr2 p-3.5 text-xs backdrop-blur-xl">
       <p className="da-head mb-1.5 text-sm font-bold text-[var(--ink)]">{d.name} <span className="ml-1 text-[11px] font-medium text-[var(--mute)]">{d.verdictLabel}</span></p>
       <p className="flex justify-between gap-4" style={{ color: C.you }}><span>You</span><span className="da-num font-bold">{secs(d.you)}</span></p>
       {d.top != null && <p className="flex justify-between gap-4" style={{ color: C.top }}><span>Topper</span><span className="da-num font-bold">{secs(d.top)}</span></p>}
       {d.avg != null && <p className="flex justify-between gap-4" style={{ color: C.avg }}><span>Average</span><span className="da-num font-bold">{secs(d.avg)}</span></p>}
       {delta != null && (
-        <p className="mt-1.5 border-t border-white/10 pt-1.5 font-semibold" style={{ color: delta > 0 ? C.bad : C.good }}>
+        <p className="mt-1.5 border-t da-hr2 pt-1.5 font-semibold" style={{ color: delta > 0 ? C.bad : C.good }}>
           {delta > 0 ? `${secs(delta)} slower than topper` : `${secs(-delta)} faster than topper`}
         </p>
       )}
@@ -285,6 +388,7 @@ function ChartTip({ active, payload }: any) {
 }
 
 function Donut({ parts, center, sub }: { parts: { v: number; c: string }[]; center: string; sub: string }) {
+  const C = usePal();
   const r = 72, circ = 2 * Math.PI * r;
   const total = parts.reduce((a, p) => a + p.v, 0) || 1;
   let acc = 0;
@@ -292,11 +396,11 @@ function Donut({ parts, center, sub }: { parts: { v: number; c: string }[]; cent
     <svg viewBox="0 0 200 200" className="h-full w-full overflow-visible">
       <defs>
         <filter id="dGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-        <radialGradient id="dCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#1E2A4A" stopOpacity=".9" /><stop offset="100%" stopColor="#090F1C" stopOpacity="0" /></radialGradient>
+        <radialGradient id="dCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor={C.donutCore1} stopOpacity=".9" /><stop offset="100%" stopColor={C.donutCore2} stopOpacity="0" /></radialGradient>
       </defs>
-      <g className="da-ring"><circle cx="100" cy="100" r="94" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="1" strokeDasharray="2 7" /></g>
+      <g className="da-ring"><circle cx="100" cy="100" r="94" fill="none" stroke={C.ringDash} strokeWidth="1" strokeDasharray="2 7" /></g>
       <circle cx="100" cy="100" r="58" fill="url(#dCore)" />
-      <circle cx="100" cy="100" r={r} fill="none" stroke="#090F1C" strokeWidth="20" />
+      <circle cx="100" cy="100" r={r} fill="none" stroke={C.track} strokeWidth="20" />
       {parts.map((p, i) => {
         const len = (p.v / total) * circ;
         const el = (
@@ -308,16 +412,17 @@ function Donut({ parts, center, sub }: { parts: { v: number; c: string }[]; cent
         acc += len;
         return el;
       })}
-      <text x="100" y="98" textAnchor="middle" fill="#F5F6FA" fontSize="30" fontWeight="700" fontFamily="'Playfair Display',Georgia,serif">{center}</text>
-      <text x="100" y="118" textAnchor="middle" fill="#9AA4BA" fontSize="11">{sub}</text>
+      <text x="100" y="98" textAnchor="middle" fill={C.centerInk} fontSize="30" fontWeight="700" fontFamily="'Playfair Display',Georgia,serif">{center}</text>
+      <text x="100" y="118" textAnchor="middle" fill={C.centerSub} fontSize="11">{sub}</text>
     </svg>
   );
 }
 
 function PercentileTrack({ pct }: { pct: number | null }) {
+  const C = usePal();
   const col = (pct ?? 0) >= 60 ? C.good : (pct ?? 0) >= 35 ? C.warn : C.bad;
   return (
-    <div className="relative h-3 rounded-full bg-[var(--well)] shadow-[inset_0_2px_4px_rgba(0,0,0,.6)]">
+    <div className="da-i4 relative h-3 rounded-full bg-[var(--well)]">
       <div className="absolute inset-0 flex overflow-hidden rounded-full opacity-30">
         <div style={{ width: "35%", background: C.bad }} /><div style={{ width: "25%", background: C.warn }} /><div style={{ width: "40%", background: C.good }} />
       </div>
@@ -325,8 +430,8 @@ function PercentileTrack({ pct }: { pct: number | null }) {
         <>
           <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.1, ease: EASE }} className="da-shimmer absolute left-0 top-0 h-full rounded-full" style={{ background: `linear-gradient(90deg, ${col}33, ${col})`, boxShadow: `0 0 14px ${col}55` }} />
           <motion.span initial={{ left: 0 }} animate={{ left: `${pct}%` }} transition={{ duration: 1.1, ease: EASE }}
-            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#0B1220]"
-            style={{ background: col, boxShadow: `0 0 16px ${col}` }} />
+            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]"
+            style={{ background: col, boxShadow: `0 0 16px ${col}`, borderColor: C.bg }} />
         </>
       )}
     </div>
@@ -341,7 +446,7 @@ function ReportFooter({ student, test, reportId, verified }: { student?: string 
   chips.push(`Report ${reportId}`);
   chips.push(date);
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090F1C]/60 px-5 py-6 md:px-8 md:py-7">
+    <div className="relative overflow-hidden rounded-2xl border da-hr bg-[var(--well)]/60 px-5 py-6 md:px-8 md:py-7">
       <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(241,217,139,.5), transparent)" }} />
       <div aria-hidden className="pointer-events-none absolute -left-10 top-1/2 h-40 w-40 -translate-y-1/2 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(212,175,55,.16), transparent 70%)" }} />
       <div className="relative flex flex-col items-center gap-6 text-center md:flex-row md:gap-8 md:text-left">
@@ -369,7 +474,7 @@ function ReportFooter({ student, test, reportId, verified }: { student?: string 
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1 md:justify-start">
             {chips.map((c) => (
-              <span key={c} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-[var(--mute)]">{c}</span>
+              <span key={c} className="da-hr2 da-tint rounded-full border px-3 py-1 text-[11px] font-medium text-[var(--mute)]">{c}</span>
             ))}
           </div>
         </div>
@@ -380,17 +485,18 @@ function ReportFooter({ student, test, reportId, verified }: { student?: string 
 
 /* ---------- race lanes (the topper's path) ---------- */
 function Lane({ label, segs, span, meta, you }: { label: string; segs: Seg[]; span: number; meta: MetaMap; you?: boolean }) {
+  const C = usePal();
   return (
     <div className="flex items-center gap-3">
       <div className="da-head w-16 shrink-0 text-sm font-bold" style={{ color: you ? C.you : C.top }}>{label}</div>
-      <div className="relative h-14 flex-1 rounded-xl border border-white/[0.07] bg-[var(--well)] shadow-[inset_0_2px_10px_rgba(0,0,0,.7)]">
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 8px, transparent 8px 18px)" }} />
+      <div className="da-i10 relative h-14 flex-1 rounded-xl border da-hr bg-[var(--well)]">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, var(--hair2) 0 8px, transparent 8px 18px)" }} />
         {segs.map(([id, s, e], i) => {
           const m = meta.get(id);
           if (!m) return null;
           const w = Math.max(((e - s) / span) * 100, 0.4);
-          const hue = SEC_HUES[m.sec % SEC_HUES.length];
-          const vcol = verdictColor(m.verdict);
+          const hue = C.hues[m.sec % C.hues.length];
+          const vcol = verdictColor(C, m.verdict);
           return (
             <motion.div key={i} title={`${m.section} Q${m.no} · ${fmt(s)}–${fmt(e)} (${secs(e - s)})`}
               initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.15 + (s / span) * 1.2, duration: 0.45, ease: "easeOut" }}
@@ -413,7 +519,7 @@ function TimeAxis({ span }: { span: number }) {
   return (
     <>
       <div aria-hidden className="pointer-events-none absolute bottom-6 left-[76px] right-0 top-0">
-        {ticks.map((t) => <div key={t} className="absolute top-0 h-full w-px bg-white/[0.06]" style={{ left: `${(t / span) * 100}%` }} />)}
+        {ticks.map((t) => <div key={t} className="absolute top-0 h-full w-px" style={{ left: `${(t / span) * 100}%`, background: "var(--hair)" }} />)}
       </div>
       <div className="relative ml-[76px] mt-2 h-4 text-[11px] text-[var(--mute)]">
         {ticks.map((t) => <span key={t} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(t / span) * 100}%` }}>{fmt(t)}</span>)}
@@ -424,14 +530,15 @@ function TimeAxis({ span }: { span: number }) {
 
 /* ---------- locked (non premium) view ---------- */
 function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () => void }) {
+  const C = usePal();
   return (
-    <div className="da-root relative min-h-screen p-6 text-[var(--ink)]">
+    <div data-mode={C.mode} className="da-root relative min-h-screen p-6 text-[var(--ink)]">
       <style>{FONT_CSS}</style><World />
       <button onClick={onBack} className="mb-6 flex items-center gap-2 text-sm text-[var(--mute)] hover:text-[var(--ink)]"><ArrowLeft size={14} /> Back to results</button>
       <div className="relative mx-auto max-w-4xl">
         <div aria-hidden className="pointer-events-none select-none space-y-4 opacity-70 blur-[7px]">
           <div className="da-card flex items-center justify-between rounded-3xl p-6">
-            <div className="da-score text-6xl" style={{ color: C.champ }}>41:12 <span className="text-[var(--mute)]">vs</span> 33:40</div>
+            <div className="da-score text-6xl" style={{ color: C.goldText }}>41:12 <span className="text-[var(--mute)]">vs</span> 33:40</div>
             <div className="h-28 w-28 rounded-full border-[14px]" style={{ borderColor: `${C.good} ${C.bad} ${C.skip} ${C.good}` }} />
           </div>
           <div className="da-card flex h-56 items-end gap-2 rounded-3xl p-6">
@@ -440,9 +547,9 @@ function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () =
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
           <motion.div initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}
-            className="da-card max-w-md rounded-3xl border border-white/10 bg-[#090F1C]/90 p-8 text-center shadow-2xl">
+            className="da-card da-tip max-w-md rounded-3xl border da-hr2 p-8 text-center shadow-2xl">
             <div className="da-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "rgba(212,175,55,.1)", boxShadow: `0 0 36px ${C.gold}44, inset 0 0 0 1px ${C.gold}55` }}>
-              <Lock style={{ color: C.gold }} />
+              <Lock style={{ color: C.goldText }} />
             </div>
             <h1 className="da-head da-grad text-3xl font-bold">See where your time leaks</h1>
             <p className="mt-3 text-sm leading-relaxed text-[var(--mute)]">
@@ -462,6 +569,7 @@ function LockedView({ onBack, onUpgrade }: { onBack: () => void; onUpgrade: () =
    PAGE
    ===================================================================== */
 function DeepAnalysisCore() {
+  const C = usePal();
   const router = useRouter();
   const params = useSearchParams();
   const testId = params.get("id");
@@ -667,7 +775,7 @@ function DeepAnalysisCore() {
   // ---------- early states ----------
   if (loading || sessionLoading) {
     return (
-      <div className="da-root flex min-h-screen flex-col items-center justify-center gap-5 text-[var(--mute)]">
+      <div data-mode={C.mode} className="da-root flex min-h-screen flex-col items-center justify-center gap-5 text-[var(--mute)]">
         <style>{FONT_CSS}</style><World />
         <div className="relative h-16 w-16">
           <motion.span className="absolute inset-0 rounded-full border-2 border-transparent" style={{ borderTopColor: C.gold, borderRightColor: C.champ }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: "linear" }} />
@@ -679,13 +787,13 @@ function DeepAnalysisCore() {
     );
   }
   if (err) {
-    return <div className="da-root flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center text-[var(--ink)]"><style>{FONT_CSS}</style><World /><p>{err}</p><button onClick={() => router.back()} className="da-chip rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Go back</button></div>;
+    return <div data-mode={C.mode} className="da-root flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center text-[var(--ink)]"><style>{FONT_CSS}</style><World /><p>{err}</p><button onClick={() => router.back()} className="da-chip rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Go back</button></div>;
   }
   if (bench && bench.allowed === false) {
     return <LockedView onBack={() => router.back()} onUpgrade={() => router.push(UPGRADE_ROUTE)} />;
   }
   if (!attempt) {
-    return <div className="da-root flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center text-[var(--ink)]"><style>{FONT_CSS}</style><World /><p>Submit this test first to unlock its deep analysis.</p><button onClick={() => router.back()} className="da-chip rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Go back</button></div>;
+    return <div data-mode={C.mode} className="da-root flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center text-[var(--ink)]"><style>{FONT_CSS}</style><World /><p>Submit this test first to unlock its deep analysis.</p><button onClick={() => router.back()} className="da-chip rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Go back</button></div>;
   }
 
   // ---------- flags for the render ----------
@@ -702,31 +810,31 @@ function DeepAnalysisCore() {
   ].filter(Boolean) as [string, string][];
 
   return (
-    <div className="da-root min-h-screen pb-24 text-[var(--ink)]">
+    <div data-mode={C.mode} className="da-root min-h-screen pb-24 text-[var(--ink)]">
       <style>{FONT_CSS}</style>
       <World />
 
       {/* sticky bar: back, brand, section jump, premium badge */}
-      <div className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#0B1220]/75 backdrop-blur-xl">
+      <div className="sticky top-0 z-30 border-b da-hr backdrop-blur-xl" style={{ background: "var(--bar)" }}>
         <motion.div aria-hidden style={{ scaleX: progress, background: `linear-gradient(90deg, ${C.you}, ${C.champ}, ${C.gold})`, boxShadow: `0 0 10px ${C.gold}88` }} className="absolute inset-x-0 bottom-[-1px] h-[2px] origin-left" />
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 md:px-6">
-          <button onClick={() => router.back()} className="da-chip flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-[var(--mute)] hover:text-[var(--ink)]"><ArrowLeft size={14} /> Results</button>
+          <button onClick={() => router.back()} className="da-chip da-hr2 da-tint flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm text-[var(--mute)] hover:text-[var(--ink)]"><ArrowLeft size={14} /> Results</button>
           <Wordmark className="hidden md:inline-flex" />
           <nav className="da-scroll flex flex-1 gap-1.5 overflow-x-auto">
             {navItems.map(([id, l]) => (
-              <button key={id} onClick={() => jump(id)} className="da-chip shrink-0 rounded-full border border-transparent px-3.5 py-1.5 text-xs font-semibold text-[var(--mute)] hover:border-white/10 hover:bg-white/[0.05] hover:text-[var(--ink)]"
-                style={activeNav === id ? { color: C.champ, background: "rgba(212,175,55,.1)", borderColor: "rgba(212,175,55,.35)" } : undefined}>{l}</button>
+              <button key={id} onClick={() => jump(id)} className="da-chip da-hrh da-tinth shrink-0 rounded-full border border-transparent px-3.5 py-1.5 text-xs font-semibold text-[var(--mute)] hover:text-[var(--ink)]"
+                style={activeNav === id ? { color: C.goldText, background: "rgba(212,175,55,.1)", borderColor: "rgba(212,175,55,.35)" } : undefined}>{l}</button>
             ))}
           </nav>
-          <span className="da-shimmer hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold sm:flex" style={{ color: C.champ, borderColor: "rgba(212,175,55,.4)", background: "rgba(212,175,55,.08)" }}><Crown size={12} /> Premium</span>
+          <span className="da-shimmer hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold sm:flex" style={{ color: C.goldText, borderColor: "rgba(212,175,55,.4)", background: "rgba(212,175,55,.08)" }}><Crown size={12} /> Premium</span>
         </div>
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 pt-6 md:px-6">
         {/* ===================== HERO ===================== */}
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.9, ease: EASE }}
-          className="da-card relative overflow-hidden rounded-[2rem] border border-white/[0.07] p-6 md:p-10">
-          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 72px)", maskImage: "linear-gradient(180deg,#000,transparent 85%)", WebkitMaskImage: "linear-gradient(180deg,#000,transparent 85%)" }} />
+          className="da-card relative overflow-hidden rounded-[2rem] border da-hr p-6 md:p-10">
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, var(--lines2) 0 2px, transparent 2px 72px)", maskImage: "linear-gradient(180deg,#000,transparent 85%)", WebkitMaskImage: "linear-gradient(180deg,#000,transparent 85%)" }} />
           <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(212,175,55,.22), transparent 65%)" }} />
           <div className="relative mb-5"><Wordmark large /></div>
           {isTopper && <div className="relative mb-6"><TopperBanner cohort={Number(bench?.cohort_size)} name={studentName} joint={jointTopper} /></div>}
@@ -735,7 +843,7 @@ function DeepAnalysisCore() {
             <span className="font-semibold text-[var(--ink)]">{test?.test_name}</span>
             {isTopper
               ? <span className="da-medal inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-extrabold text-[#0B1220]"><Trophy size={12} /> Rank {bench?.my_rank} of {bench?.cohort_size}</span>
-              : <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-0.5 text-xs">rank {bench?.my_rank} of {bench?.cohort_size}</span>}
+              : <span className="da-hr2 da-tint rounded-full border px-3 py-0.5 text-xs">rank {bench?.my_rank} of {bench?.cohort_size}</span>}
           </p>
 
           <div className="relative mt-5 grid items-center gap-10 lg:grid-cols-[1.5fr_1fr]">
@@ -757,13 +865,13 @@ function DeepAnalysisCore() {
                     {!hasTopper && " Topper benchmarks appear once at least 3 clean attempts exist for this test."}
                   </p>
                   {/* the race: total time you vs topper */}
-                  <div className="relative mt-8 space-y-4 rounded-2xl border border-white/[0.06] bg-[var(--well)]/60 p-4 pr-5">
+                  <div className="relative mt-8 space-y-4 rounded-2xl border da-hr bg-[var(--well)]/60 p-4 pr-5">
                     <span aria-hidden className="da-chk absolute bottom-3 right-2 top-3 w-2 rounded-sm" />
                     {[{ l: "You", v: agg.you, c: C.you }, ...(agg.topTotal ? [{ l: isTopper ? "Best" : "Topper", v: agg.topTotal, c: C.top }] : [])].map((t, i) => (
                       <div key={t.l} className="flex items-center gap-3">
                         <span className="da-head w-14 text-sm font-bold" style={{ color: t.c }}>{t.l}</span>
-                        <div className="relative mr-3 h-6 flex-1 rounded-full bg-[var(--well)] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
-                          <div aria-hidden className="absolute inset-x-2 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 6px, transparent 6px 14px)" }} />
+                        <div className="da-i6 relative mr-3 h-6 flex-1 rounded-full bg-[var(--well)]">
+                          <div aria-hidden className="absolute inset-x-2 top-1/2 h-px" style={{ background: "repeating-linear-gradient(90deg, var(--hair2) 0 6px, transparent 6px 14px)" }} />
                           <motion.div initial={{ width: 0 }} animate={{ width: `${(t.v / trackMax) * 100}%` }} transition={{ duration: 1.4, delay: 0.3 + i * 0.2, ease: EASE }}
                             className="da-shimmer relative h-full rounded-full" style={{ color: t.c, background: `linear-gradient(90deg, ${t.c}22, ${t.c})`, boxShadow: `0 0 22px ${t.c}55` }}>
                             <span className="da-head-dot" style={{ boxShadow: `0 0 12px ${t.c}` }} />
@@ -804,7 +912,7 @@ function DeepAnalysisCore() {
                   ? { icon: Gauge, k: isTopper ? (lead > 0 ? "Behind best pace by" : "Ahead of best pace by") : lead > 0 ? "Behind topper by" : "Ahead of topper by", n: Math.abs(lead), f: fmt, s: "total time", c: lead <= 0 ? C.good : C.you }
                   : { icon: Gauge, k: "Avg per question", n: agg.you / Math.max(rows.length, 1), f: secs, s: "total time", c: C.you },
               ].map((t) => (
-                <div key={t.k} className="da-tile relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4">
+                <div key={t.k} className="da-tile da-hr relative overflow-hidden rounded-2xl border bg-[var(--well)]/60 p-4">
                   <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: t.c }} />
                   <span aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl" style={{ background: `${t.c}26` }} />
                   <span className="relative flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${t.c}1F`, boxShadow: `inset 0 0 0 1px ${t.c}44` }}><t.icon size={15} style={{ color: t.c }} /></span>
@@ -825,9 +933,9 @@ function DeepAnalysisCore() {
         <div className="grid gap-4 md:grid-cols-3">
           {moves.map((m, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 + i * 0.12, duration: 0.7, ease: EASE }}
-              className="da-card da-tile group relative overflow-hidden rounded-3xl border border-white/[0.07] p-6">
-              <span aria-hidden className="da-score absolute right-4 top-2 text-7xl text-white/[0.05] transition-transform duration-500 group-hover:scale-110">{i + 1}</span>
-              <div className="relative flex items-center gap-2 text-xs font-bold" style={{ color: C.champ }}><span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(212,175,55,.12)" }}><Target size={13} /></span> Do this next</div>
+              className="da-card da-tile da-hr group relative overflow-hidden rounded-3xl border p-6">
+              <span aria-hidden className="da-score da-ghost absolute right-4 top-2 text-7xl transition-transform duration-500 group-hover:scale-110">{i + 1}</span>
+              <div className="relative flex items-center gap-2 text-xs font-bold" style={{ color: C.goldText }}><span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(212,175,55,.12)" }}><Target size={13} /></span> Do this next</div>
               <h3 className="da-head relative mt-3 text-xl font-bold">{m.title}</h3>
               <p className="relative mt-1.5 text-sm leading-relaxed text-[var(--mute)]">{m.body}</p>
             </motion.div>
@@ -842,7 +950,7 @@ function DeepAnalysisCore() {
                 <div className="flex flex-wrap gap-1.5">
                   {sections.map((s, i) => (
                     <button key={s} onClick={() => setSecIdx(i)} className="da-chip rounded-full border px-3.5 py-1.5 text-xs font-bold"
-                      style={i === secIdx ? { background: SEC_HUES[i % SEC_HUES.length], color: "#0B1220", borderColor: "transparent", boxShadow: `0 8px 22px -8px ${SEC_HUES[i % SEC_HUES.length]}99` } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>
+                      style={i === secIdx ? { background: C.hues[i % C.hues.length], color: "#0B1220", borderColor: "transparent", boxShadow: `0 8px 22px -8px ${C.hues[i % C.hues.length]}99` } : { borderColor: "var(--hair2)", color: "var(--mute)" }}>
                       {s}
                     </button>
                   ))}
@@ -851,26 +959,26 @@ function DeepAnalysisCore() {
                   {([["Correct", C.good], ["Wrong", C.bad], ["Skipped", C.skip]] as const).map(([l, c]) => <span key={l} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} />{l}</span>)}
                 </div>
               </div>
-              <div className="h-[360px] w-full rounded-2xl border border-white/[0.05] bg-[var(--well)]/50 p-2">
+              <div className="h-[360px] w-full rounded-2xl border da-hr bg-[var(--well)]/50 p-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 10, right: 8, bottom: 0, left: -18 }}>
                     <defs>
                       <linearGradient id="gGood" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6EE0B4" /><stop offset="100%" stopColor="#1F9D70" /></linearGradient>
                       <linearGradient id="gBad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F08A93" /><stop offset="100%" stopColor="#B93E49" /></linearGradient>
-                      <linearGradient id="gSkip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7A87A6" /><stop offset="100%" stopColor="#3A4560" /></linearGradient>
-                      <linearGradient id="gAvg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7C6CF2" stopOpacity={0.35} /><stop offset="100%" stopColor="#7C6CF2" stopOpacity={0} /></linearGradient>
+                      <linearGradient id="gSkip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.skipTop} /><stop offset="100%" stopColor={C.skipBot} /></linearGradient>
+                      <linearGradient id="gAvg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.avg} stopOpacity={0.35} /><stop offset="100%" stopColor={C.avg} stopOpacity={0} /></linearGradient>
                       <filter id="lineGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                     </defs>
-                    <CartesianGrid stroke="#26314A" strokeDasharray="2 6" vertical={false} />
-                    <XAxis dataKey="name" stroke="#9AA4BA" fontSize={11} tickLine={false} axisLine={{ stroke: "#26314A" }} />
-                    <YAxis stroke="#9AA4BA" fontSize={11} tickLine={false} axisLine={false} unit="s" />
-                    <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+                    <CartesianGrid stroke={C.grid} strokeDasharray="2 6" vertical={false} />
+                    <XAxis dataKey="name" stroke={C.axis} fontSize={11} tickLine={false} axisLine={{ stroke: C.grid }} />
+                    <YAxis stroke={C.axis} fontSize={11} tickLine={false} axisLine={false} unit="s" />
+                    <Tooltip content={<ChartTip />} cursor={{ fill: C.cursor }} />
                     <Area type="monotone" dataKey="avg" stroke={C.avg} strokeWidth={1.6} strokeDasharray="5 4" fill="url(#gAvg)" dot={false} connectNulls animationDuration={1400} />
                     <Bar dataKey="you" radius={[7, 7, 0, 0]} maxBarSize={30} animationDuration={1100}>
                       {chartData.map((d, i) => <Cell key={i} fill={d.verdict === "correct" ? "url(#gGood)" : d.verdict === "wrong" ? "url(#gBad)" : "url(#gSkip)"} />)}
                     </Bar>
                     <Line type="monotone" dataKey="top" stroke={C.top} strokeWidth={2.4} connectNulls filter="url(#lineGlow)" animationDuration={1800}
-                      dot={{ r: 4.5, fill: C.top, stroke: "#0B1220", strokeWidth: 2 }} activeDot={{ r: 7, fill: "#fff", stroke: C.top, strokeWidth: 3 }} />
+                      dot={{ r: 4.5, fill: C.top, stroke: C.dotStroke, strokeWidth: 2 }} activeDot={{ r: 7, fill: "#fff", stroke: C.top, strokeWidth: 3 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -901,11 +1009,11 @@ function DeepAnalysisCore() {
                     <TimeAxis span={span} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--mute)]">
-                    {sections.map((s, i) => <span key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SEC_HUES[i % SEC_HUES.length] }} />{s}</span>)}
+                    {sections.map((s, i) => <span key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: C.hues[i % C.hues.length] }} />{s}</span>)}
                   </div>
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
                     {[{ n: "Topper", p: topPath, c: C.top }, { n: "You", p: youPath, c: C.you }].map(({ n, p, c }) => (
-                      <div key={n} className="da-tile rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4 text-sm leading-relaxed">
+                      <div key={n} className="da-tile da-hr rounded-2xl border bg-[var(--well)]/60 p-4 text-sm leading-relaxed">
                         <div className="da-head mb-1 font-bold" style={{ color: c }}>{n}</div>
                         {p.order.length ? (
                           <p className="text-[var(--mute)]">
@@ -927,7 +1035,7 @@ function DeepAnalysisCore() {
                 {agg.egoTraps.length ? (
                   <ul className="space-y-2">
                     {agg.egoTraps.slice(0, 8).map((r) => (
-                      <li key={r.id} className="da-tile rounded-xl border border-white/[0.07] bg-[var(--well)]/60 px-3.5 py-3 text-sm">
+                      <li key={r.id} className="da-tile da-hr rounded-xl border bg-[var(--well)]/60 px-3.5 py-3 text-sm">
                         <div className="flex items-center justify-between gap-3">
                           <span className="truncate">{r.section} · Q{r.no}</span>
                           <span className="da-num shrink-0 font-bold" style={{ color: C.bad }}>{fmt(r.you)}{r.top ? <span className="ml-1 text-xs font-medium text-[var(--mute)]">vs {secs(r.top)}</span> : null}</span>
@@ -946,7 +1054,7 @@ function DeepAnalysisCore() {
                     const tone = r.insight!.tone === "warn" ? C.bad : r.insight!.tone === "tip" ? C.warn : C.good;
                     const ToneIcon = r.insight!.tone === "warn" ? AlertTriangle : r.insight!.tone === "tip" ? Lightbulb : CheckCircle2;
                     return (
-                      <li key={r.id} className="da-tile relative flex gap-3 overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--well)]/60 p-3.5 pl-4 text-sm">
+                      <li key={r.id} className="da-tile da-hr relative flex gap-3 overflow-hidden rounded-xl border bg-[var(--well)]/60 p-3.5 pl-4 text-sm">
                         <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: tone }} />
                         <ToneIcon size={16} className="relative mt-0.5 shrink-0" style={{ color: tone }} />
                         <div className="relative"><span className="font-semibold">{r.section} · Q{r.no}</span><span className="ml-2 text-xs text-[var(--mute)]">{secs(r.you)}{r.top ? ` vs ${secs(r.top)}` : ""}</span><p className="mt-0.5 text-[var(--mute)]">{r.insight!.msg}</p></div>
@@ -965,24 +1073,24 @@ function DeepAnalysisCore() {
           <div id="chapters" className="grid scroll-mt-20 gap-6 lg:grid-cols-2">
             {hasTime && (
               <Card title="Speed against accuracy" note="Each dot is a chapter and bigger dots mean more questions. Top left is where you want to be. Bottom right is slow and wrong, which is where marks are leaking.">
-                <div className="h-[360px] rounded-2xl border border-white/[0.05] bg-[var(--well)]/50 p-2">
+                <div className="h-[360px] rounded-2xl border da-hr bg-[var(--well)]/50 p-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart margin={{ top: 14, right: 18, bottom: 22, left: -8 }}>
                       <ReferenceArea x1={0} x2={quadrantMid} y1={60} y2={100} fill={C.good} fillOpacity={0.08} label={{ value: "Fast and accurate", position: "insideTopLeft", fill: C.good, fontSize: 11 }} />
                       <ReferenceArea x1={quadrantMid} x2={xMax} y1={60} y2={100} fill={C.warn} fillOpacity={0.07} label={{ value: "Accurate but slow", position: "insideTopRight", fill: C.warn, fontSize: 11 }} />
-                      <ReferenceArea x1={0} x2={quadrantMid} y1={0} y2={60} fill={C.skip} fillOpacity={0.14} label={{ value: "Fast but wrong: guessing?", position: "insideBottomLeft", fill: "#9AA4BA", fontSize: 11 }} />
+                      <ReferenceArea x1={0} x2={quadrantMid} y1={0} y2={60} fill={C.skip} fillOpacity={0.14} label={{ value: "Fast but wrong: guessing?", position: "insideBottomLeft", fill: C.axis, fontSize: 11 }} />
                       <ReferenceArea x1={quadrantMid} x2={xMax} y1={0} y2={60} fill={C.bad} fillOpacity={0.1} label={{ value: "Slow and wrong: fix first", position: "insideBottomRight", fill: C.bad, fontSize: 11 }} />
-                      <CartesianGrid stroke="#26314A" strokeDasharray="2 6" />
-                      <XAxis type="number" dataKey="x" name="Avg seconds" domain={[0, xMax]} stroke="#9AA4BA" fontSize={11} tickLine={false} label={{ value: "Seconds per question", position: "insideBottom", offset: -12, fill: "#9AA4BA", fontSize: 11 }} />
-                      <YAxis type="number" dataKey="y" name="Accuracy" domain={[0, 100]} unit="%" stroke="#9AA4BA" fontSize={11} tickLine={false} />
+                      <CartesianGrid stroke={C.grid} strokeDasharray="2 6" />
+                      <XAxis type="number" dataKey="x" name="Avg seconds" domain={[0, xMax]} stroke={C.axis} fontSize={11} tickLine={false} label={{ value: "Seconds per question", position: "insideBottom", offset: -12, fill: C.axis, fontSize: 11 }} />
+                      <YAxis type="number" dataKey="y" name="Accuracy" domain={[0, 100]} unit="%" stroke={C.axis} fontSize={11} tickLine={false} />
                       <ZAxis type="number" dataKey="z" range={[120, 520]} />
-                      <ReferenceLine x={quadrantMid} stroke="#9AA4BA" strokeDasharray="4 4" />
-                      <ReferenceLine y={60} stroke="#9AA4BA" strokeDasharray="4 4" />
+                      <ReferenceLine x={quadrantMid} stroke={C.axis} strokeDasharray="4 4" />
+                      <ReferenceLine y={60} stroke={C.axis} strokeDasharray="4 4" />
                       <Tooltip cursor={{ strokeDasharray: "3 3" }} content={({ active, payload }: any) => active && payload?.length ? (
-                        <div className="rounded-2xl border border-white/10 bg-[#090F1C]/95 p-3.5 text-xs shadow-2xl backdrop-blur-xl"><p className="da-head mb-1 text-sm font-bold">{payload[0].payload.name}</p><p>{payload[0].payload.x}s per question</p><p>{payload[0].payload.y}% accuracy · {payload[0].payload.z} Qs</p></div>) : null} />
+                        <div className="da-tip rounded-2xl border da-hr2 p-3.5 text-xs backdrop-blur-xl"><p className="da-head mb-1 text-sm font-bold">{payload[0].payload.name}</p><p>{payload[0].payload.x}s per question</p><p>{payload[0].payload.y}% accuracy · {payload[0].payload.z} Qs</p></div>) : null} />
                       <Scatter data={scatter} animationDuration={1400}>
-                        {scatter.map((d, i) => <Cell key={i} fill={d.fill} fillOpacity={0.95} stroke="#0B1220" strokeWidth={2} />)}
-                        <LabelList dataKey="short" position="top" fill="#C9D3EA" fontSize={10} />
+                        {scatter.map((d, i) => <Cell key={i} fill={d.fill} fillOpacity={0.95} stroke={C.dotStroke} strokeWidth={2} />)}
+                        <LabelList dataKey="short" position="top" fill={C.lbl} fontSize={10} />
                       </Scatter>
                     </ScatterChart>
                   </ResponsiveContainer>
@@ -1023,13 +1131,13 @@ function DeepAnalysisCore() {
                         <span className="font-semibold">{s.sec}</span>
                         <span className="da-num text-xs text-[var(--mute)]">you <b className="text-[var(--ink)]">{s.my_score}</b> · median {s.median_score}{s.top_score != null ? ` · topper ${s.top_score}` : ""} · of {max}</span>
                       </div>
-                      <div className="relative h-8 rounded-full bg-[var(--well)] shadow-[inset_0_2px_6px_rgba(0,0,0,.7)]">
+                      <div className="da-i6 relative h-8 rounded-full bg-[var(--well)]">
                         <div className="absolute inset-0 overflow-hidden rounded-full">
                           {s.median_score != null && <div className="absolute left-0 top-0 h-full" style={{ width: `${w(s.median_score)}%`, background: "rgba(154,164,186,.16)" }} />}
                           <motion.div initial={{ width: 0 }} whileInView={{ width: `${w(s.my_score)}%` }} viewport={{ once: true }} transition={{ duration: 1.2, ease: EASE }}
                             className="da-shimmer absolute left-0 top-2 h-4 rounded-full" style={{ background: `linear-gradient(90deg, ${C.you}55, ${C.you})`, boxShadow: `0 0 16px ${C.you}66` }} />
                         </div>
-                        {s.median_score != null && <div className="absolute top-0 h-full w-[2px] bg-white/80" style={{ left: `${w(s.median_score)}%` }} />}
+                        {s.median_score != null && <div className="absolute top-0 h-full w-[2px]" style={{ left: `${w(s.median_score)}%`, background: C.mode === "dark" ? "rgba(255,255,255,.8)" : "rgba(15,23,42,.65)" }} />}
                         {s.top_score != null && <div className="absolute top-[-3px] h-[38px] w-[3px] rounded" style={{ left: `${w(s.top_score)}%`, background: C.top, boxShadow: `0 0 12px ${C.top}99` }} />}
                       </div>
                       <div className="mt-1.5 text-[11px]" style={{ color: beat ? C.good : C.bad }}>
@@ -1041,11 +1149,11 @@ function DeepAnalysisCore() {
               </div>
               {radarData.length >= 3 && (
                 <div className="lg:col-span-2">
-                  <div className="h-[310px] rounded-2xl border border-white/[0.05] bg-[var(--well)]/50">
+                  <div className="h-[310px] rounded-2xl border da-hr bg-[var(--well)]/50">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData} outerRadius="72%">
-                        <PolarGrid stroke="#26314A" />
-                        <PolarAngleAxis dataKey="sec" tick={{ fill: "#B7C3E0", fontSize: 11 }} />
+                        <PolarGrid stroke={C.grid} />
+                        <PolarAngleAxis dataKey="sec" tick={{ fill: C.radarLbl, fontSize: 11 }} />
                         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                         <Radar name="Topper" dataKey="topper" stroke={C.top} fill={C.top} fillOpacity={0.06} strokeDasharray="4 4" strokeWidth={1.6} animationDuration={1400} />
                         <Radar name="Median" dataKey="median" stroke={C.avg} fill={C.avg} fillOpacity={0.14} strokeWidth={1.6} animationDuration={1400} />
@@ -1068,11 +1176,11 @@ function DeepAnalysisCore() {
             <>
               <div className="grid gap-3 md:grid-cols-2">
                 {vault.map((c) => (
-                  <div key={c.name} className="da-tile rounded-2xl border border-white/[0.07] bg-[var(--well)]/60 p-4">
+                  <div key={c.name} className="da-tile da-hr rounded-2xl border bg-[var(--well)]/60 p-4">
                     <div className="flex items-center justify-between"><span className="font-semibold">{c.name}</span><span className="da-num rounded-full px-2.5 py-0.5 text-sm font-bold" style={{ color: C.bad, background: "rgba(229,96,107,.14)" }}>{c.n}</span></div>
                     <div className="mt-2 h-1.5 rounded-full bg-[var(--well)]"><motion.div initial={{ width: 0 }} whileInView={{ width: `${(c.n / Math.max(vault[0].n, 1)) * 100}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: EASE }} className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${C.bad}55, ${C.bad})` }} /></div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {Array.from(c.topics.entries()).map(([t, n]) => <span key={t} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-[11px] text-[var(--mute)]">{t} · {n}</span>)}
+                      {Array.from(c.topics.entries()).map(([t, n]) => <span key={t} className="da-hr2 da-tint rounded-full border px-2.5 py-0.5 text-[11px] text-[var(--mute)]">{t} · {n}</span>)}
                     </div>
                   </div>
                 ))}
@@ -1090,20 +1198,20 @@ function DeepAnalysisCore() {
           <div className="mb-4 flex flex-wrap gap-1.5">
             {([["all", "All"], ["traps", "Time traps"], ["wrong", "Wrong"], ["skipped", "Skipped"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setLedgerFilter(k)} className="da-chip rounded-full border px-3.5 py-1.5 text-xs font-bold"
-                style={ledgerFilter === k ? { background: C.gold, color: "#0B1220", borderColor: "transparent" } : { borderColor: "rgba(255,255,255,.1)", color: "var(--mute)" }}>{l}</button>
+                style={ledgerFilter === k ? { background: C.gold, color: "#0B1220", borderColor: "transparent" } : { borderColor: "var(--hair2)", color: "var(--mute)" }}>{l}</button>
             ))}
           </div>
-          <div className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.07]">
+          <div className="da-divide divide-y divide-[var(--hair)] overflow-hidden rounded-2xl border da-hr">
             {rows.filter((r) => ledgerFilter === "all" || (ledgerFilter === "traps" ? r.trap : r.verdict === ledgerFilter)).map((r) => {
               const isOpen = open === r.id;
               const q = r.q;
               const corr = (q.correct_option || "").toLowerCase();
-              const vcol = verdictColor(r.verdict);
+              const vcol = verdictColor(C, r.verdict);
               const hasShortcut = !!(q.shortcut_explanation || q.shortcut_video_url);
               const barMax = Math.max(r.you, r.top || 0, 1);
               return (
-                <div key={r.id} className="bg-[#0E1526]/70 transition-colors" style={isOpen ? { background: "rgba(26,36,64,.85)" } : undefined}>
-                  <button onClick={() => setOpen(isOpen ? null : r.id)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm transition-colors hover:bg-white/[0.04]">
+                <div key={r.id} className="da-row transition-colors" style={isOpen ? { background: "var(--rowOpen)" } : undefined}>
+                  <button onClick={() => setOpen(isOpen ? null : r.id)} className="da-tinth flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm transition-colors">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: vcol, boxShadow: `0 0 8px ${vcol}99` }} />
                     <span className="w-24 shrink-0 truncate font-semibold">{r.section.slice(0, 10)} Q{r.no}</span>
                     <span className="min-w-0 flex-1 truncate text-[var(--mute)]">{r.chapterTagged ? r.chapterName : "Untagged"}{r.topicTagged ? ` › ${r.topicName}` : ""}</span>
@@ -1126,7 +1234,7 @@ function DeepAnalysisCore() {
                         {answers[q.id] && r.verdict === "wrong" && <span className="ml-3 text-[var(--mute)]">You chose <span style={{ color: C.bad }}>({answers[q.id].toUpperCase()})</span></span>}</p>
                       {r.insight && <p className="text-[var(--mute)]">{r.insight.msg}</p>}
                       <div>
-                        <div className="mb-2 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 text-xs font-semibold">
+                        <div className="da-hr2 da-tint mb-2 inline-flex rounded-full border p-0.5 text-xs font-semibold">
                           {[false, true].map((on) => (
                             <button key={String(on)} onClick={() => setShortcutOn((s) => ({ ...s, [r.id]: on }))} className="rounded-full px-3.5 py-1.5 transition-all"
                               style={(!!shortcutOn[r.id]) === on ? { background: C.gold, color: "#0B1220" } : { color: "var(--mute)" }}>
@@ -1138,7 +1246,7 @@ function DeepAnalysisCore() {
                           hasShortcut ? (
                             <>
                               {q.shortcut_explanation && <p className="whitespace-pre-wrap text-[var(--ink)]">{q.shortcut_explanation}</p>}
-                              {q.shortcut_video_url && <a href={q.shortcut_video_url} target="_blank" rel="noreferrer" className="mt-1 inline-block underline" style={{ color: C.champ }}>Watch the walkthrough</a>}
+                              {q.shortcut_video_url && <a href={q.shortcut_video_url} target="_blank" rel="noreferrer" className="mt-1 inline-block underline" style={{ color: C.goldText }}>Watch the walkthrough</a>}
                             </>
                           ) : <p className="text-[var(--mute)]">A shortcut for this question has not been added yet.</p>
                         ) : (
@@ -1157,10 +1265,23 @@ function DeepAnalysisCore() {
   );
 }
 
-export default function DeepAnalysisPage() {
+function PageFallback() {
+  const C = usePal();
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B1220] text-[#9AA4BA]"><Loader2 className="animate-spin" /></div>}>
-      <DeepAnalysisCore />
-    </Suspense>
+    <div className="flex min-h-screen items-center justify-center" style={{ background: C.bg, color: C.axis }}>
+      <Loader2 className="animate-spin" />
+    </div>
+  );
+}
+
+export default function DeepAnalysisPage() {
+  const { theme } = useTheme();
+  const pal = theme.mode === "dark" ? DARK_PAL : LIGHT_PAL;
+  return (
+    <PalCtx.Provider value={pal}>
+      <Suspense fallback={<PageFallback />}>
+        <DeepAnalysisCore />
+      </Suspense>
+    </PalCtx.Provider>
   );
 }

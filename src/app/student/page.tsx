@@ -442,11 +442,15 @@ function StudentDashboardInner() {
   return (
     <main className={`min-h-screen p-4 md:p-6 relative overflow-x-hidden font-sans antialiased transition-all duration-500 ease-in-out ${dashboardFocus === "notes" ? t.pageNotes : t.page}`}>
 
-      {/* Visual background decoration for examination view */}
-      {dashboardFocus === "assessments" && (
-        <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${t.glow} blur-[120px] rounded-full pointer-events-none transition-opacity duration-500`} />
+            {dashboardFocus === "assessments" && (
+        <>
+          {/* grid texture fading out toward the bottom */}
+          <div className="absolute inset-x-0 top-0 h-[620px] anu-grid pointer-events-none" />
+          <div className={`absolute top-0 left-1/4 w-[500px] h-[500px] ${t.glow} blur-[120px] rounded-full pointer-events-none transition-opacity duration-500`} />
+          <div className={`absolute top-1/3 right-0 w-[420px] h-[420px] ${t.glow} blur-[110px] rounded-full pointer-events-none anu-float-rev`} />
+          <div className={`absolute bottom-10 left-0 w-[380px] h-[380px] ${t.glow} blur-[110px] rounded-full pointer-events-none anu-float-rev`} />
+        </>
       )}
-
       <div className="w-full mx-auto space-y-1 relative z-10">
 
         {/* ANUSHIVA BRAND BAR: always visible (even in notes focus), adapts to dark / cream surfaces */}

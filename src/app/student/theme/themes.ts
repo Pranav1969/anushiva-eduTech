@@ -17,11 +17,15 @@
 //   template strings like `text-${color}-400`), otherwise Tailwind can't see it.
 //   Keep this file inside `src/` so it is covered by Tailwind's `content` globs.
 //
+// MOTION NOTE
+//   Classes starting with `anu-` (anu-rise, anu-float, anu-gradient-move, anu-pulse)
+//   and `lux-` (lux-rise, lux-float, lux-lift, lux-shine, lux-border, lux-aurora,
+//   lux-breathe, lux-text-gradient) are defined in src/app/globals.css.
+//   `lux-*` classes are used only by AnushivaLight.
+//
 // CONVENTION
 //   - Tokens named *Border / panel / inset / input hold COLOR classes only.
 //     Components add structure (`border`, `rounded-2xl`, padding) themselves.
-//   - In AnushivaDefault the values are the ORIGINAL classes the components used,
-//     so Dark mode looks exactly as it did before theming.
 
 export type ThemeId = "AnushivaDefault" | "AnushivaLight";
 
@@ -40,7 +44,7 @@ interface Tag {
 
 // ---------------------------------------------------------------------------
 // Notes section (RevisionNotesTree + FocusReader).
-// In AnushivaLight these are the ORIGINAL warm classes (unchanged look).
+// In AnushivaLight these keep the warm reading look with a touch of polish.
 // In AnushivaDefault they give the notes pages the same dark look as the rest.
 // ---------------------------------------------------------------------------
 export interface NotesAccent {
@@ -192,7 +196,7 @@ export interface Theme {
 
   // Page shell
   page: string; // main background + base text
-  pageNotes: string; // cream reading surface used by the notes module
+  pageNotes: string; // reading surface used by the notes module
   glow: string; // soft background glow color
   selection: string; // text selection colors
   header: string; // sticky top bar (colors only)
@@ -362,7 +366,8 @@ export interface Theme {
 }
 
 /* ------------------------------------------------------------------ */
-/*  AnushivaDefault  (the current dark-navy + blue theme)              */
+/*  AnushivaDefault  (premium dark: navy glass + blue/indigo glow)     */
+/*  UNCHANGED                                                          */
 /* ------------------------------------------------------------------ */
 const anushivaDefault: Theme = {
   id: "AnushivaDefault",
@@ -371,13 +376,14 @@ const anushivaDefault: Theme = {
 
   page: "bg-[#0F172A] text-[#F8FAFC]",
   pageNotes: "bg-[#0F172A] text-[#F8FAFC]", // notes are dark too in the dark theme
-  glow: "bg-[#312E81]/15",
+  glow: "bg-[#4F46E5]/20 anu-float",
   selection: "selection:bg-blue-500/30 selection:text-blue-100",
   header: "border-slate-800 bg-[#0F172A]/90",
   iconButton:
-    "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-100",
+    "border-slate-800 bg-slate-900 text-slate-400 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/50 hover:text-slate-100 hover:shadow-[0_0_18px_-4px_rgba(59,130,246,0.55)]",
 
-  panel: "border-slate-800 bg-slate-900/60 backdrop-blur-sm",
+  panel:
+    "border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-[0_12px_40px_-18px_rgba(0,0,0,0.75)] anu-rise",
   panelDashed: "border-slate-700 bg-slate-900/40",
   inset: "border-slate-800 bg-slate-950/50",
   input:
@@ -398,9 +404,9 @@ const anushivaDefault: Theme = {
     soft: "border-blue-500/25 bg-blue-500/10",
     iconWrap: "border-blue-500/30 bg-blue-500/10",
     solid: "bg-blue-600 text-white",
-    solidHover: "hover:bg-blue-500",
+    solidHover: "hover:bg-blue-500 hover:shadow-[0_0_24px_-4px_rgba(59,130,246,0.65)]",
     solidGroupHover: "group-hover:bg-blue-500",
-    gradient: "bg-gradient-to-r from-blue-500 to-indigo-500",
+    gradient: "bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 anu-shine",
     track: "bg-slate-800",
     marker: "marker:text-blue-400/70",
     spinnerStrong: "text-[#2563EB]",
@@ -410,7 +416,7 @@ const anushivaDefault: Theme = {
     linkHover: "hover:text-blue-400",
     titleHover: "group-hover:text-blue-300",
     callout:
-      "border-blue-500/25 bg-slate-900/60 backdrop-blur-sm hover:border-blue-500/50 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.35)]",
+      "border-blue-500/25 bg-slate-900/60 backdrop-blur-md anu-lift hover:border-blue-400/60 hover:shadow-[0_10px_40px_-10px_rgba(37,99,235,0.55)]",
   },
 
   amber: {
@@ -437,7 +443,7 @@ const anushivaDefault: Theme = {
 
   card: {
     hover:
-      "border-slate-800 bg-slate-900/60 hover:border-blue-500/40 hover:shadow-[0_4px_24px_-8px_rgba(37,99,235,0.3)]",
+      "border-slate-800 bg-slate-900/60 anu-lift hover:border-blue-500/50 hover:shadow-[0_14px_40px_-12px_rgba(37,99,235,0.5)]",
     read: "border-slate-800 bg-slate-900/40 opacity-70",
     locked: "border-amber-500/30 bg-slate-900/60",
     groupHoverBody: "group-hover:text-slate-300",
@@ -492,7 +498,7 @@ const anushivaDefault: Theme = {
     tabCurrentAffairs: "border-transparent text-slate-400 hover:text-emerald-400",
     backToDashboard: "text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700",
     lockOverlay: "bg-slate-950/80 border-amber-500/30 hover:bg-slate-950/70",
-    lockIcon: "bg-amber-500/10 border-amber-500/40 text-amber-400 shadow-black/60",
+    lockIcon: "bg-amber-500/10 border-amber-500/40 text-amber-400 shadow-black/60 anu-pulse",
     lockBadge: "text-amber-400 bg-slate-900 border-slate-800",
     logoutButton:
       "border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900/50 hover:text-red-400 hover:bg-red-950/40",
@@ -509,10 +515,11 @@ const anushivaDefault: Theme = {
     fillBlue: "bg-blue-500",
     ringBlue: "border-slate-800 border-t-blue-500 text-blue-400",
     ringCyan: "border-slate-800 border-t-cyan-400 text-cyan-400",
-    statCard: "bg-gradient-to-br from-[#1E293B] to-[#111827] border-slate-800 shadow-xl",
-    softCard: "bg-gradient-to-br from-[#1E293B]/60 to-[#0F172A] border-slate-800/80",
+    statCard:
+      "bg-gradient-to-br from-[#1E293B] to-[#111827] border-slate-800 shadow-xl anu-rise anu-lift hover:border-blue-500/40 hover:shadow-[0_14px_40px_-14px_rgba(37,99,235,0.45)]",
+    softCard: "bg-gradient-to-br from-[#1E293B]/60 to-[#0F172A] border-slate-800/80 anu-rise",
     insightCard:
-      "bg-gradient-to-br from-[#1E293B] via-[#1E1B4B]/40 to-[#0F172A] border-slate-800/70 shadow-lg",
+      "bg-gradient-to-br from-[#1E293B] via-[#1E1B4B]/40 to-[#0F172A] border-slate-800/70 shadow-lg anu-rise",
     indigoIconBox: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400",
     positiveRow: "bg-emerald-950/20 border-emerald-900/30",
     positiveBadge: "text-emerald-400 bg-emerald-950 border-emerald-800/40",
@@ -520,12 +527,13 @@ const anushivaDefault: Theme = {
     negativeBadge: "text-rose-400 bg-rose-950 border-rose-800/40",
 
     premiumCard:
-      "bg-gradient-to-br from-[#1E1B4B]/90 via-[#0F172A] to-[#111827] border-indigo-500/30 hover:border-indigo-400/50 shadow-indigo-950/40",
+      "bg-gradient-to-br from-[#1E1B4B]/90 via-[#0F172A] to-[#111827] border-indigo-500/30 hover:border-indigo-400/60 shadow-indigo-950/40 anu-rise anu-lift hover:shadow-[0_16px_44px_-12px_rgba(99,102,241,0.55)]",
     pipelineCard:
-      "bg-gradient-to-br from-[#1E293B] to-[#131C2E] border-slate-800/80 hover:border-slate-700/80 shadow-black/20",
-    testCard: "bg-[#1E293B]/80 border-slate-800/80 hover:border-slate-700 shadow-black/20",
-    premiumStrip: "bg-gradient-to-r from-amber-400 via-indigo-500 to-violet-500",
-    normalStrip: "bg-gradient-to-r from-[#2563EB] via-[#8B5CF6] to-[#22D3EE]",
+      "bg-gradient-to-br from-[#1E293B] to-[#131C2E] border-slate-800/80 hover:border-blue-500/40 shadow-black/20 anu-rise anu-lift hover:shadow-[0_14px_40px_-14px_rgba(37,99,235,0.45)]",
+    testCard:
+      "bg-[#1E293B]/80 border-slate-800/80 hover:border-blue-500/40 shadow-black/20 anu-rise anu-lift hover:shadow-[0_14px_40px_-14px_rgba(37,99,235,0.45)]",
+    premiumStrip: "bg-gradient-to-r from-amber-400 via-indigo-500 to-violet-500 anu-gradient-move",
+    normalStrip: "bg-gradient-to-r from-[#2563EB] via-[#8B5CF6] to-[#22D3EE] anu-gradient-move",
     chipBlue: "text-blue-400 bg-blue-950/60 border-blue-900/40",
     chipCyan: "text-cyan-400 bg-cyan-950/60 border-cyan-900/40",
     chipAmber: "text-amber-300 bg-amber-500/10 border-amber-500/20",
@@ -543,27 +551,27 @@ const anushivaDefault: Theme = {
     clockValue: "text-[#CBD5E1]/80 bg-slate-900 border-slate-800",
     btnGhost: "bg-slate-900 hover:bg-slate-950 border-slate-800 text-[#CBD5E1] hover:text-white",
     btnPremium:
-      "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-950",
+      "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-950 anu-shine",
     btnPrimary:
-      "bg-gradient-to-r from-[#2563EB] to-[#312E81] hover:from-[#3b82f6] hover:to-[#2563EB] shadow-blue-950",
+      "bg-gradient-to-r from-[#2563EB] to-[#312E81] hover:from-[#3b82f6] hover:to-[#2563EB] shadow-blue-950 anu-shine",
 
     segWrap: "bg-slate-900/70 border-slate-800",
     segIdle: "text-slate-400 hover:text-white",
     nextUpBanner: "bg-indigo-950/40 border-indigo-500/30",
     nextUpLabel: "text-indigo-300",
-    chapterWrap: "bg-[#1E293B]/50 border-slate-800",
+    chapterWrap: "bg-[#1E293B]/50 border-slate-800 anu-rise",
     chapterHover: "hover:bg-slate-800/40",
     numDone: "bg-emerald-500/15 text-emerald-400",
     numIdle: "bg-indigo-500/15 text-indigo-300",
 
     tabActive:
-      "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]",
+      "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/30 scale-[1.01] anu-gradient-move",
     tabIdle:
-      "bg-[#1E293B]/70 backdrop-blur-sm border-slate-800 text-[#CBD5E1] hover:text-white hover:border-slate-700 hover:bg-[#1E293B]",
+      "bg-[#1E293B]/70 backdrop-blur-sm border-slate-800 text-[#CBD5E1] transition-all duration-300 hover:-translate-y-0.5 hover:text-white hover:border-blue-500/40 hover:bg-[#1E293B]",
     tabIconIdle: "text-[#CBD5E1]",
     tabCountIdle: "bg-slate-900 text-[#CBD5E1]",
 
-    statSolid: "bg-white border-indigo-100 shadow-[0_6px_20px_-10px_rgba(79,70,229,0.25)]",
+    statSolid: "bg-[#1E293B] border-slate-800/80 anu-rise anu-lift",
     iconBlue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     iconEmerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     iconAmber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
@@ -733,27 +741,35 @@ const anushivaDefault: Theme = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  AnushivaLight  (clean white + soft slate, same blue accent)        */
+/*  AnushivaLight  —  "Aurora Pearl"                                   */
+/*                                                                     */
+/*  Pearl-white base with an aurora wash (indigo · lilac · rose ·      */
+/*  sky · mint). Frosted-glass panels with an animated rainbow         */
+/*  hairline, gold for premium, violet/indigo for primary actions.     */
+/*  Motion: blur-in entrance, floating glow, light sheen on buttons,   */
+/*  hover lift, flowing gradients.                                     */
 /* ------------------------------------------------------------------ */
 const anushivaLight: Theme = {
   id: "AnushivaLight",
   name: "Anushiva Light",
   mode: "light",
 
-    page: "bg-gradient-to-br from-[#EEF2FF] via-[#F7F9FF] to-[#EAF0FB] text-slate-900",
-  pageNotes: "bg-[#FDFBF7]",
-    glow: "bg-[#6366F1]/25",
-  selection: "selection:bg-blue-200 selection:text-blue-900",
-    header: "border-indigo-100 bg-white/70 backdrop-blur-md",
+  page: "lux-aurora text-slate-900",
+  pageNotes: "bg-gradient-to-b from-[#FFFDF9] via-[#FDFBF7] to-[#FAF7FF]",
+  glow: "bg-gradient-to-br from-violet-400/40 via-indigo-300/35 to-sky-300/40 lux-float",
+  selection: "selection:bg-violet-200 selection:text-violet-950",
+  header:
+    "border-white/60 bg-white/55 backdrop-blur-xl shadow-[0_8px_30px_-14px_rgba(99,102,241,0.3)]",
   iconButton:
-    "border-indigo-100 bg-white/90 text-slate-600 shadow-sm shadow-indigo-100/60 hover:border-indigo-300 hover:text-indigo-700",
+    "border-white/80 bg-white/70 backdrop-blur-md text-slate-600 shadow-[0_4px_14px_-6px_rgba(99,102,241,0.4)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-white hover:text-violet-700 hover:shadow-[0_10px_26px_-8px_rgba(124,58,237,0.5)]",
 
-  panel: "border-indigo-100/80 bg-white/80 backdrop-blur-md shadow-[0_10px_40px_-15px_rgba(67,56,202,0.25)]",
-  panelDashed: "border-indigo-200 bg-white/60",
-  inset: "border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60",
+  panel:
+    "border-white/80 bg-gradient-to-br from-white/85 via-white/70 to-indigo-50/60 backdrop-blur-xl shadow-[0_18px_50px_-22px_rgba(99,102,241,0.4),inset_0_1px_0_rgba(255,255,255,0.9)] lux-rise lux-border",
+  panelDashed: "border-violet-200 bg-white/55 backdrop-blur-md",
+  inset: "border-indigo-100/80 bg-gradient-to-br from-white/90 to-violet-50/60",
   input:
-    "border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-blue-500/50 focus:ring-blue-500/20",
-  divider: "border-slate-200",
+    "border-slate-200 bg-white/80 text-slate-900 placeholder-slate-400 focus:border-violet-400 focus:ring-violet-400/25",
+  divider: "border-slate-200/70",
 
   text: {
     heading: "text-slate-900",
@@ -764,31 +780,31 @@ const anushivaLight: Theme = {
   },
 
   accent: {
-    text: "text-blue-600",
-    textStrong: "text-blue-700",
-        soft: "border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50",
-    iconWrap: "border-indigo-200 bg-gradient-to-br from-indigo-100 to-blue-100",
-    solid: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white",
-    solidHover: "hover:bg-blue-700",
-    solidGroupHover: "group-hover:bg-blue-700",
-    gradient: "bg-gradient-to-r from-blue-500 to-indigo-500",
-    track: "bg-slate-200",
-    marker: "marker:text-blue-500/70",
-    spinnerStrong: "text-blue-600",
-    spinnerDim: "text-blue-500/50",
-    hoverBorder: "hover:border-blue-400",
-    hoverBoth: "hover:border-blue-400 hover:text-blue-600",
-    linkHover: "hover:text-blue-600",
-    titleHover: "group-hover:text-blue-700",
-        callout:
-      "border-indigo-200 bg-gradient-to-br from-white to-indigo-50/70 shadow-sm hover:border-indigo-400 hover:shadow-[0_8px_30px_-10px_rgba(79,70,229,0.4)]",
+    text: "text-indigo-600",
+    textStrong: "text-indigo-700",
+    soft: "border-indigo-200/80 bg-gradient-to-r from-indigo-50 via-violet-50 to-sky-50",
+    iconWrap: "border-indigo-200 bg-gradient-to-br from-indigo-100 via-violet-100 to-sky-100",
+    solid: "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white lux-shine",
+    solidHover: "hover:brightness-110 hover:shadow-[0_10px_28px_-6px_rgba(124,58,237,0.6)]",
+    solidGroupHover: "group-hover:brightness-110",
+    gradient: "bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 lux-shine",
+    track: "bg-indigo-100/70",
+    marker: "marker:text-violet-500/70",
+    spinnerStrong: "text-indigo-600",
+    spinnerDim: "text-violet-400/50",
+    hoverBorder: "hover:border-violet-300",
+    hoverBoth: "hover:border-violet-300 hover:text-violet-700",
+    linkHover: "hover:text-violet-700",
+    titleHover: "group-hover:text-violet-700",
+    callout:
+      "border-indigo-200/80 bg-gradient-to-br from-white/90 via-indigo-50/70 to-violet-50/70 backdrop-blur-md shadow-sm lux-lift hover:border-violet-300 hover:shadow-[0_18px_44px_-12px_rgba(124,58,237,0.45)]",
   },
 
   amber: {
     text: "text-amber-600",
     hoverText: "group-hover:text-amber-700",
     icon: "text-amber-500",
-    iconWrap: "border-amber-300 bg-amber-50",
+    iconWrap: "border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50",
     today: "bg-amber-500",
     lockedTitle: "text-slate-600",
     lockedBody: "text-slate-400",
@@ -797,48 +813,48 @@ const anushivaLight: Theme = {
   success: { text: "text-emerald-600" },
 
   filter: {
-    selected: "border-blue-300 bg-blue-50 text-blue-700",
-    idle: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-800",
+    selected: "border-violet-300 bg-gradient-to-r from-indigo-50 to-violet-50 text-violet-700",
+    idle: "border-slate-200 bg-white/70 text-slate-500 hover:border-violet-200 hover:text-slate-800",
   },
   segmented: {
-    active: "bg-white text-blue-700 shadow-sm",
+    active: "bg-white text-violet-700 shadow-sm",
     idle: "text-slate-500 hover:text-slate-800",
   },
-  toggle: { on: "bg-blue-600", off: "bg-slate-300" },
+  toggle: { on: "bg-gradient-to-r from-indigo-600 to-violet-600", off: "bg-slate-300" },
 
-    card: {
+  card: {
     hover:
-      "border-indigo-100 bg-white shadow-[0_6px_24px_-10px_rgba(67,56,202,0.25)] hover:border-indigo-400 hover:shadow-[0_12px_34px_-10px_rgba(79,70,229,0.4)]",
-    read: "border-indigo-100 bg-white/70 opacity-70",
-    locked: "border-amber-300 bg-gradient-to-br from-white to-amber-50/60",
+      "border-white/80 bg-white/85 backdrop-blur-md shadow-[0_8px_26px_-12px_rgba(99,102,241,0.35)] lux-lift hover:border-violet-300 hover:shadow-[0_20px_44px_-14px_rgba(124,58,237,0.45)]",
+    read: "border-indigo-100 bg-white/60 opacity-70",
+    locked: "border-amber-300 bg-gradient-to-br from-white to-amber-50/70",
     groupHoverBody: "group-hover:text-slate-700",
   },
   bookmark: {
-    on: "border-blue-300 bg-blue-50 text-blue-600",
-    off: "border-slate-200 bg-slate-50 text-slate-400 hover:text-blue-600",
-    fill: "fill-blue-600",
+    on: "border-violet-300 bg-violet-50 text-violet-600",
+    off: "border-slate-200 bg-white/70 text-slate-400 hover:text-violet-600",
+    fill: "fill-violet-600",
   },
 
   calendar: {
-    selected: "bg-blue-600 shadow-lg shadow-blue-300/50",
-    dayHover: "hover:bg-slate-100",
+    selected: "bg-gradient-to-br from-indigo-600 to-violet-600 shadow-lg shadow-violet-300/60",
+    dayHover: "hover:bg-violet-50",
     selectedSub: "text-white/70",
   },
 
   quiz: {
     option:
-      "border-slate-200 bg-slate-50 text-slate-800 hover:border-blue-400 hover:bg-white",
-    correct: "border-emerald-400 bg-emerald-50 text-slate-900",
-    wrong: "border-red-300 bg-red-50 text-slate-900",
-    dim: "border-slate-200 bg-white text-slate-400",
+      "border-slate-200 bg-white/80 text-slate-800 hover:border-violet-400 hover:bg-white hover:shadow-[0_8px_22px_-10px_rgba(124,58,237,0.4)]",
+    correct: "border-emerald-400 bg-gradient-to-r from-emerald-50 to-teal-50 text-slate-900",
+    wrong: "border-rose-300 bg-gradient-to-r from-rose-50 to-red-50 text-slate-900",
+    dim: "border-slate-200 bg-white/60 text-slate-400",
     correctIcon: "text-emerald-600",
-    wrongIcon: "text-red-500",
+    wrongIcon: "text-rose-500",
   },
 
   drawer: {
-    overlay: "bg-slate-900/30",
-    surface: "border-slate-200 bg-[#F4F6FA] text-slate-900",
-    header: "border-slate-200 bg-[#F4F6FA]/95",
+    overlay: "bg-indigo-950/25 backdrop-blur-sm",
+    surface: "border-indigo-100 bg-[#F6F5FF] text-slate-900",
+    header: "border-indigo-100 bg-[#F6F5FF]/95 backdrop-blur-md",
   },
 
   source: {
@@ -854,92 +870,101 @@ const anushivaLight: Theme = {
   },
 
   dash: {
-    barBorder: "border-slate-200",
+    barBorder: "border-indigo-100/80",
     barBorderNotes: "border-stone-200",
-    tabAssessActive: "border-blue-600 text-blue-700",
-    tabAssessIdle: "border-transparent text-slate-500 hover:text-slate-800",
-    tabNotesActive: "border-amber-700 text-amber-800",
-    tabNotesIdle: "border-transparent text-slate-500 hover:text-slate-700",
+    tabAssessActive: "border-violet-600 text-violet-700",
+    tabAssessIdle: "border-transparent text-slate-500 hover:text-violet-700",
+    tabNotesActive: "border-amber-600 text-amber-700",
+    tabNotesIdle: "border-transparent text-slate-500 hover:text-amber-700",
     tabCurrentAffairs: "border-transparent text-slate-500 hover:text-emerald-600",
     backToDashboard: "text-stone-500 hover:text-stone-900 bg-stone-100 hover:bg-stone-200/80",
-    lockOverlay: "bg-white/85 border-amber-300 hover:bg-white/75",
-    lockIcon: "bg-amber-50 border-amber-300 text-amber-600 shadow-amber-200/60",
-    lockBadge: "text-amber-700 bg-white border-slate-200",
+    lockOverlay: "bg-white/80 backdrop-blur-sm border-amber-300 hover:bg-white/70",
+    lockIcon: "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 text-amber-600 shadow-amber-200/60 anu-pulse",
+    lockBadge: "text-amber-700 bg-white border-amber-200",
     logoutButton:
-      "border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50",
+      "border-white/80 bg-white/70 backdrop-blur-md text-slate-500 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50",
   },
 
   ui: {
     textStrong: "text-slate-900",
     textTitle: "text-slate-800",
-    dividerSoft: "border-slate-200",
+    dividerSoft: "border-slate-200/70",
     cyanText: "text-cyan-600",
     indigoText: "text-indigo-600",
     roseText: "text-rose-600",
 
-    fillBlue: "bg-blue-500",
-    ringBlue: "border-slate-200 border-t-blue-500 text-blue-600",
-    ringCyan: "border-slate-200 border-t-cyan-500 text-cyan-600",
-        statCard: "bg-gradient-to-br from-white via-white to-indigo-50/70 border-indigo-100 shadow-[0_10px_30px_-12px_rgba(79,70,229,0.3)]",
-    softCard: "bg-gradient-to-br from-white to-slate-50 border-indigo-100 shadow-[0_8px_24px_-12px_rgba(79,70,229,0.2)]",
-    insightCard: "bg-gradient-to-br from-indigo-100/70 via-white to-sky-50 border-indigo-200 shadow-[0_10px_30px_-12px_rgba(79,70,229,0.3)]",
-    indigoIconBox: "bg-indigo-50 border-indigo-200 text-indigo-600",
-    positiveRow: "bg-emerald-50 border-emerald-200",
+    fillBlue: "bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500",
+    ringBlue: "border-indigo-100 border-t-violet-500 text-violet-600",
+    ringCyan: "border-sky-100 border-t-cyan-500 text-cyan-600",
+    statCard:
+      "bg-gradient-to-br from-white via-white to-violet-50/80 border-white/80 shadow-[0_14px_38px_-16px_rgba(99,102,241,0.45)] lux-rise lux-lift lux-border hover:shadow-[0_24px_52px_-16px_rgba(124,58,237,0.5)]",
+    softCard:
+      "bg-gradient-to-br from-white/90 to-sky-50/60 border-white/80 backdrop-blur-md shadow-[0_10px_28px_-14px_rgba(14,165,233,0.35)] lux-rise lux-border",
+    insightCard:
+      "bg-gradient-to-br from-violet-100/70 via-white to-sky-100/70 border-white/80 shadow-[0_14px_36px_-14px_rgba(124,58,237,0.4)] lux-rise lux-border",
+    indigoIconBox: "bg-gradient-to-br from-indigo-50 to-violet-100 border-indigo-200 text-indigo-600",
+    positiveRow: "bg-gradient-to-r from-emerald-50 to-teal-50/70 border-emerald-200",
     positiveBadge: "text-emerald-700 bg-emerald-100 border-emerald-300",
-    negativeRow: "bg-rose-50 border-rose-200",
+    negativeRow: "bg-gradient-to-r from-rose-50 to-pink-50/70 border-rose-200",
     negativeBadge: "text-rose-700 bg-rose-100 border-rose-300",
 
     premiumCard:
-    "bg-gradient-to-br from-indigo-50 via-white to-violet-50 border-indigo-300 hover:border-indigo-400 shadow-indigo-200/60",
-    pipelineCard: "bg-gradient-to-br from-white to-indigo-50/50 border-indigo-100 hover:border-indigo-300 shadow-indigo-200/50",
-    testCard: "bg-gradient-to-br from-white to-slate-50 border-indigo-100 hover:border-indigo-300 shadow-indigo-200/50",
-    premiumStrip: "bg-gradient-to-r from-amber-400 via-indigo-500 to-violet-500",
-    normalStrip: "bg-gradient-to-r from-[#2563EB] via-[#8B5CF6] to-[#22D3EE]",
-    chipBlue: "text-blue-700 bg-blue-50 border-blue-200",
+      "bg-gradient-to-br from-amber-50/80 via-white to-violet-50/80 border-amber-200 hover:border-amber-300 shadow-amber-200/50 lux-rise lux-lift hover:shadow-[0_22px_48px_-14px_rgba(245,158,11,0.45)]",
+    pipelineCard:
+      "bg-gradient-to-br from-white via-white to-sky-50/70 border-sky-100 hover:border-sky-300 shadow-sky-200/50 lux-rise lux-lift hover:shadow-[0_20px_44px_-14px_rgba(14,165,233,0.45)]",
+    testCard:
+      "bg-gradient-to-br from-white via-white to-violet-50/60 border-indigo-100 hover:border-violet-300 shadow-indigo-200/50 lux-rise lux-lift hover:shadow-[0_20px_44px_-14px_rgba(124,58,237,0.45)]",
+    premiumStrip: "bg-gradient-to-r from-amber-400 via-rose-400 to-violet-500 anu-gradient-move",
+    normalStrip: "bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 anu-gradient-move",
+    chipBlue: "text-indigo-700 bg-indigo-50 border-indigo-200",
     chipCyan: "text-cyan-700 bg-cyan-50 border-cyan-200",
     chipAmber: "text-amber-700 bg-amber-50 border-amber-200",
     chipAmberIcon: "text-amber-500 fill-amber-500/20",
-    badgeRed: "text-red-700 bg-red-50 border-red-200",
+    badgeRed: "text-rose-700 bg-rose-50 border-rose-200",
     badgeAmber: "text-amber-700 bg-amber-50 border-amber-200",
     badgeGreen: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    titlePremium: "text-indigo-900 group-hover:text-indigo-700",
-    titleNormal: "text-slate-900 group-hover:text-blue-600",
+    titlePremium: "text-indigo-900 group-hover:text-violet-700",
+    titleNormal: "text-slate-900 group-hover:text-violet-700",
     linkPremium: "text-amber-600 hover:text-amber-700",
-    linkNormal: "text-blue-600 hover:text-blue-800",
-    iconBoxPremium: "bg-indigo-50 border-indigo-200 text-indigo-600 group-hover:text-amber-600",
-    iconBoxNormal: "bg-slate-50 border-slate-200 text-blue-600 group-hover:text-cyan-600",
+    linkNormal: "text-violet-600 hover:text-violet-800",
+    iconBoxPremium:
+      "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 text-amber-600 group-hover:text-orange-600",
+    iconBoxNormal:
+      "bg-gradient-to-br from-indigo-50 to-sky-50 border-indigo-100 text-indigo-600 group-hover:text-violet-600",
     clockLabel: "text-slate-400",
-    clockValue: "text-slate-600 bg-slate-100 border-slate-200",
-    btnGhost: "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900",
+    clockValue: "text-slate-600 bg-white/80 border-slate-200",
+    btnGhost: "bg-white/80 hover:bg-white border-slate-200 text-slate-700 hover:text-violet-700 hover:border-violet-300",
     btnPremium:
-      "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-300",
+      "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:brightness-110 shadow-orange-300/70 lux-shine",
     btnPrimary:
-      "bg-gradient-to-r from-[#2563EB] to-[#312E81] hover:from-[#3b82f6] hover:to-[#2563EB] shadow-blue-300",
+      "bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 hover:brightness-110 shadow-violet-300/70 lux-shine",
 
-    segWrap: "bg-slate-100 border-slate-200",
-    segIdle: "text-slate-500 hover:text-slate-900",
-    nextUpBanner: "bg-indigo-50 border-indigo-200",
-    nextUpLabel: "text-indigo-600",
-    chapterWrap: "bg-white/90 border-indigo-100 shadow-[0_6px_20px_-10px_rgba(79,70,229,0.25)]",
-    chapterHover: "hover:bg-slate-50",
+    segWrap: "bg-white/70 backdrop-blur-md border-indigo-100",
+    segIdle: "text-slate-500 hover:text-violet-700",
+    nextUpBanner: "bg-gradient-to-r from-indigo-50 via-violet-50 to-sky-50 border-indigo-200",
+    nextUpLabel: "text-violet-600",
+    chapterWrap:
+      "bg-white/85 backdrop-blur-md border-white/80 shadow-[0_8px_24px_-12px_rgba(99,102,241,0.3)] lux-rise",
+    chapterHover: "hover:bg-violet-50/70",
     numDone: "bg-emerald-100 text-emerald-700",
-    numIdle: "bg-indigo-100 text-indigo-700",
+    numIdle: "bg-gradient-to-br from-indigo-100 to-violet-100 text-violet-700",
 
     tabActive:
-      "bg-gradient-to-r from-[#312E81] to-[#2563EB] border-[#2563EB]/50 text-white shadow-lg shadow-[#2563EB]/20 scale-[1.01]",
+      "bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 border-white/30 text-white shadow-lg shadow-violet-400/40 scale-[1.01] anu-gradient-move lux-shine",
     tabIdle:
-      "bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 shadow-sm",
+      "bg-white/75 backdrop-blur-md border-white/80 text-slate-600 shadow-sm shadow-indigo-200/50 transition-all duration-300 hover:-translate-y-0.5 hover:text-violet-700 hover:border-violet-300 hover:bg-white hover:shadow-[0_10px_24px_-10px_rgba(124,58,237,0.45)]",
     tabIconIdle: "text-slate-500",
-    tabCountIdle: "bg-slate-100 text-slate-600",
+    tabCountIdle: "bg-gradient-to-br from-indigo-50 to-violet-100 text-violet-700",
 
-    statSolid: "bg-white border-slate-200 shadow-sm",
-    iconBlue: "bg-blue-50 text-blue-600 border-blue-200",
-    iconEmerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    iconAmber: "bg-amber-50 text-amber-600 border-amber-200",
-    iconPurple: "bg-purple-50 text-purple-600 border-purple-200",
+    statSolid:
+      "bg-white/90 border-white/80 shadow-[0_8px_24px_-12px_rgba(99,102,241,0.35)] lux-rise lux-lift",
+    iconBlue: "bg-gradient-to-br from-blue-50 to-indigo-100 text-indigo-600 border-indigo-200",
+    iconEmerald: "bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-600 border-emerald-200",
+    iconAmber: "bg-gradient-to-br from-amber-50 to-orange-100 text-amber-600 border-amber-200",
+    iconPurple: "bg-gradient-to-br from-purple-50 to-fuchsia-100 text-purple-600 border-purple-200",
   },
 
-  // ORIGINAL warm notes classes: the Light notes look is unchanged.
+  // Warm reading look kept for notes, with a little extra polish.
   notes: {
     accents: {
       red:    { text: "text-red-600",     bar: "bg-red-500",     border: "border-red-300",     hl: "bg-red-100 text-red-950 border-b border-red-200",             badge: "bg-red-50 text-red-700 border-red-200" },
@@ -986,16 +1011,16 @@ const anushivaLight: Theme = {
     bStone100: "border-stone-100",
     bStone200: "border-stone-200",
 
-    bar: "bg-white border-slate-200 shadow-xs",
+    bar: "bg-white/90 backdrop-blur-md border-indigo-100 shadow-xs",
     card: "bg-white shadow-xs",
-    cardBorder: "border-slate-200",
+    cardBorder: "border-indigo-100",
     cardBorderDone: "border-emerald-200",
-    chapHead: "bg-slate-50/40 hover:bg-slate-50",
+    chapHead: "bg-gradient-to-r from-indigo-50/40 to-transparent hover:from-indigo-50/80",
     chapBody: "border-slate-100 bg-white",
     idxPane: "bg-stone-50/40 border-slate-100",
-    idxActive: "bg-white border-slate-200 shadow-2xs font-bold text-slate-900",
-    idxIdle: "border-transparent text-slate-600 hover:bg-slate-100",
-    pillBtn: "bg-white border-slate-200 shadow-xs text-slate-600 hover:text-stone-900 hover:bg-slate-50",
+    idxActive: "bg-white border-violet-200 shadow-2xs font-bold text-slate-900",
+    idxIdle: "border-transparent text-slate-600 hover:bg-violet-50/60",
+    pillBtn: "bg-white border-slate-200 shadow-xs text-slate-600 hover:text-violet-700 hover:bg-violet-50/50",
     pane: "bg-white",
     contentBox: "text-slate-800 bg-stone-50/30 border-stone-100/60",
     phaseBox: "bg-[#f8fafc]/50 border-slate-100",
@@ -1013,9 +1038,9 @@ const anushivaLight: Theme = {
 
     chipWrap: "bg-stone-50 border-stone-200",
     chipBtn: "text-slate-600 hover:bg-white",
-    segActive: "bg-stone-950 text-white shadow-sm",
-    segIdle: "text-slate-500 hover:text-stone-900",
-    tabIdle: "bg-white text-slate-600 hover:bg-slate-50",
+    segActive: "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm",
+    segIdle: "text-slate-500 hover:text-violet-700",
+    tabIdle: "bg-white text-slate-600 hover:bg-violet-50/60",
     tabIconActive: "text-amber-400",
     tabIconIdle: "text-slate-400",
     exitBtn: "text-stone-600 hover:text-stone-900 bg-stone-50 border-stone-200",
@@ -1024,7 +1049,7 @@ const anushivaLight: Theme = {
     closeBtn: "text-slate-500 hover:bg-stone-100",
 
     focusRoot: "bg-[#FBF9F4] text-slate-800",
-    focusHeader: "border-stone-200 bg-white/90",
+    focusHeader: "border-stone-200 bg-white/90 backdrop-blur-md",
     sectionTabIdle: "text-slate-600 hover:bg-stone-100",
     popover: "border-stone-200 bg-white shadow-lg text-slate-600",
     popFooter: "border-stone-100 text-slate-400",
@@ -1041,8 +1066,8 @@ const anushivaLight: Theme = {
       "bg-stone-200 group-hover:w-0.5 group-hover:bg-amber-400 group-focus-visible:w-0.5 group-focus-visible:bg-amber-500",
     handleGrip: "bg-stone-300 group-hover:bg-amber-400 group-focus-visible:bg-amber-500",
     article: "bg-white border-stone-200 shadow-sm text-slate-800",
-    navCard: "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm",
-    nextCard: "bg-stone-950 text-white hover:bg-stone-800",
+    navCard: "border-stone-200 bg-white hover:border-violet-200 hover:shadow-sm",
+    nextCard: "bg-gradient-to-r from-stone-950 via-indigo-950 to-stone-950 text-white hover:brightness-125",
     nextLabel: "text-amber-400",
 
     doneText: "text-emerald-600",
