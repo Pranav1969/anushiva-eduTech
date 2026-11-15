@@ -1,6 +1,9 @@
 // src/app/student/components/RevisionNotesTree.tsx
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+
+import React, { useState, useEffect, useMemo, useRef } from "react";
+// 🤖 GURUJI: selection popover + topic-context helpers
+import { SelectionAskPopover, cleanForAI, type GuruContext, type GuruTopicCtx, type GuruAsk } from "./GurujiSelectionAsk";
 import { 
   Loader2, ChevronDown, ChevronRight, BookOpen, Edit3, 
   Save, CheckCircle, Trash2, Check, 
@@ -8,6 +11,7 @@ import {
   ChevronLeft, Sparkles, ExternalLink, Lock, Languages // Added Lock + Languages icons
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
+import { useStudentSession } from "@/utils/auth"; // ✅ NEW: gives the real students.id for DB saving
 import StudyDesk from "./StudyDesk";
 import FocusReader from "./FocusReader"; // NEW: full-screen reading workspace
 import { useTheme } from "../theme/ThemeProvider";
@@ -982,6 +986,7 @@ interface ChapterAccordionUnitProps {
   imageMap: Record<string, string>;
   studentPlan: string;
   contentLang: ContentLang;
+  onTopicFocus: (ctx: GuruTopicCtx) => void; // 🤖 GURUJI: tells AI which topic is open
 }
 
 const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
@@ -996,7 +1001,8 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   setIsSidebarOpen,
   imageMap,
   studentPlan,
-  contentLang
+  contentLang,
+  onTopicFocus
 }) => {
   const { theme } = useTheme();
   const nt = theme.notes;
@@ -1014,6 +1020,22 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
     const requiredWeight = PLAN_HIERARCHY[chap.required_plan?.toLowerCase() || "free"] || 1;
     return studentWeight < requiredWeight;
   }, [studentPlan, chap.required_plan]);
+
+  // 🤖 GURUJI: tell AI Guruji exactly which topic the student is reading
+  const activeTopicDone = currentActiveTopic ? !!completedTopics[currentActiveTopic.id] : false;
+  useEffect(() => {
+    if (!isExpanded || isLocked || !currentActiveTopic) return;
+    onTopicFocus({
+      topicId: currentActiveTopic.id, // ✅ FIX 1: without this, chats are never saved
+      chapterId: chap.id,
+      chapter: getLocalizedLabel(chap, contentLang),
+      topic: getLocalizedLabel(currentActiveTopic, contentLang),
+      topicText: cleanForAI(getLocalizedParagraph(currentActiveTopic, contentLang)),
+      topicDone: activeTopicDone,
+      chapterProgress: `${doneInChapter}/${totalInChapter} topics done`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, isLocked, currentActiveTopic?.id, contentLang, activeTopicDone, doneInChapter]);
 
   const handleLaunchAttachedTest = (testId: string) => {
     if (!testId) return;
@@ -1132,7 +1154,8 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                       Translation not available yet -- showing English
                     </div>
                   )}
-                  <div dir="auto" className={`text-[13px] leading-relaxed whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide p-4 rounded-xl border select-text ${nt.contentBox}`}>
+                  {/* 🤖 GURUJI: data-guru-selectable lets the "Ask Guruji" popover appear on selected text here */}
+                  <div dir="auto" data-guru-selectable className={`text-[13px] leading-relaxed whitespace-pre-wrap pt-0.5 font-sans font-normal antialiased tracking-wide p-4 rounded-xl border select-text ${nt.contentBox}`}>
                     {renderNarrativeWithImages(getLocalizedParagraph(currentActiveTopic, contentLang), imageMap, nt)}
                   </div>
 
@@ -1193,6 +1216,10 @@ export default function RevisionNotesTree({
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const [studentId, setStudentId] = useState<string>("");
 
+  // ✅ FIX 4: the real students.id (different from the auth user id above) - needed for the database
+  const { session } = useStudentSession();
+  const dbStudentId = session?.id;
+
   // Preferred notes language -- persisted so it sticks across sessions.
   const [contentLang, setContentLang] = useState<ContentLang>("en");
 
@@ -1233,14 +1260,52 @@ export default function RevisionNotesTree({
     const savedProgress = localStorage.getItem(trackingStorageKey);
     if (savedProgress) {
       try {
-        setCompletedTopics(JSON.parse(savedProgress));
+        const local = JSON.parse(savedProgress);
+        // merge (don't replace) so progress already loaded from the database is never wiped
+        setCompletedTopics((prev) => ({ ...local, ...prev }));
       } catch (e) {
         console.error(e);
       }
-    } else {
-      setCompletedTopics({});
     }
   }, [studentId]);
+
+  // ✅ FIX 4: load saved progress from the database (the database is the source of truth)
+  // + one-time push of progress that only exists on this device
+  useEffect(() => {
+    if (!dbStudentId || !studentId) return; // wait until both ids are known
+    (async () => {
+      const { data, error } = await supabase
+        .from("student_topic_progress")
+        .select("topic_id")
+        .eq("student_id", dbStudentId);
+      if (error) { console.warn("progress load failed:", error.message); return; }
+      const fromDb: Record<string, boolean> = Object.fromEntries((data || []).map((r: any) => [r.topic_id, true]));
+
+      // one-time: push progress that only exists on this device (the SQL function skips stale topic ids)
+      const flag = `progress_pushed_${dbStudentId}`;
+      if (!localStorage.getItem(flag)) {
+        const local: Record<string, boolean> = {};
+        for (const k of [`student_progress_${studentId}`, "student_syllabus_progress"]) {
+          try { Object.assign(local, JSON.parse(localStorage.getItem(k) || "{}")); } catch {}
+        }
+        const ids = Object.keys(local).filter((id) => local[id] && !fromDb[id]);
+        if (ids.length) {
+          const { error: e2 } = await supabase.rpc("sync_topic_progress", { p_topics: ids });
+          if (e2) {
+            console.warn("progress push failed:", e2.message); // flag stays unset -> retried next visit
+          } else {
+            ids.forEach((id) => { fromDb[id] = true; });
+            localStorage.setItem(flag, "1");
+          }
+        } else {
+          localStorage.setItem(flag, "1");
+        }
+      }
+
+      setCompletedTopics(fromDb); // the database is the truth
+      localStorage.setItem(`student_progress_${studentId}`, JSON.stringify(fromDb));
+    })();
+  }, [dbStudentId, studentId]);
 
   useEffect(() => {
     async function loadAssetLibrary() {
@@ -1291,6 +1356,29 @@ export default function RevisionNotesTree({
     return { total, done, percentage: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [currentActiveSection, completedTopics]);
 
+  // ==========================================
+  // 🤖 GURUJI: topic-level context + highlight-to-ask
+  // (must stay above the early returns below -- hooks rule)
+  // ==========================================
+  const [topicCtx, setTopicCtx] = useState<GuruTopicCtx | null>(null);
+  const [guruAsk, setGuruAsk] = useState<GuruAsk | null>(null);
+  const askCounter = useRef(0);
+
+  // ✅ FIX 3: in Focus Canvas there is no "open chapter", so always use the topic that FocusReader reported
+  const guruContext = useMemo<GuruContext>(() => ({
+    section: getLocalizedLabel(currentActiveSection, contentLang) || "the current topic",
+    lang: contentLang,
+    ...((isFullscreenMode || (openChapterId && topicCtx?.chapterId === openChapterId)) ? topicCtx : {}),
+  }), [currentActiveSection, contentLang, openChapterId, topicCtx, isFullscreenMode]);
+
+  const handleGuruAsk = (quote: string, kind: GuruAsk["kind"], action: GuruAsk["action"]) => {
+    setGuruAsk({ id: ++askCounter.current, quote, kind, action });
+    // On mobile the AI column sits below the notes, so bring it into view
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      document.getElementById("guruji-desk")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   // `e` is optional so FocusReader can call this without a click event.
   const toggleTopicCompletion = (topicId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1298,6 +1386,22 @@ export default function RevisionNotesTree({
     setCompletedTopics(updatedProgress);
     const trackingStorageKey = studentId ? `student_progress_${studentId}` : "student_syllabus_progress";
     localStorage.setItem(trackingStorageKey, JSON.stringify(updatedProgress));
+
+    // ✅ FIX 4: also save to the database (student_topic_progress)
+    if (dbStudentId) {
+      const req = updatedProgress[topicId]
+        ? supabase
+            .from("student_topic_progress")
+            .upsert({ student_id: dbStudentId, topic_id: topicId }, { onConflict: "student_id,topic_id" })
+        : supabase
+            .from("student_topic_progress")
+            .delete()
+            .eq("student_id", dbStudentId)
+            .eq("topic_id", topicId);
+      req.then(({ error }) => {
+        if (error) console.warn("progress sync failed:", error.message);
+      });
+    }
   };
 
   const handleChapterToggle = (chapterId: string) => {
@@ -1341,6 +1445,18 @@ export default function RevisionNotesTree({
         languageOptions={LANGUAGE_OPTIONS}
         completedTopics={completedTopics}
         onToggleComplete={(id) => toggleTopicCompletion(id)}
+        // ✅ FIX 2: tell the AI which topic is open in Focus Canvas
+        onTopicChange={(chap, topic) =>
+          setTopicCtx({
+            topicId: topic.id,
+            chapterId: chap.id,
+            chapter: getLocalizedLabel(chap, contentLang),
+            topic: getLocalizedLabel(topic, contentLang),
+            topicText: cleanForAI(getLocalizedParagraph(topic, contentLang)),
+            topicDone: !!completedTopics[topic.id],
+            chapterProgress: "",
+          })
+        }
         imageMap={imageMap}
         studentPlan={studentPlan}
         planHierarchy={PLAN_HIERARCHY}
@@ -1354,6 +1470,7 @@ export default function RevisionNotesTree({
             fullHeight
             onClose={close}
             currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"}
+            noteContext={guruContext} // 🤖 GURUJI
           />
         )}
         onExit={(pos) => {
@@ -1416,6 +1533,7 @@ export default function RevisionNotesTree({
                         imageMap={imageMap}
                         studentPlan={studentPlan}
                         contentLang={contentLang}
+                        onTopicFocus={setTopicCtx} // 🤖 GURUJI
                       />
                     ))}
                   </div>
@@ -1427,9 +1545,16 @@ export default function RevisionNotesTree({
       </div>
 
       {/* AI Guruji Right Hand Sidebar Column */}
-      <div className="h-full min-h-[480px] relative transition-all duration-300 lg:col-span-1 block">
-        <StudyDesk currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"} />
+      <div id="guruji-desk" className="h-full min-h-[480px] relative transition-all duration-300 lg:col-span-1 block">
+        <StudyDesk
+          currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"}
+          noteContext={guruContext} // 🤖 GURUJI: deep topic context
+          ask={guruAsk}             // 🤖 GURUJI: highlight -> ask requests
+        />
       </div>
+
+      {/* 🤖 GURUJI: floating "Ask Guruji" card that appears near selected text */}
+      <SelectionAskPopover onAsk={handleGuruAsk} />
     </div>
   );
 }

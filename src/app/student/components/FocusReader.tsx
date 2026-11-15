@@ -31,6 +31,7 @@ interface FocusReaderProps {
   /** Receives a close() callback so the AI panel can render its own close button */
   aiPanel: (close: () => void) => React.ReactNode;
   onExit: (pos: { chapterId: string; topicId: string } | null) => void;
+  onTopicChange?: (chap: any, topic: any) => void;
 }
 
 // ---- layout constants ----
@@ -55,7 +56,7 @@ export default function FocusReader({
   contentLang, setContentLang, languageOptions,
   completedTopics, onToggleComplete, imageMap,
   studentPlan, planHierarchy, getLabel, getParagraph, renderContent,
-  initialTopicId, aiPanel, onExit,
+  initialTopicId, aiPanel, onExit, onTopicChange,
 }: FocusReaderProps) {
   // ---- theme: every color on this page comes from theme.notes ----
   const { theme } = useTheme();
@@ -277,6 +278,11 @@ export default function FocusReader({
     setReadPct(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTopicId]);
+
+  useEffect(() => {
+    if (current) onTopicChange?.(current.chap, current.topic);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.topic.id]);
 
   // Font scale persistence
   useEffect(() => {
