@@ -1043,7 +1043,7 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
   };
 
   return (
-    <div className={`border rounded-xl transition-all ${nt.card} ${isChapterComplete ? nt.cardBorderDone : nt.cardBorder}`}>
+    <div id={`chapter-${chap.id}`} className={`border rounded-xl transition-all ${nt.card} ${isChapterComplete ? nt.cardBorderDone : nt.cardBorder}`}>
       <button
         onClick={() => onToggleChapter(chap.id)}
         className={`w-full flex items-center justify-between p-3 text-left transition-colors ${nt.chapHead}`}
@@ -1379,6 +1379,55 @@ export default function RevisionNotesTree({
     }
   };
 
+  // ==========================================
+  // 📚 GURUJI "Revise: <topic>" chips -> open that topic in the notes
+  // (must stay above the early returns below -- hooks rule)
+  // ==========================================
+  // A pending ref is needed because the effect above clears `openChapterId`
+  // whenever the section changes.
+  const pendingOpen = useRef<{ chapterId: string; topicId: string } | null>(null);
+  const [jump, setJump] = useState<{ topicId: string; n: number } | null>(null);
+
+  const locateTopic = (topicId: string) => {
+    for (const sec of courseContentTree)
+      for (const ph of sec.notes_phases || [])
+        for (const ch of ph.notes_chapters || [])
+          for (const t of ch.notes_topics || [])
+            if (t.id === topicId) return { sectionId: sec.id as string, chapterId: ch.id as string };
+    return null;
+  };
+
+  const applyOpen = (chapterId: string, topicId: string) => {
+    setSelectedTopicIdMap((prev) => ({ ...prev, [chapterId]: topicId }));
+    setOpenChapterId(chapterId);
+    setTimeout(() => document.getElementById(`chapter-${chapterId}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  };
+
+  const openTopic = (topicId: string) => {
+    const loc = locateTopic(topicId);
+    if (!loc) return;
+    if (isFullscreenMode) {
+      if (loc.sectionId !== activeSectionId) setActiveSectionId(loc.sectionId);
+      setJump({ topicId, n: Date.now() });
+      return;
+    }
+    if (loc.sectionId !== activeSectionId) {
+      pendingOpen.current = { chapterId: loc.chapterId, topicId };
+      setActiveSectionId(loc.sectionId);
+    } else {
+      applyOpen(loc.chapterId, topicId);
+    }
+  };
+
+  // must come AFTER the effect that resets openChapterId when the section changes
+  useEffect(() => {
+    const p = pendingOpen.current;
+    if (!p) return;
+    pendingOpen.current = null;
+    applyOpen(p.chapterId, p.topicId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSectionId]);
+
   // `e` is optional so FocusReader can call this without a click event.
   const toggleTopicCompletion = (topicId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1465,12 +1514,14 @@ export default function RevisionNotesTree({
         renderContent={(text, map) => renderNarrativeWithImages(text, map, nt)}
         initialChapterId={openChapterId}
         initialTopicId={openChapterId ? selectedTopicIdMap[openChapterId] : null}
+        jumpRequest={jump} // 📚 "Revise" chip -> jump to this topic inside Focus Canvas
         aiPanel={(close) => (
           <StudyDesk
             fullHeight
             onClose={close}
             currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"}
             noteContext={guruContext} // 🤖 GURUJI
+            onOpenTopic={openTopic}   // 📚 "Revise" chips
           />
         )}
         onExit={(pos) => {
@@ -1550,6 +1601,7 @@ export default function RevisionNotesTree({
           currentSection={getLocalizedLabel(currentActiveSection, contentLang) || "the current topic"}
           noteContext={guruContext} // 🤖 GURUJI: deep topic context
           ask={guruAsk}             // 🤖 GURUJI: highlight -> ask requests
+          onOpenTopic={openTopic}   // 📚 "Revise" chips
         />
       </div>
 

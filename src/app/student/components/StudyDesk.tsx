@@ -1,9 +1,9 @@
 // src/app/student/components/StudyDesk.tsx
-// Smriti-Sync · Phase 1: every topic has its own saved conversation.
+// Smriti-Sync · Phase 3: topic-wise saved conversation + feedback rating.
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Bot, User, X, MapPin, Quote, Trash2, RotateCcw, ChevronUp, Loader2 } from "lucide-react";
+import { Send, Sparkles, Bot, User, X, MapPin, Quote, Trash2, RotateCcw, ChevronUp, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -12,6 +12,8 @@ import { supabase } from "@/utils/supabase";
 import { useStudentSession, StudentSession } from "@/utils/auth";
 import type { GuruContext, GuruAsk, SelectionKind } from "./GurujiSelectionAsk";
 
+type Ref = { topicId: string; chapterId: string; topic: string; chapter: string };
+
 interface Message {
   id?: string;            // present when the message is saved in the database
   role: "user" | "ai";
@@ -19,6 +21,8 @@ interface Message {
   quote?: string;         // text the student highlighted in the notes
   kind?: "nudge";         // local-only message (welcome / encouragement) - never saved
   at?: string;            // ISO time, used for the date separators
+  refs?: Ref[];           // topics Guruji suggests revising
+  feedback?: 1 | -1;      // student vote on AI answer
 }
 
 interface ExtendedStudentProfile extends StudentSession {
@@ -35,6 +39,8 @@ interface StudyDeskProps {
   noteContext?: GuruContext;
   /** A "highlight -> ask" request coming from the notes */
   ask?: GuruAsk | null;
+  /** Called when the student taps a "Related" chip under an AI answer */
+  onOpenTopic?: (topicId: string) => void;
 }
 
 type Quoted = { text: string; kind: SelectionKind };
@@ -61,7 +67,7 @@ const dayLabel = (iso: string) => {
   });
 };
 
-export default function StudyDesk({ currentSection, fullHeight = false, onClose, noteContext, ask }: StudyDeskProps) {
+export default function StudyDesk({ currentSection, fullHeight = false, onClose, noteContext, ask, onOpenTopic }: StudyDeskProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -142,7 +148,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
 
       let q = supabase
         .from("guru_messages")
-        .select("id, role, content, quote, created_at")
+        .select("id, role, content, quote, refs, feedback, created_at")
         .eq("thread_id", threadId)
         .order("created_at", { ascending: false })
         .limit(PAGE + 1);
@@ -154,7 +160,15 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
       const rows: Message[] = (data || [])
         .slice(0, PAGE)
         .reverse()
-        .map((r: any) => ({ id: r.id, role: r.role, text: r.content, quote: r.quote || undefined, at: r.created_at }));
+        .map((r: any) => ({
+          id: r.id,
+          role: r.role,
+          text: r.content,
+          quote: r.quote || undefined,
+          refs: r.refs || undefined,
+          feedback: r.feedback || undefined,
+          at: r.created_at,
+        }));
       return { rows, more };
     } catch (e) {
       console.warn("Could not load Guruji history:", e);
@@ -247,7 +261,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
           ? `What does “${short(a.quote, 40)}” mean in this context? Please explain simply.`
           : "Please explain this in simple words, step by step."
         : "Give me a clear, simple example to understand this.";
-    sendText(prompt, q);
+    sendText(prompt, q, a.action);
   };
 
   useEffect(() => {
@@ -260,7 +274,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
   // ------------------------------------------------------------------
   // Sending
   // ------------------------------------------------------------------
-  const sendText = async (text: string, q?: Quoted | null) => {
+  const sendText = async (text: string, q?: Quoted | null, intent?: "explain" | "example" | "doubt") => {
     const clean = text.trim();
     if (!clean || isTyping || historyLoading) return;
 
@@ -289,6 +303,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
           noteContext: noteContext || null,
           selectedText: q?.text ?? null,
           selectionKind: q?.kind ?? null,
+          intent: intent ?? null,
           student: student ? { firstName: student.firstName, gender: student.gender } : null,
           chatHistory: ephemeral,
         }),
@@ -298,7 +313,13 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
       if (sentTopic) setPersistOk(data.persisted !== false);
       setMessages((prev) => [
         ...prev,
-        { role: "ai", text: data.reply || "Guruji is processing your solution. Please try again in a moment.", at: new Date().toISOString() },
+        {
+          id: data.messageId || undefined,
+          role: "ai",
+          text: data.reply || "Guruji is processing your solution. Please try again in a moment.",
+          refs: data.refs?.length ? data.refs : undefined,
+          at: new Date().toISOString(),
+        },
       ]);
     } catch {
       if (topicRef.current !== sentTopic) return;
@@ -310,11 +331,11 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    sendText(input, quote);
+    sendText(input, quote, quote ? "doubt" : undefined);
   };
 
   // ------------------------------------------------------------------
-  // Clear this topic's chat (deletes the saved thread)
+  // Clear this topic's chat (deletes the saved thread) & Rate messages
   // ------------------------------------------------------------------
   const clearChat = async () => {
     setConfirmClear(false);
@@ -328,6 +349,14 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
     setQuote(null);
     scrollMode.current = "instant";
     setMessages(tid ? [firstVisitMessage()] : [sectionGreeting()]);
+  };
+
+  const rate = async (m: Message, value: 1 | -1) => {
+    if (!m.id) return;
+    const next = m.feedback === value ? 0 : value;
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, feedback: next === 0 ? undefined : (next as 1 | -1) } : x)));
+    const { error } = await supabase.rpc("rate_guru_message", { p_message: m.id, p_value: next });
+    if (error) console.warn("rating failed:", error.message);
   };
 
   const chips = topic
@@ -485,6 +514,37 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
                   >
                     {m.text}
                   </ReactMarkdown>
+                  {m.role === "ai" && m.refs && m.refs.length > 0 && onOpenTopic && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {m.refs.map((r) => (
+                        <button
+                          key={r.topicId}
+                          type="button"
+                          onClick={() => onOpenTopic(r.topicId)}
+                          className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-colors max-w-full"
+                          title="Open this topic in your notes"
+                        >
+                          <span>📚</span>
+                          <span className="truncate">Related: {r.topic}{r.chapter ? ` · ${r.chapter}` : ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {m.role === "ai" && m.id && !m.kind && (
+                    <div className="mt-2 flex items-center gap-1">
+                      {([1, -1] as const).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => rate(m, v)}
+                          title={v === 1 ? "Helpful" : "Not helpful"}
+                          className={`p-1 rounded-md transition-colors ${m.feedback === v ? "text-amber-400 bg-amber-500/15" : "text-slate-500 hover:text-slate-300"}`}
+                        >
+                          {v === 1 ? <ThumbsUp className="w-3 h-3" /> : <ThumbsDown className="w-3 h-3" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </React.Fragment>

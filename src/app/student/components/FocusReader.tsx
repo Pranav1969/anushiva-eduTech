@@ -32,6 +32,8 @@ interface FocusReaderProps {
   aiPanel: (close: () => void) => React.ReactNode;
   onExit: (pos: { chapterId: string; topicId: string } | null) => void;
   onTopicChange?: (chap: any, topic: any) => void;
+  /** A "Revise: <topic>" chip was tapped in AI-Guruji -> jump to that topic (n makes repeat taps count) */
+  jumpRequest?: { topicId: string; n: number } | null;
 }
 
 // ---- layout constants ----
@@ -56,7 +58,7 @@ export default function FocusReader({
   contentLang, setContentLang, languageOptions,
   completedTopics, onToggleComplete, imageMap,
   studentPlan, planHierarchy, getLabel, getParagraph, renderContent,
-  initialTopicId, aiPanel, onExit, onTopicChange,
+  initialTopicId, aiPanel, onExit, onTopicChange, jumpRequest,
 }: FocusReaderProps) {
   // ---- theme: every color on this page comes from theme.notes ----
   const { theme } = useTheme();
@@ -307,6 +309,18 @@ export default function FocusReader({
     setActiveTopicId(id);
     if (typeof window !== "undefined" && window.innerWidth < 768) setNavOpen(false);
   }, []);
+
+  // 📚 "Revise: <topic>" chip in AI-Guruji -> jump to that topic.
+  // If the topic lives in another subject, the parent switches the section first;
+  // this effect waits until `flat` contains the topic, then jumps once per request.
+  const jumpHandled = useRef(0);
+  useEffect(() => {
+    if (!jumpRequest || jumpHandled.current === jumpRequest.n) return;
+    if (flat.some((f) => f.topic.id === jumpRequest.topicId)) {
+      jumpHandled.current = jumpRequest.n;
+      goTo(jumpRequest.topicId);
+    }
+  }, [jumpRequest, flat, goTo]);
 
   const exit = useCallback(() => {
     onExit(current ? { chapterId: current.chap.id, topicId: current.topic.id } : null);

@@ -5,6 +5,8 @@ import { Loader2, Save, Eye, Layers, FileText, Plus, X, FolderPlus, Trash2, Edit
 import { supabase } from "@/utils/supabase";
 import ImageManager from "./ImageManager";
 import NotesPreviewRenderer from "./NotesPreviewRenderer";
+import ReindexNotesButton from "./ReindexNotesButton";
+import { runIndex } from "./reindexClient";
 
 interface FormAddNotesProps {
   onSuccess: () => void;
@@ -86,6 +88,8 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessingNewNode, setIsProcessingNewNode] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [indexTick, setIndexTick] = useState(0);
+  const [autoIndexMsg, setAutoIndexMsg] = useState("");
   
   const [exams, setExams] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
@@ -583,6 +587,16 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
         paragraph_text_mr: topicContent.mr,
       } : t));
       onSuccess();
+
+      // keep Guruji's AI search in step with the notes just saved (runs in the background)
+      setAutoIndexMsg("Updating AI search…");
+      runIndex({ topic: selectedTopic })
+        .then((rep) => {
+          setAutoIndexMsg(rep.errors.length ? "AI search update failed, use the AI Search button" : "AI search updated ✓");
+          setIndexTick((t) => t + 1);
+        })
+        .catch(() => setAutoIndexMsg("AI search update failed, use the AI Search button"))
+        .finally(() => setTimeout(() => setAutoIndexMsg(""), 4000));
     } catch (err: any) {
       alert("Pipeline Exception: " + err.message);
     } finally {
@@ -782,14 +796,18 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
             <Eye className="w-3.5 h-3.5" /> Live Preview Container
           </button>
         </div>
-        <button
-          onClick={commitContentUpdate}
-          disabled={isSaving || !selectedTopic}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-900 disabled:text-slate-600 border border-emerald-400/20 disabled:border-slate-800/60 text-slate-950 font-semibold px-5 py-2 rounded-xl text-xs tracking-wide transition-all shadow-lg shadow-emerald-500/5 disabled:shadow-none"
-        >
-          {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          Commit Changes
-        </button>
+        <div className="flex items-center gap-3">
+          {autoIndexMsg && <span className="text-[10px] text-slate-400 font-mono">{autoIndexMsg}</span>}
+          <ReindexNotesButton refreshKey={indexTick} />
+          <button
+            onClick={commitContentUpdate}
+            disabled={isSaving || !selectedTopic}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-900 disabled:text-slate-600 border border-emerald-400/20 disabled:border-slate-800/60 text-slate-950 font-semibold px-5 py-2 rounded-xl text-xs tracking-wide transition-all shadow-lg shadow-emerald-500/5 disabled:shadow-none"
+          >
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Commit Changes
+          </button>
+        </div>
       </header>
 
       <section className="bg-[#040814] border-b border-slate-900/50 px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
