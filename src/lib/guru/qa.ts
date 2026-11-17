@@ -46,8 +46,17 @@ export const hasNegation = (q: string) =>
 
 // ---------- what kind of message is this? ----------
 const PRONOUN = /\b(it|its|this|that|these|those|they|them|above|previous|earlier|same|again|another|one more)\b|इसका|इसमें|यह|ये|वो|त्याचा|हे\b/i;
-export const looksSelfContained = (m: string) =>
-  m.length >= 25 && m.length <= 400 && !PRONOUN.test(m) && !/[\u0900-\u097F]/.test(m); // Devanagari -> let the rewriter translate to English
+const VAGUE_START = /^(why|how so|and|but|so|then|example|examples|more|again|elaborate|simplify|continue|next|ok|okay)\b/i;
+/** true when the message can be understood on its own, so no rewrite model call is needed */
+export const looksSelfContained = (m: string) => {
+  const t = m.trim();
+  if (t.length < 8 || t.length > 400) return false;
+  if (/[\u0900-\u097F]/.test(t)) return false;           // Devanagari -> let the rewriter translate to English
+  if (PRONOUN.test(t)) return false;
+  if (t.split(/\s+/).length < 2) return false;
+  if (VAGUE_START.test(t) && t.length < 40) return false;
+  return true;
+};
 
 const PERSONAL =
   /\b(my|mine|i (got|get|solved|tried|did|answered|selected|chose|marked|scored|failed|am (confused|stuck|weak))|where did i|what did i|check my|mera|meri|mere|mujhe|maine|मेरा|मेरी|मुझे|मैंने|माझं|माझे|मला)\b|\bwrong answer\b|\bmy (score|rank|result|answer|mistake)\b/i;

@@ -23,6 +23,7 @@ async function post(url: string, body: unknown, retries = 2): Promise<any> {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key() },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000), // never let a slow embedding hold the chat
     });
     if (res.ok) return res.json();
     if ((res.status === 429 || res.status >= 500) && attempt < retries) {
@@ -74,7 +75,12 @@ export async function embedQuery(text: string): Promise<number[] | null> {
     return null;
   }
 }
-/** Embeds a QUESTION for question-to-question matching. Same function is used when saving and when looking up. */
+
+/**
+ * Embeds a QUESTION for question-to-question matching (SEMANTIC_SIMILARITY).
+ * The same function is used when saving a question in the bank and when looking one up,
+ * so both sides live in the same vector space. Returns null on failure.
+ */
 export async function embedQuestion(text: string): Promise<number[] | null> {
   try {
     const json = await post(

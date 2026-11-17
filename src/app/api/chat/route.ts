@@ -1,12 +1,11 @@
-// FILE: src/app/api/chat/route.ts   (Smriti-Sync · Phase 3)
+// FILE: src/app/api/chat/route.ts   (Smriti-Sync · Phase 3.1 · SPEED)
 //
-//   message ─► greeting/thanks?  ─► free template reply (no model)
-//           ─► chip / highlight / study question?
-//                 └► rewrite follow-ups into a standalone question (tiny model call, only when needed)
-//                 └► look in the shared knowledge bank (exact key, then meaning + guards)
-//                       HIT  ─► saved neutral answer + personal touch (free)
-//                       MISS ─► Gemini writes a neutral CORE answer from the notes ─► saved ─► personal touch
-//           ─► personal / student-specific ─► full personal answer with the chat so far (never shared)
+// What changed vs Phase 3 (same behaviour, fewer waits):
+//   1. no rewrite model call for questions that already stand alone ("what is HCF?")
+//   2. student lookup and topic load run at the same time
+//   3. chat history is read only when a path really needs it (not for a plain cache hit)
+//   4. the whole exchange is saved with ONE database call (guru_save_exchange)
+//   5. GURU_DEBUG=1 prints / returns a timing breakdown so slow steps are visible
 //
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -40,6 +39,7 @@ const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice
 const one = (x: any) => (Array.isArray(x) ? x[0] : x);
 const withQuote = (text: string, quote?: string | null) =>
   quote ? `[Student highlighted from the notes: "${quote}"]\n${text}` : text;
+const stripQuote = (t: string) => t.replace(/^\[Student highlighted[^\]]*\]\n/, "");
 
 async function resolveStudent(req: NextRequest, admin: SupabaseClient) {
   const header = req.headers.get("authorization") || "";
@@ -102,6 +102,11 @@ function coreUserText(
 // =====================================================================
 export async function POST(req: NextRequest) {
   const startedAt = new Date();
+  // ---- tiny stopwatch: shows which step is slow (visible with GURU_DEBUG=1) ----
+  const T: Record<string, number> = {};
+  let tick = Date.now();
+  const mark = (k: string) => { const n = Date.now(); T[k] = (T[k] || 0) + (n - tick); tick = n; };
+
   try {
     const body = await req.json();
     const message = str(body.message, MAX_USER_CHARS);
@@ -123,71 +128,79 @@ export async function POST(req: NextRequest) {
     const selectionKind = ["word", "line", "passage"].includes(body.selectionKind) ? (body.selectionKind as string) : null;
     const intent = ["explain", "example", "doubt"].includes(body.intent) ? (body.intent as string) : null;
 
-    const student = admin ? await resolveStudent(req, admin) : null;
-    const rank = planRank(student?.current_plan);
+    // ---- who is asking + the open topic, at the same time ----
+    const [student, topicRow] = await Promise.all([
+      admin ? resolveStudent(req, admin) : Promise.resolve(null),
+      admin && topicId ? loadTopic(admin, topicId, lang) : Promise.resolve(null),
+    ]);
+    mark("auth+topic");
 
-    // ---- the open topic (notes come from the database) ----
-    let notes = "";
-    let topicName = str(ctx.topic, 200);
-    let topicRank = 1;
-    if (admin && topicId) {
-      const t = await loadTopic(admin, topicId, lang);
-      if (t) { notes = t.text; topicName = t.name || topicName; topicRank = t.rank; }
-    }
+    const rank = planRank(student?.current_plan);
+    let notes = topicRow?.text || "";
+    const topicName = topicRow?.name || str(ctx.topic, 200);
+    const topicRank = topicRow?.rank || 1;
     if (!notes) notes = cleanForAI(str(ctx.topicText, MAX_NOTES_CHARS), MAX_NOTES_CHARS);
 
-    // ---- thread + recent turns ----
-    let threadId: string | null = null;
-    let threadCount = 0;
-    const turns: Turn[] = [];
-    if (admin && student && topicId) {
-      const { data: thread, error } = await admin
-        .from("guru_threads")
-        .upsert({ student_id: student.id, topic_id: topicId, lang }, { onConflict: "student_id,topic_id" })
-        .select("id, message_count").single();
-      if (error) console.warn("⚠️ thread upsert failed:", error.message);
-      else {
-        threadId = thread.id;
-        threadCount = thread.message_count || 0;
-        const { data: recent } = await admin
-          .from("guru_messages").select("role, content, quote")
-          .eq("thread_id", thread.id).order("created_at", { ascending: false }).limit(HISTORY_TURNS);
-        (recent || []).reverse().forEach((m: any) =>
-          turns.push({ role: m.role === "ai" ? "model" : "user", text: m.role === "ai" ? m.content : withQuote(m.content, m.quote) })
+    // ---- chat history: loaded only when a path needs it ----
+    let turnsCache: Turn[] | null = null;
+    const getTurns = async (): Promise<Turn[]> => {
+      if (turnsCache) return turnsCache;
+      const out: Turn[] = [];
+      if (admin && student && topicId) {
+        const { data, error } = await admin
+          .from("guru_messages")
+          .select("role, content, quote, guru_threads!inner(student_id, topic_id)")
+          .eq("guru_threads.student_id", student.id)
+          .eq("guru_threads.topic_id", topicId)
+          .order("created_at", { ascending: false })
+          .limit(HISTORY_TURNS);
+        if (error) console.warn("⚠️ history read failed:", error.message);
+        (data || []).reverse().forEach((m: any) =>
+          out.push({ role: m.role === "ai" ? "model" : "user", text: m.role === "ai" ? m.content : withQuote(m.content, m.quote) })
         );
+      } else if (Array.isArray(body.chatHistory)) {
+        body.chatHistory.slice(-6).forEach((m: any) => {
+          const text = str(m?.text, 1500);
+          if (text) out.push({ role: m?.role === "ai" ? "model" : "user", text });
+        });
       }
-    } else if (Array.isArray(body.chatHistory)) {
-      body.chatHistory.slice(-6).forEach((m: any) => {
-        const text = str(m?.text, 1500);
-        if (text) turns.push({ role: m?.role === "ai" ? "model" : "user", text });
-      });
-    }
-    const prevUser = [...turns].reverse().find((t) => t.role === "user")?.text.replace(/^\[Student highlighted[^\]]*\]\n/, "") || "";
+      turnsCache = out;
+      mark("history");
+      return out;
+    };
+    const prevUser = () => stripQuote([...(turnsCache || [])].reverse().find((t) => t.role === "user")?.text || "");
 
-    // ---- who are we talking to ----
+    // ---- how to address the student ----
     const first = student?.name?.split(" ")[0] || str(body.student?.firstName, 40) || "Student";
     const gender = (student?.gender || body.student?.gender || "").toLowerCase();
     const addressing = ["female", "girl", "f"].includes(gender) ? `${first} beta` : first;
 
-    // ---- helpers that need the context above ----
-    const persist = async (reply: string, refs: Ref[], source: string, model: string | null, qaId: string | null) => {
-      if (!admin || !threadId) return { persisted: false, messageId: null as string | null };
-      const aiAt = new Date();
-      const { data, error } = await admin.from("guru_messages").insert([
-        { thread_id: threadId, role: "user", content: message, quote: selectedText, source: "user", created_at: startedAt.toISOString() },
-        { thread_id: threadId, role: "ai", content: reply, source, model, qa_id: qaId, refs: refs.length ? refs : null, created_at: aiAt.toISOString() },
-      ]).select("id, role");
-      if (error) { console.warn("⚠️ saving messages failed:", error.message); return { persisted: false, messageId: null }; }
-      await admin.from("guru_threads")
-        .update({ message_count: threadCount + 2, last_active_at: aiAt.toISOString(), lang }).eq("id", threadId);
-      return { persisted: true, messageId: (data || []).find((r: any) => r.role === "ai")?.id ?? null };
-    };
-
+    // ---- answer out the door: one save call + usage ledger ----
     const respond = async (r: {
       reply: string; refs: Ref[]; source: "cache" | "llm" | "template"; path: string; kind: string;
       model?: string | null; qaId?: string | null; usage?: Usage; sim?: number | null; debug?: any;
     }) => {
-      const saved = await persist(r.reply, r.refs, r.source, r.model ?? null, r.qaId ?? null);
+      let persisted = false;
+      let messageId: string | null = null;
+      let threadId: string | null = null;
+
+      if (admin && student && topicId) {
+        const { data, error } = await admin.rpc("guru_save_exchange", {
+          p_student: student.id, p_topic: topicId, p_lang: lang,
+          p_user_text: message, p_quote: selectedText, p_user_at: startedAt.toISOString(),
+          p_ai_text: r.reply, p_source: r.source, p_model: r.model ?? null, p_qa_id: r.qaId ?? null,
+          p_refs: r.refs.length ? r.refs : null, p_ai_at: new Date().toISOString(),
+        });
+        if (error) console.warn("⚠️ saving exchange failed (did you run phase3b_speed.sql?):", error.message);
+        else {
+          const row: any = Array.isArray(data) ? data[0] : data;
+          persisted = true;
+          messageId = row?.out_message_id ?? null;
+          threadId = row?.out_thread_id ?? null;
+        }
+      }
+      mark("save");
+
       if (admin) {
         void admin.from("guru_usage").insert({
           student_id: student?.id ?? null, topic_id: topicId, path: r.path, kind: r.kind, model: r.model ?? null,
@@ -195,10 +208,11 @@ export async function POST(req: NextRequest) {
           qa_id: r.qaId ?? null, sim: r.sim ?? null, latency_ms: Date.now() - startedAt.getTime(),
         }).then(() => {}, () => {});
       }
+      if (DEBUG) console.log(`⏱ ${r.path} total=${Date.now() - startedAt.getTime()}ms`, T);
+
       return NextResponse.json({
-        reply: r.reply, refs: r.refs, persisted: saved.persisted, messageId: saved.messageId, threadId,
-        source: r.source, kind: r.kind,
-        ...(DEBUG ? { debug: { path: r.path, sim: r.sim, ...(r.debug || {}) } } : {}),
+        reply: r.reply, refs: r.refs, persisted, messageId, threadId, source: r.source, kind: r.kind,
+        ...(DEBUG ? { debug: { path: r.path, sim: r.sim, ms: Date.now() - startedAt.getTime(), timings: T, ...(r.debug || {}) } } : {}),
       });
     };
 
@@ -232,11 +246,18 @@ export async function POST(req: NextRequest) {
     } else if (isStudentSpecific(message)) {
       kind = "personal";
     } else if (looksSelfContained(message)) {
-      kind = "concept"; canonical = message.trim();
+      kind = "concept"; canonical = message.trim();        // no model call needed
     } else {
-      const rw = await rewriteQuestion(message, turns, topicName);
-      rewriteUsage = rw?.usage;
-      if (rw && rw.kind === "concept") { kind = "concept"; canonical = rw.standalone; situation = "followup"; }
+      const hist = await getTurns();
+      if (hist.length === 0) {
+        // a brand-new chat cannot be a follow-up, so there is nothing to rewrite
+        if (message.trim().length >= 8) { kind = "concept"; canonical = message.trim(); }
+      } else {
+        const rw = await rewriteQuestion(message, hist, topicName);
+        rewriteUsage = rw?.usage;
+        if (rw && rw.kind === "concept") { kind = "concept"; canonical = rw.standalone; situation = "followup"; }
+      }
+      mark("rewrite");
     }
 
     // =================================================================
@@ -245,16 +266,23 @@ export async function POST(req: NextRequest) {
     if (admin && kind !== "personal" && canonical) {
       const hash = qHash(canonical, lang, kind === "concept" ? null : scope);
       let hit = await findExact(admin, hash, lang, rank);
+      mark("bank-exact");
       let embedding: number[] | null = null;
       if (!hit && kind === "concept") {
         embedding = await embedQuestion(canonical);
+        mark("embed");
         if (embedding) hit = await findSemantic(admin, embedding, lang, rank, canonical);
+        mark("bank-semantic");
       }
 
       if (hit) {
         bumpHit(admin, hit.id);
         const refs = await validRefs(admin, hit.refs, rank, topicId);
-        const reply = applySkin({ core: hit.answer, name: addressing, lang, situation, prevQuestion: prevUser });
+        mark("refs");
+        const reply = applySkin({
+          core: hit.answer, name: addressing, lang, situation,
+          prevQuestion: situation === "followup" ? prevUser() : "",
+        });
         return respond({
           reply, refs, source: "cache", kind, qaId: hit.id, sim: hit.sim, usage: rewriteUsage,
           path: hit.via === "exact" ? "cache_exact" : "cache_semantic", debug: { canonical },
@@ -268,22 +296,31 @@ export async function POST(req: NextRequest) {
         const r = await retrieveSources(admin, canonical, topicId, rank, lang);
         sources = r.sources;
         retrievalDebug = r.debug;
+        mark("retrieval");
       }
       const system = buildCorePrompt({ langName: LANG_NAME[lang], chapter: str(ctx.chapter, 160), topic: topicName, notes });
-      const gen = await generate(system, [{ role: "user", parts: [{ text: coreUserText(kind, canonical, selectedText, selectionKind, intent, sources) }] }]);
+      const gen = await generate(
+        system,
+        [{ role: "user", parts: [{ text: coreUserText(kind, canonical, selectedText, selectionKind, intent, sources) }] }],
+        { maxOutputTokens: 1400 }
+      );
+      mark("gemini");
       if (!gen) return NextResponse.json({ reply: BUSY, refs: [], persisted: false }, { status: 502 });
 
       const { clean, refs } = parseSources(gen.text, sources);
       const minRank = Math.max(topicRank, 1, ...sources.map((s) => s.rank));
       let qaId: string | null = null;
       if (clean.length >= 40) {
-        if (kind === "concept" && !embedding) embedding = await embedQuestion(canonical);
         qaId = await storeEntry(admin, {
           hash, lang, kind, canonical, scopeTopic: kind === "concept" ? null : scope,
           answer: clean, refs, minRank, embedding: kind === "concept" ? embedding : null, model: gen.model,
         });
+        mark("bank-store");
       }
-      const reply = applySkin({ core: clean, name: addressing, lang, situation, prevQuestion: prevUser });
+      const reply = applySkin({
+        core: clean, name: addressing, lang, situation,
+        prevQuestion: situation === "followup" ? prevUser() : "",
+      });
       return respond({
         reply, refs, source: "llm", kind, qaId, model: gen.model, path: "llm_core",
         usage: sumUsage([rewriteUsage, gen.usage]),
@@ -294,10 +331,12 @@ export async function POST(req: NextRequest) {
     // =================================================================
     // 4) personal answer (student-specific, doubts about a highlight, chat): full context, never shared
     // =================================================================
+    const turns = [...(await getTurns())];
     let sources: Source[] = [];
     if (admin && shouldRetrieve(message)) {
-      const q = buildQueryText(message, selectedText, topicName, prevUser);
+      const q = buildQueryText(message, selectedText, topicName, stripQuote([...turns].reverse().find((t) => t.role === "user")?.text || ""));
       sources = (await retrieveSources(admin, q, topicId, rank, lang)).sources;
+      mark("retrieval");
     }
     const rb = relatedBlock(sources);
     turns.push({ role: "user", text: rb ? `${rb}STUDENT MESSAGE:\n${withQuote(message, selectedText)}` : withQuote(message, selectedText) });
@@ -310,7 +349,8 @@ export async function POST(req: NextRequest) {
       done: typeof ctx.topicDone === "boolean" ? ctx.topicDone : null,
       notes,
     });
-    const gen = await generate(system, normaliseTurns(turns));
+    const gen = await generate(system, normaliseTurns(turns), { maxOutputTokens: 1600 });
+    mark("gemini");
     if (!gen) return NextResponse.json({ reply: BUSY, refs: [], persisted: false }, { status: 502 });
 
     const { clean, refs } = parseSources(gen.text, sources);
