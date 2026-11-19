@@ -2,8 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import Link from "next/link";
-import ShareTestButton from "./ShareTestButton";
+import LinkedTestBox from "./LinkedTestBox";
 // 🤖 GURUJI: selection popover + topic-context helpers
 import { SelectionAskPopover, cleanForAI, type GuruContext, type GuruTopicCtx, type GuruAsk } from "./GurujiSelectionAsk";
 import { 
@@ -1156,43 +1155,12 @@ const ChapterAccordionUnit: React.FC<ChapterAccordionUnitProps> = ({
                     {renderNarrativeWithImages(getLocalizedParagraph(currentActiveTopic, contentLang), imageMap, nt)}
                   </div>
 
-                  {currentActiveTopic.test_id && (() => {
-                    const linked = Array.isArray(currentActiveTopic.tests) ? currentActiveTopic.tests[0] : currentActiveTopic.tests;
-                    if (!linked) return null;
-                    const req = String(linked.required_plan || "free").toLowerCase();
-                    const testLocked =
-                      (PLAN_HIERARCHY[(studentPlan || "free").toLowerCase()] || 1) < (PLAN_HIERARCHY[req] || 1);
-                    return (
-                      <div className={`mt-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${nt.testBoxSoft}`}>
-                        <div className="space-y-0.5 min-w-0">
-                          <span className={`text-[10px] font-mono font-bold tracking-wider ${nt.testLabel} uppercase block`}>Practice this topic</span>
-                          <p className={`text-xs font-semibold ${nt.ink800} truncate`}>{linked.test_name}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {!linked.owner_student_id && (
-                            <ShareTestButton
-                              testId={linked.id}
-                              testName={linked.test_name}
-                              className={`border rounded-lg px-2.5 py-2 ${nt.exitBtn}`}
-                            />
-                          )}
-                          {testLocked ? (
-                            <span className="text-xs font-bold px-4 py-2 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1.5">
-                              <Lock className="w-3.5 h-3.5" /> Needs {req} plan
-                            </span>
-                          ) : (
-                            <Link
-                              href={`/student/numerical-ability?id=${linked.id}`}
-                              className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
-                            >
-                              <span>Take Test</span>
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                                    <LinkedTestBox
+                    topic={currentActiveTopic}
+                    studentPlan={studentPlan}
+                    planHierarchy={PLAN_HIERARCHY}
+                    boxClassName={nt.testBoxSoft}
+                  />
                 </div>
 
                 <div className={`pt-4 text-center border-t ${nt.b50} shrink-0`}>

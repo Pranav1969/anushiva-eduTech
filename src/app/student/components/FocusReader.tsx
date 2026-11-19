@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ChevronDown, ChevronRight, ChevronLeft, Check, CheckCircle2, Lock,
-  Minimize2, Sparkles, Languages, ExternalLink, Search, PanelLeftClose,
+  Minimize2, Sparkles, Languages, Search, PanelLeftClose,
   PanelLeftOpen, X, Trophy, Clock, ArrowRight, Type, Keyboard,
 } from "lucide-react";
 import { useTheme } from "../theme/ThemeProvider";
 import ThemeToggle from "../theme/ThemeToggle";
+import LinkedTestBox from "./LinkedTestBox";
 
 type ContentLang = "en" | "hi" | "mr";
 
@@ -695,21 +696,13 @@ export default function FocusReader({
                 {renderContent(paragraph, imageMap)}
               </article>
 
-              {/* linked test */}
-              {current.topic.test_id && (
-                <div className={`mt-5 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${nt.testBox}`}>
-                  <div className="space-y-0.5">
-                    <span className={`text-[10px] font-mono font-bold tracking-wider uppercase block ${nt.testLabel}`}>Assessment Milestone</span>
-                    <p className={`text-xs font-semibold ${nt.ink800}`}>Test what you just learned with the linked evaluation.</p>
-                  </div>
-                  <button
-                    onClick={() => window.open(`/student/tests/${current.topic.test_id}`, "_blank")}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
-                  >
-                    Launch Linked Test <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
+              {/* linked test (Take Test + Share, plan-aware) */}
+              <LinkedTestBox
+                topic={current.topic}
+                studentPlan={studentPlan}
+                planHierarchy={planHierarchy}
+                boxClassName={nt.testBox}
+              />
 
               {/* prev / next */}
               <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
