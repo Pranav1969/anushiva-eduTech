@@ -10,7 +10,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabase = createClient(supabaseUrl || "", supabaseAnonKey || "");
 
-export const dynamic = "force-dynamic";
+// `force-dynamic` removed: it fights CDN caching. Reading request.url already
+// makes this handler dynamic, and we control caching via Cache-Control below.
+
+/** Same IST "today" logic used elsewhere, computed without extra imports. */
+const todayInIST = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,6 +24,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: "date is required" }, { status: 400 });
   }
 
+  const isToday = date === todayInIST();
+
+  // Today's digest is compiled when the news day closes -> short cache.
+  // Past digests never change -> long cache.
+  const cacheHeaders = {
+    "Cache-Control": isToday
+      ? "public, s-maxage=60, stale-while-revalidate=300"
+      : "public, s-maxage=3600, stale-while-revalidate=86400",
+  };
+
   const { data: digest, error: digestError } = await supabase
     .from("daily_dose_digests")
     .select("*")
@@ -28,13 +42,17 @@ export async function GET(request: Request) {
 
   if (digestError) {
     console.error("Digest fetch failed:", digestError.message);
+    // Errors are never cached
     return NextResponse.json({ success: false, error: digestError.message }, { status: 500 });
   }
 
   if (!digest) {
-    // Expected for today (day isn't over yet) or for dates with no relevant
-    // news. The UI should show a "not ready" / "nothing that day" state.
-    return NextResponse.json({ success: true, digest: null, quiz: [] });
+    // Expected for today (day isn't over yet) or for dates with no relevant news.
+    // Cache only briefly so a freshly generated digest shows up quickly.
+    return NextResponse.json(
+      { success: true, digest: null, quiz: [] },
+      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } }
+    );
   }
 
   const { data: quizRows, error: quizError } = await supabase
@@ -65,5 +83,5 @@ export async function GET(request: Request) {
     sequence_order: row.sequence_order,
   }));
 
-  return NextResponse.json({ success: true, digest, quiz });
+  return NextResponse.json({ success: true, digest, quiz }, { headers: cacheHeaders });
 }

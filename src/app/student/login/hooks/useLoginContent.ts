@@ -1,4 +1,3 @@
-//src\app\student\login\hooks\useLoginContent.ts
 import { useState, useEffect } from "react";
 import { loginContentService } from "../services/login-content.service";
 import { LoginPageData } from "../types/login.types";

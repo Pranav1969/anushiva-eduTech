@@ -13,8 +13,8 @@ interface DailyDoseCarouselProps {
   picks: NewsCapsule[];
   language: LanguageCode;
   checkIsLocked: (plan: NewsCapsule["required_plan"]) => boolean;
-  readIds: string[];
-  bookmarkedIds: string[];
+  readSet: Set<string>;
+  bookmarkSet: Set<string>;
   onInteract: (capsule: NewsCapsule) => void;
   onToggleBookmark: (id: string, e: React.MouseEvent) => void;
 }
@@ -23,8 +23,8 @@ export default function DailyDoseCarousel({
   picks,
   language,
   checkIsLocked,
-  readIds,
-  bookmarkedIds,
+  readSet,
+  bookmarkSet,
   onInteract,
   onToggleBookmark,
 }: DailyDoseCarouselProps) {
@@ -86,8 +86,8 @@ export default function DailyDoseCarousel({
               language={language}
               variant="compact"
               isLocked={checkIsLocked(capsule.required_plan)}
-              isRead={readIds.includes(capsule.id)}
-              isBookmarked={bookmarkedIds.includes(capsule.id)}
+              isRead={readSet.has(capsule.id)}
+              isBookmarked={bookmarkSet.has(capsule.id)}
               onInteract={onInteract}
               onToggleBookmark={onToggleBookmark}
             />

@@ -1,4 +1,3 @@
-//src\app\student\login\services\login-content.service.ts
 import { supabase } from "@/utils/supabase";
 import { LoginPageData } from "../types/login.types";
 
@@ -10,24 +9,41 @@ export const loginContentService = {
       .eq("is_active", true)
       .order("display_order", { ascending: true });
 
-    // Premium fallback data structure if network or database table fails
+    // Fallback copy used when the table is empty or the request fails
     const fallbacks: LoginPageData = {
       hero: {
-        title: "The Absolute Closest You Can Get to the Actual Exam Day.",
-        subtitle: "Engineered from the ground up for the 2026 SBI & IBPS Clerk blueprints.",
-        description: "No outdated questions, no cluttered UI, and no distractions. Enter a hyper-calibrated testing sandbox designed to turn your practice routines into a final selection merit list."
+        title: "Practice Like It's the Real Exam Day.",
+        subtitle: "Made for SBI, IBPS, RBI & other Bank exam aspirants.",
+        description:
+          "Real exam-pattern mock tests, sectional timers, chapter-wise notes and detailed analysis – everything you need to crack Clerk, PO and other Bank exams, in one place."
       },
       pillars: [
-        { title: "Blueprint Authenticity", description: "Every mock test features exact sectional timers, interface color schemes, and marking schemes that mimic the real IBPS/SBI system.", iconName: "Activity" },
-        { title: "High-Yield Syllabus Nodes", description: "Our syllabus infrastructure isolates Quantitative Aptitude, Reasoning, and English into structured chapter trees that track your coverage with precision.", iconName: "Layers" },
-        { title: "Advanced Concept Diagnostics", description: "The moment you hit submit, our backend analytics map your performance matrix. Instantly pinpoint your conceptual bottlenecks.", iconName: "BarChart3" }
+        {
+          title: "Real Exam Pattern",
+          description:
+            "Sectional timing, marking scheme and screen layout follow the latest SBI / IBPS exam pattern, so the exam hall feels familiar.",
+          iconName: "Activity"
+        },
+        {
+          title: "Chapter-wise Notes & Practice",
+          description:
+            "Quant, Reasoning and English divided into clear chapters. Study, practise and track how much of the syllabus you have finished.",
+          iconName: "Layers"
+        },
+        {
+          title: "Detailed Performance Analysis",
+          description:
+            "As soon as you submit, see your score, accuracy, time spent and weak topics, so you know exactly what to improve next.",
+          iconName: "BarChart3"
+        }
       ],
       metrics: [
-        { value: "30+", label: "Full-Length Real-Time Mock Interfaces", iconName: "Terminal" },
-        { value: "150+", label: "Structured Chapter Study Trees", iconName: "Network" },
-        { value: "3,000+", label: "High-Yield Sectional Practice Questions", iconName: "ShieldCheck" }
+        { value: "30+", label: "Full-Length Mock Tests", iconName: "Terminal" },
+        { value: "150+", label: "Chapter-wise Notes", iconName: "Network" },
+        { value: "3,000+", label: "Topic-wise Practice Questions", iconName: "ShieldCheck" }
       ],
-      footerSecurity: "Core user authentication and database matrices are securely isolated via Supabase relational architecture. Your personalized analytics, profiles, and preparation data remain strictly confidential and encrypted."
+      footerSecurity:
+        "Your login, scores and study data are stored securely and kept private. Only you can see your performance."
     };
 
     if (error || !data) return fallbacks;

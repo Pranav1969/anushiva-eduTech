@@ -1,8 +1,9 @@
-//src\app\student\login\components\GoogleSignInButton.tsx
 "use client";
 
 import { supabase } from "@/utils/supabase";
 
+// Google's brand button stays white in both themes (Google branding rules),
+// so only the border/shadow adapt to the page.
 export function GoogleSignInButton() {
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -15,8 +16,9 @@ export function GoogleSignInButton() {
 
   return (
     <button
+      type="button"
       onClick={handleGoogleLogin}
-      className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-900 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-100 transition-colors"
+      className="w-full flex items-center justify-center gap-2 py-3 bg-white text-slate-900 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm hover:bg-slate-50 hover:shadow-md transition-all"
     >
       <svg width="16" height="16" viewBox="0 0 48 48">
         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.9 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>

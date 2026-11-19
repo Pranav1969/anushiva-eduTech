@@ -2,6 +2,7 @@
 
 "use client";
 
+import { memo } from "react";
 import { motion } from "framer-motion";
 import {
   Bookmark,
@@ -26,7 +27,7 @@ interface NewsCardProps {
   variant?: "default" | "compact";
 }
 
-export default function NewsCard({
+function NewsCard({
   capsule,
   language,
   isLocked,
@@ -42,14 +43,17 @@ export default function NewsCard({
   const isCompact = variant === "compact";
 
   return (
+    // `layout` prop removed: it measured + animated every card on any list change.
+    // content-visibility lets the browser skip painting off-screen cards.
     <motion.article
-      layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       onClick={() => onInteract(capsule)}
       className={`group relative flex cursor-pointer flex-col justify-between rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
-        isCompact ? "h-full p-5" : "p-6 md:p-8"
+        isCompact
+          ? "h-full p-5"
+          : "p-6 md:p-8 [content-visibility:auto] [contain-intrinsic-size:auto_240px]"
       } ${isLocked ? t.card.locked : isRead ? t.card.read : t.card.hover}`}
     >
       {/* Meta row */}
@@ -159,3 +163,6 @@ export default function NewsCard({
     </motion.article>
   );
 }
+
+// memo: a card only re-renders if ITS props change (needs stable callbacks from the parent).
+export default memo(NewsCard);

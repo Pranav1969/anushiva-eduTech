@@ -1,41 +1,52 @@
-//src\app\student\login\components\LoginForm.tsx
 "use client";
 
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { useTheme } from "@/app/student/theme/ThemeProvider";
 import { EmailLoginForm } from "./EmailLoginForm";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { AnushivaOrbitLogo, AnushivaWordmark } from "./AnushivaLogo";
 
 export function LoginForm() {
+  const { theme } = useTheme();
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-6 md:p-8 w-full shadow-2xl relative backdrop-blur-xl ring-1 ring-slate-700/20"
+      className={`border rounded-2xl p-6 md:p-8 w-full relative ${theme.panel}`}
     >
-      <div className="text-center space-y-2 mb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-950/60 border border-purple-500/30 text-cyan-400 text-[11px] font-bold uppercase tracking-wider rounded-md">
-          <Sparkles size={12} /> Preperation Node Gateway
+      <div className="text-center mb-6">
+        <div className="flex justify-center pt-3 pb-5">
+          <AnushivaOrbitLogo size={72} />
         </div>
-        <h2 className="text-xl font-extrabold text-white tracking-tight">Anushiva Identity Login</h2>
-        <p className="text-slate-400 text-xs font-medium">Access your personal, dedicated examination workspace board.</p>
+
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 border text-[11px] font-bold uppercase tracking-wider rounded-md ${theme.accent.soft} ${theme.accent.textStrong}`}
+        >
+          <Sparkles size={12} /> Aspirant Login
+        </div>
+
+        <p className={`mt-2 text-xs font-medium ${theme.text.muted}`}>
+          Login to continue your Bank exam preparation – mock tests, notes and analysis in one place.
+        </p>
       </div>
 
       <EmailLoginForm />
 
       <div className="flex items-center gap-3 my-5">
-        <div className="h-px flex-1 bg-slate-800" />
-        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">or</span>
-        <div className="h-px flex-1 bg-slate-800" />
+        <div className={`h-px flex-1 border-t ${theme.divider}`} />
+        <span className={`text-[10px] uppercase tracking-wider font-bold ${theme.text.faint}`}>or</span>
+        <div className={`h-px flex-1 border-t ${theme.divider}`} />
       </div>
 
       <GoogleSignInButton />
 
-      <p className="text-center text-xs text-slate-500 mt-5">
-        New here?{" "}
-        <a href="/student/signup" className="text-blue-400 hover:text-blue-300 font-semibold">
-          Create an account
+      <p className={`text-center text-xs mt-5 ${theme.text.faint}`}>
+        New student?{" "}
+        <a href="/student/signup" className={`font-semibold ${theme.accent.text} ${theme.accent.linkHover}`}>
+          Create your account
         </a>
       </p>
     </motion.div>
