@@ -1,9 +1,11 @@
 // src/app/student/components/StudyDesk.tsx
-// Smriti-Sync · Phase 3: topic-wise saved conversation + feedback rating.
+// Smriti-Sync: per-topic saved chat, reference chips, 👍/👎, thinking messages + fast typing effect.
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Bot, User, X, MapPin, Quote, Trash2, RotateCcw, ChevronUp, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
+import {
+  Send, Sparkles, Bot, User, X, MapPin, Quote, Trash2, RotateCcw, ChevronUp, Loader2, ThumbsUp, ThumbsDown,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -15,14 +17,16 @@ import type { GuruContext, GuruAsk, SelectionKind } from "./GurujiSelectionAsk";
 type Ref = { topicId: string; chapterId: string; topic: string; chapter: string };
 
 interface Message {
+  uid?: string;           // local id for replies created in this session
   id?: string;            // present when the message is saved in the database
   role: "user" | "ai";
   text: string;
   quote?: string;         // text the student highlighted in the notes
   kind?: "nudge";         // local-only message (welcome / encouragement) - never saved
   at?: string;            // ISO time, used for the date separators
-  refs?: Ref[];           // topics Guruji suggests revising
-  feedback?: 1 | -1;      // student vote on AI answer
+  refs?: Ref[];           // other topics Guruji pointed to
+  feedback?: 1 | -1;      // the student's 👍 / 👎
+  animate?: boolean;      // true while the reply is being "typed"
 }
 
 interface ExtendedStudentProfile extends StudentSession {
@@ -39,11 +43,12 @@ interface StudyDeskProps {
   noteContext?: GuruContext;
   /** A "highlight -> ask" request coming from the notes */
   ask?: GuruAsk | null;
-  /** Called when the student taps a "Related" chip under an AI answer */
+  /** Opens another topic in the notes (used by the reference chips) */
   onOpenTopic?: (topicId: string) => void;
 }
 
 type Quoted = { text: string; kind: SelectionKind };
+type Intent = "explain" | "example" | "doubt";
 
 const PAGE = 30;
 
@@ -66,11 +71,132 @@ const dayLabel = (iso: string) => {
     year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
   });
 };
+const newUid = () => `m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
+// =====================================================================
+// Markdown body (one place for the look of every answer)
+// =====================================================================
+function MarkdownBody({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        strong: ({ node, ...props }) => <strong className="text-amber-400 font-bold" {...props} />,
+        code: ({ node, ...props }) => <code className="bg-black/30 px-1 py-0.5 rounded text-xs font-mono text-amber-200" {...props} />,
+        p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+}
+
+// =====================================================================
+// Typing effect: reveals a new reply quickly, letter by letter.
+//  - never longer than ~3.5 s, however long the answer
+//  - tap the reply to show it all at once
+//  - skipped for reduced-motion users and background tabs
+// =====================================================================
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** closes half-written markdown so the text never flickers while it is typed */
+const safePartial = (t: string) => {
+  let s = t;
+  if (((s.match(/\$/g) || []).length) % 2 === 1) s = s.slice(0, s.lastIndexOf("$")); // hide an unfinished formula
+  if (((s.match(/`/g) || []).length) % 2 === 1) s += "`";
+  if (s.endsWith("*") && !s.endsWith("**")) s = s.slice(0, -1);
+  if (((s.match(/\*\*/g) || []).length) % 2 === 1) s += "**";
+  return s;
+};
+
+function TypedMarkdown({
+  text, animate, onDone, onTick,
+}: { text: string; animate: boolean; onDone: () => void; onTick: () => void }) {
+  const [shown, setShown] = useState(animate ? 0 : text.length);
+  const doneRef = useRef(onDone);
+  const tickRef = useRef(onTick);
+  const skipRef = useRef(false);
+  doneRef.current = onDone;
+  tickRef.current = onTick;
+
+  useEffect(() => {
+    if (!animate) { setShown(text.length); return; }
+    if (prefersReducedMotion() || (typeof document !== "undefined" && document.hidden)) {
+      setShown(text.length);
+      doneRef.current();
+      return;
+    }
+    const total = text.length;
+    const duration = Math.min(Math.max(total * 6, 900), 3500); // ms: short answers ~1 s, long ones capped at 3.5 s
+    const start = performance.now();
+    let last = 0;
+    let raf = 0;
+    const step = (now: number) => {
+      const p = skipRef.current ? 1 : Math.min(1, (now - start) / duration);
+      if (p >= 1 || now - last >= 30) {          // repaint ~30 times a second, not every frame
+        last = now;
+        setShown(Math.floor(p * total));
+        tickRef.current();
+      }
+      if (p < 1) raf = requestAnimationFrame(step);
+      else { setShown(total); doneRef.current(); }
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [animate, text]);
+
+  const typing = animate && shown < text.length;
+  return (
+    <div onClick={typing ? () => { skipRef.current = true; } : undefined} className={typing ? "cursor-pointer" : ""} title={typing ? "Tap to show all" : undefined}>
+      <MarkdownBody text={typing ? safePartial(text.slice(0, shown)) : text} />
+    </div>
+  );
+}
+
+// =====================================================================
+// "Thinking" bubble: friendly rotating messages while Guruji prepares the answer
+// =====================================================================
+const THINK: Record<string, string[]> = {
+  en: ["Reading your notes…", "Thinking it through…", "Finding the simplest way to explain…", "Putting it together for you…"],
+  hi: ["आपके नोट्स देख रहा हूँ…", "ध्यान से सोच रहा हूँ…", "सबसे आसान तरीका ढूँढ रहा हूँ…", "आपके लिए तैयार कर रहा हूँ…"],
+  mr: ["तुमचे नोट्स पाहतोय…", "नीट विचार करतोय…", "सर्वात सोपा मार्ग शोधतोय…", "तुमच्यासाठी तयार करतोय…"],
+};
+
+function ThinkingBubble({ lang, topic }: { lang: string; topic?: string }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((v) => v + 1), 1800);
+    return () => clearInterval(id);
+  }, []);
+  const pool = THINK[lang] || THINK.en;
+  const lines = topic && (lang === "en" || !THINK[lang]) ? [`Checking your notes on ${short(topic, 26)}…`, ...pool.slice(1)] : pool;
+  return (
+    <div className="flex items-center gap-3">
+      <style>{`@keyframes guruFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}`}</style>
+      <div className="w-8 h-8 rounded-full bg-slate-800 border border-amber-500/20 flex items-center justify-center shrink-0">
+        <Bot className="w-4 h-4 text-amber-500" />
+      </div>
+      <div className="px-4 py-3 rounded-2xl rounded-bl-none bg-slate-800 border border-slate-700 flex items-center gap-2.5 min-w-0">
+        <span className="flex items-center gap-1 shrink-0">
+          {[0, 150, 300].map((d) => (
+            <span key={d} className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+          ))}
+        </span>
+        <span key={i} className="text-xs text-slate-300 truncate" style={{ animation: "guruFade .35s ease-out" }}>
+          {lines[i % lines.length]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
 export default function StudyDesk({ currentSection, fullHeight = false, onClose, noteContext, ask, onOpenTopic }: StudyDeskProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);   // true while waiting for the answer
   const [student, setStudent] = useState<ExtendedStudentProfile | null>(null);
   const [quote, setQuote] = useState<Quoted | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -96,6 +222,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
   const topic = noteContext?.topic;
   const chapter = noteContext?.chapter;
   const topicDone = !!noteContext?.topicDone;
+  const lang = noteContext?.lang || "en";
   const breadcrumb = [currentSection, chapter, topic].filter(Boolean).join(" › ");
   // one conversation per topic; without a topic, one per section (not saved)
   const threadKey = topicId || `sec:${currentSection}`;
@@ -161,13 +288,8 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
         .slice(0, PAGE)
         .reverse()
         .map((r: any) => ({
-          id: r.id,
-          role: r.role,
-          text: r.content,
-          quote: r.quote || undefined,
-          refs: r.refs || undefined,
-          feedback: r.feedback || undefined,
-          at: r.created_at,
+          id: r.id, role: r.role, text: r.content, quote: r.quote || undefined,
+          refs: r.refs || undefined, feedback: r.feedback || undefined, at: r.created_at,
         }));
       return { rows, more };
     } catch (e) {
@@ -245,6 +367,17 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
     scrollMode.current = "smooth";
   }, [messages, isTyping, historyLoading]);
 
+  /** while a reply types out, keep the newest line in view (unless the student scrolled up to read) */
+  const stickToBottom = () => {
+    const el = scrollRef.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 220) el.scrollTop = el.scrollHeight;
+  };
+
+  const finishTyping = (uid?: string) => {
+    if (!uid) return;
+    setMessages((prev) => prev.map((x) => (x.uid === uid && x.animate ? { ...x, animate: false } : x)));
+  };
+
   // ------------------------------------------------------------------
   // Highlight -> Ask (waits until this topic's history has loaded)
   // ------------------------------------------------------------------
@@ -274,12 +407,12 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
   // ------------------------------------------------------------------
   // Sending
   // ------------------------------------------------------------------
-  const sendText = async (text: string, q?: Quoted | null, intent?: "explain" | "example" | "doubt") => {
+  const sendText = async (text: string, q?: Quoted | null, intent?: Intent) => {
     const clean = text.trim();
     if (!clean || isTyping || historyLoading) return;
 
     const sentTopic = topicRef.current;
-    const userMsg: Message = { role: "user", text: clean, quote: q?.text, at: new Date().toISOString() };
+    const userMsg: Message = { uid: newUid(), role: "user", text: clean, quote: q?.text, at: new Date().toISOString() };
 
     // only used when no topic is open (nothing is saved, so the browser carries the context)
     const ephemeral = sentTopic
@@ -311,19 +444,22 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
       const data = await response.json();
       if (topicRef.current !== sentTopic) return; // moved to another topic; the server already saved this one
       if (sentTopic) setPersistOk(data.persisted !== false);
+      scrollMode.current = "instant";
       setMessages((prev) => [
         ...prev,
         {
+          uid: newUid(),
           id: data.messageId || undefined,
           role: "ai",
           text: data.reply || "Guruji is processing your solution. Please try again in a moment.",
           refs: data.refs?.length ? data.refs : undefined,
           at: new Date().toISOString(),
+          animate: !!data.reply && response.ok,   // type out real answers only
         },
       ]);
     } catch {
       if (topicRef.current !== sentTopic) return;
-      setMessages((prev) => [...prev, { role: "ai", text: "Guruji is processing your solution. Please try again in a moment." }]);
+      setMessages((prev) => [...prev, { uid: newUid(), role: "ai", text: "Guruji is processing your solution. Please try again in a moment." }]);
     } finally {
       if (topicRef.current === sentTopic) setIsTyping(false);
     }
@@ -335,7 +471,20 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
   };
 
   // ------------------------------------------------------------------
-  // Clear this topic's chat (deletes the saved thread) & Rate messages
+  // 👍 / 👎
+  // ------------------------------------------------------------------
+  const rate = async (m: Message, value: 1 | -1) => {
+    if (!m.id) return;
+    const next = m.feedback === value ? 0 : value;
+    setMessages((prev) =>
+      prev.map((x) => (x.id === m.id ? { ...x, feedback: next === 0 ? undefined : (next as 1 | -1) } : x))
+    );
+    const { error } = await supabase.rpc("rate_guru_message", { p_message: m.id, p_value: next });
+    if (error) console.warn("rating failed:", error.message);
+  };
+
+  // ------------------------------------------------------------------
+  // Clear this topic's chat (deletes the saved thread)
   // ------------------------------------------------------------------
   const clearChat = async () => {
     setConfirmClear(false);
@@ -349,14 +498,6 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
     setQuote(null);
     scrollMode.current = "instant";
     setMessages(tid ? [firstVisitMessage()] : [sectionGreeting()]);
-  };
-
-  const rate = async (m: Message, value: 1 | -1) => {
-    if (!m.id) return;
-    const next = m.feedback === value ? 0 : value;
-    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, feedback: next === 0 ? undefined : (next as 1 | -1) } : x)));
-    const { error } = await supabase.rpc("rate_guru_message", { p_message: m.id, p_value: next });
-    if (error) console.warn("rating failed:", error.message);
   };
 
   const chips = topic
@@ -473,7 +614,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
           const prev = messages[i - 1];
           const showDay = !!m.at && (!prev?.at || dayKey(prev.at) !== dayKey(m.at));
           return (
-            <React.Fragment key={m.id || `${i}-${m.at || m.kind || "m"}`}>
+            <React.Fragment key={m.uid || m.id || `${i}-${m.at || m.kind || "m"}`}>
               {showDay && (
                 <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none">
                   <span className="flex-1 h-px bg-slate-800" />
@@ -503,18 +644,20 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
                       <span>{short(m.quote, 160)}</span>
                     </div>
                   )}
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={{
-                      strong: ({ node, ...props }) => <strong className="text-amber-400 font-bold" {...props} />,
-                      code: ({ node, ...props }) => <code className="bg-black/30 px-1 py-0.5 rounded text-xs font-mono text-amber-200" {...props} />,
-                      p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-                    }}
-                  >
-                    {m.text}
-                  </ReactMarkdown>
-                  {m.role === "ai" && m.refs && m.refs.length > 0 && onOpenTopic && (
+
+                  {m.role === "ai" ? (
+                    <TypedMarkdown
+                      text={m.text}
+                      animate={!!m.animate}
+                      onDone={() => finishTyping(m.uid)}
+                      onTick={stickToBottom}
+                    />
+                  ) : (
+                    <MarkdownBody text={m.text} />
+                  )}
+
+                  {/* chips + 👍/👎 appear once the reply has finished typing */}
+                  {m.role === "ai" && !m.animate && m.refs && m.refs.length > 0 && onOpenTopic && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {m.refs.map((r) => (
                         <button
@@ -525,12 +668,13 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
                           title="Open this topic in your notes"
                         >
                           <span>📚</span>
-                          <span className="truncate">Related: {r.topic}{r.chapter ? ` · ${r.chapter}` : ""}</span>
+                          <span className="truncate">Revise: {r.topic}{r.chapter ? ` · ${r.chapter}` : ""}</span>
                         </button>
                       ))}
                     </div>
                   )}
-                  {m.role === "ai" && m.id && !m.kind && (
+
+                  {m.role === "ai" && !m.animate && m.id && !m.kind && (
                     <div className="mt-2 flex items-center gap-1">
                       {([1, -1] as const).map((v) => (
                         <button
@@ -551,18 +695,7 @@ export default function StudyDesk({ currentSection, fullHeight = false, onClose,
           );
         })}
 
-        {isTyping && (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-800 border border-amber-500/20 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="px-4 py-3 rounded-2xl rounded-bl-none bg-slate-800 border border-slate-700 flex items-center gap-1">
-              {[0, 150, 300].map((d) => (
-                <span key={d} className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-              ))}
-            </div>
-          </div>
-        )}
+        {isTyping && <ThinkingBubble lang={lang} topic={topic} />}
       </div>
 
       {/* Quick actions */}

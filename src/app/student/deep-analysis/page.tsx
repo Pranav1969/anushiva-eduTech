@@ -19,9 +19,9 @@ import { getVerdict, resolveTaxonomy, Verdict } from "../components/resultMeta";
 import { BRAND, Wordmark, CardMark, StarMark } from "../components/AnushivaBrand";
 import { useTheme } from "../theme/ThemeProvider";
 
-const UPGRADE_ROUTE = "/student/plans"; // <- change to your pricing / plans page
+const UPGRADE_ROUTE = "/student/upgrade"; // <- change to your pricing / plans page
 
-/* =====================================================================
+/* ================================================================== ===
    DESIGN TOKENS  -  "Midnight Gold" (dark)  +  "Aurora Pearl" (light)
    DARK_PAL is exactly the original palette. LIGHT_PAL keeps the same roles
    with deeper tones so data stays readable on a pearl background.

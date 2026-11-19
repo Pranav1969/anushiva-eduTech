@@ -4,11 +4,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Loader2, Sparkles, Compass } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { ArrowLeft, Loader2, Sparkles, Compass, Maximize2 } from "lucide-react";
 import { useStudentSession, StudentSession } from "@/utils/auth";
 import { todayIST } from "@/utils/istDate";
-import PlanUpgradeModal from "../../components/PlanUpgradeModal";
 import { BrandBar, BrandFooter, BrandLoader } from "../../components/StudentBrand"; // ANUSHIVA silver branding
 import { ThemeProvider, useTheme } from "../../theme/ThemeProvider"; // central theme system
 import ThemeToggle from "../../theme/ThemeToggle"; // Dark / Light switch
@@ -18,10 +17,13 @@ import FilterSidebar from "./FilterSidebar";
 import NewsCard from "./NewsCard";
 import DigestCallout from "./DigestCallout";
 import NotesDrawer from "./NotesDrawer";
+import FocusReader from "./FocusReader";
+import UpgradeModal from "./UpgradeModal";
 import {
   NewsCapsule,
   LanguageCode,
   PLAN_HIERARCHY_MAP,
+  PlanTier,
   SourceType,
   DailyDoseDigest,
   QuizQuestion,
@@ -33,8 +35,9 @@ interface NewsFeedClientWrapperProps {
   selectedDate: string;
 }
 
-// Public entry: same props as before. If the student layout already provides a
-// ThemeProvider this passes straight through; otherwise it creates one.
+/** Minimum plan that unlocks premium study tools (Listen / Download PDF). */
+const PREMIUM_TOOLS_MIN_PLAN: PlanTier = "gold";
+
 export default function NewsFeedClientWrapper(props: NewsFeedClientWrapperProps) {
   return (
     <ThemeProvider>
@@ -48,7 +51,6 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
   const { theme: t } = useTheme();
   const [student, setStudent] = useState<StudentSession | null>(null);
 
-  // UI state (preserved from the original implementation)
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>("en");
   const [activeFilter, setActiveFilter] = useState<"all" | SourceType>("all");
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
@@ -56,8 +58,6 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocusMode, setIsFocusMode] = useState(false);
 
-  // Daily Dose digest: ONE per date, fetched once per date change and shared
-  // between the DigestCallout summary card and the NotesDrawer itself.
   const [digest, setDigest] = useState<DailyDoseDigest | null>(null);
   const [digestQuiz, setDigestQuiz] = useState<QuizQuestion[]>([]);
   const [isDigestLoading, setIsDigestLoading] = useState(false);
@@ -66,12 +66,12 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
 
   // Upgrade modal tracking
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
-  const [selectedRequiredPlan, setSelectedRequiredPlan] = useState("premium");
+  const [selectedRequiredPlan, setSelectedRequiredPlan] = useState<string>("premium");
+  const [upgradeFeatureLabel, setUpgradeFeatureLabel] = useState<string | undefined>(undefined);
 
   const isViewingToday = selectedDate === todayIST();
 
-  // Self-healing poll: only meaningful for today's feed, where the crawler
-  // is actively populating data. Past dates with no data are simply empty.
+  // Self-healing poll (today only)
   useEffect(() => {
     if (initialFeed.length === 0 && isViewingToday) {
       const interval = setInterval(() => {
@@ -81,8 +81,7 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
     }
   }, [initialFeed, isViewingToday, router]);
 
-  // Fetch the digest for whichever date is currently loaded. One digest
-  // covers the WHOLE day, so this runs once per date change, not per card.
+  // Digest for the loaded date
   useEffect(() => {
     let cancelled = false;
     setIsDigestLoading(true);
@@ -117,8 +116,7 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
     }
   }, [session, sessionLoading, router]);
 
-  // Load this student's persisted read/bookmark state for the current feed.
-  // Runs whenever the student or the visible date's capsule set changes.
+  // Persisted read/bookmark state
   useEffect(() => {
     if (!student || initialFeed.length === 0) return;
 
@@ -158,6 +156,14 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
     return studentWeight < requiredWeight;
   };
 
+  const canUsePremiumTools = !checkIsLocked(PREMIUM_TOOLS_MIN_PLAN);
+
+  const openUpgrade = (plan: string, featureLabel?: string) => {
+    setSelectedRequiredPlan(plan);
+    setUpgradeFeatureLabel(featureLabel);
+    setIsUpgradeOpen(true);
+  };
+
   const persistProgress = (capsuleId: string, isRead: boolean, isBookmarked: boolean) => {
     if (!student) return;
     fetch("/api/current-affairs/progress", {
@@ -179,17 +185,21 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
   };
 
   const handleCardInteraction = (capsule: NewsCapsule) => {
-    const isLocked = checkIsLocked(capsule.required_plan);
-
-    if (isLocked) {
-      setSelectedRequiredPlan(capsule.required_plan);
-      setIsUpgradeOpen(true);
+    if (checkIsLocked(capsule.required_plan)) {
+      openUpgrade(capsule.required_plan);
       return;
     }
 
     const nextRead = !readIds.includes(capsule.id);
     setReadIds((prev) => (nextRead ? [...prev, capsule.id] : prev.filter((rId) => rId !== capsule.id)));
     persistProgress(capsule.id, nextRead, bookmarkedIds.includes(capsule.id));
+  };
+
+  // Used by the Focus Reader: marks as read (never toggles back to unread).
+  const handleMarkRead = (capsule: NewsCapsule) => {
+    if (readIds.includes(capsule.id)) return;
+    setReadIds((prev) => [...prev, capsule.id]);
+    persistProgress(capsule.id, true, bookmarkedIds.includes(capsule.id));
   };
 
   const handleSelectDate = (date: string) => {
@@ -204,19 +214,15 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
         const currentTitle = (item.title[selectedLanguage] || "").toLowerCase();
         const currentSummary = (item.summary[selectedLanguage] || "").toLowerCase();
         const query = searchQuery.toLowerCase();
-        const matchesSearch =
-          currentTitle.includes(query) || currentSummary.includes(query);
+        const matchesSearch = currentTitle.includes(query) || currentSummary.includes(query);
         return matchesFilter && matchesSearch;
       }),
     [initialFeed, activeFilter, selectedLanguage, searchQuery]
   );
 
-  // Editor's Picks: the day's highest-signal capsules, surfaced up top regardless
-  // of the active source/search filters so students always see the headline items.
   const dailyDosePicks = useMemo(() => initialFeed.slice(0, 5), [initialFeed]);
 
   if (!student) {
-    // ANUSHIVA branded loading screen, same as the student dashboard
     return (
       <div className={`flex min-h-screen flex-col items-center justify-center gap-6 ${t.page}`}>
         <BrandLoader />
@@ -229,10 +235,8 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
     <main
       className={`relative min-h-screen overflow-x-hidden ${t.page} font-sans antialiased transition-colors duration-500 ${t.selection}`}
     >
-      {/* Soft background glow */}
       <div className={`pointer-events-none absolute left-1/4 top-0 h-[500px] w-[500px] rounded-full ${t.glow} blur-[120px]`} />
 
-      {/* GLOBAL TOP NAVIGATION HEADER */}
       <header className={`sticky top-0 z-50 border-b ${t.header} px-4 py-3 backdrop-blur-md`}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -243,9 +247,7 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </button>
             <div className="flex items-center gap-2">
-              <h1 className={`text-lg font-bold tracking-tight ${t.text.heading}`}>
-                Daily News Hub
-              </h1>
+              <h1 className={`text-lg font-bold tracking-tight ${t.text.heading}`}>Daily News Hub</h1>
               <span className={`hidden items-center gap-1 rounded-full border ${t.accent.soft} px-2 py-0.5 sm:inline-flex`}>
                 <Sparkles className={`h-3 w-3 ${t.accent.text}`} />
                 <span className={`font-mono text-[10px] font-semibold uppercase tracking-wider ${t.accent.textStrong}`}>
@@ -270,18 +272,21 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
               </div>
             </div>
 
-            {/* DARK / LIGHT SWITCH: same shared setting as the dashboard */}
+            <button
+              onClick={() => setIsFocusMode(true)}
+              aria-label="Enter focus mode"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${t.filter.idle}`}
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Focus</span>
+            </button>
+
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <div
-        className={`relative z-10 mx-auto px-4 py-6 transition-all duration-300 ${
-          isFocusMode ? "max-w-3xl" : "max-w-6xl"
-        }`}
-      >
-        {/* ANUSHIVA BRAND BAR (silver lockup) */}
+      <div className="relative z-10 mx-auto max-w-6xl px-4 py-6">
         <div className="mb-6">
           <BrandBar />
         </div>
@@ -306,47 +311,23 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
           onOpen={() => setIsDigestDrawerOpen(true)}
         />
 
-        <div
-          className={`grid grid-cols-1 gap-8 ${
-            isFocusMode ? "" : "lg:grid-cols-12"
-          }`}
-        >
-          <AnimatePresence initial={false}>
-            {!isFocusMode && (
-              <motion.div
-                key="sidebar"
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.25 }}
-                className="h-fit lg:sticky lg:top-24 lg:col-span-4"
-              >
-                <FilterSidebar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  activeFilter={activeFilter}
-                  onFilterChange={setActiveFilter}
-                  language={selectedLanguage}
-                  onLanguageChange={setSelectedLanguage}
-                  isFocusMode={isFocusMode}
-                  onToggleFocusMode={() => setIsFocusMode(true)}
-                  readCount={readIds.length}
-                  totalCount={initialFeed.length}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          <div className="h-fit lg:sticky lg:top-24 lg:col-span-4">
+            <FilterSidebar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              language={selectedLanguage}
+              onLanguageChange={setSelectedLanguage}
+              isFocusMode={isFocusMode}
+              onToggleFocusMode={() => setIsFocusMode(true)}
+              readCount={readIds.length}
+              totalCount={initialFeed.length}
+            />
+          </div>
 
-          <section className={isFocusMode ? "space-y-6" : "space-y-6 lg:col-span-8"}>
-            {isFocusMode && (
-              <button
-                onClick={() => setIsFocusMode(false)}
-                className={`mb-2 inline-flex items-center gap-2 rounded-full border ${t.panel} px-3 py-1.5 text-xs font-semibold ${t.text.mutedHover} transition-colors`}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" /> Exit Focus Mode
-              </button>
-            )}
-
+          <section className="space-y-6 lg:col-span-8">
             {initialFeed.length === 0 ? (
               <div className={`mx-auto flex max-w-2xl flex-col items-center justify-center space-y-4 rounded-2xl border border-dashed ${t.panelDashed} p-16 text-center`}>
                 <div className="relative">
@@ -360,7 +341,7 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
                   <p className={`mx-auto mt-1 max-w-md text-xs leading-relaxed ${t.text.faint}`}>
                     {isViewingToday
                       ? "The AI Engine is currently parsing the latest updates from RBI, PIB, and Economic Times. Your study feed will refresh automatically."
-                      : "No archived capsules were found for this date. Try a different day on the dateline above."}
+                      : "No archived capsules were found for this date. Try a different day from the calendar above."}
                   </p>
                 </div>
                 {isViewingToday && (
@@ -393,14 +374,32 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
           </section>
         </div>
 
-        {/* ANUSHIVA signature footer */}
         <BrandFooter />
       </div>
 
-      <PlanUpgradeModal
+      {/* Full-screen distraction-free reader */}
+      <AnimatePresence>
+        {isFocusMode && (
+          <FocusReader
+            items={filteredNews}
+            language={selectedLanguage}
+            onLanguageChange={setSelectedLanguage}
+            checkIsLocked={checkIsLocked}
+            readIds={readIds}
+            bookmarkedIds={bookmarkedIds}
+            onMarkRead={handleMarkRead}
+            onToggleBookmark={handleToggleBookmark}
+            onUnlock={(capsule) => openUpgrade(capsule.required_plan)}
+            onExit={() => setIsFocusMode(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <UpgradeModal
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
         requiredPlan={selectedRequiredPlan}
+        featureLabel={upgradeFeatureLabel}
       />
 
       <NotesDrawer
@@ -412,6 +411,8 @@ function NewsFeedInner({ initialFeed, selectedDate }: NewsFeedClientWrapperProps
         error={digestError}
         language={selectedLanguage}
         studentId={student.id}
+        canUsePremiumTools={canUsePremiumTools}
+        onLockedToolClick={(label) => openUpgrade(PREMIUM_TOOLS_MIN_PLAN, label)}
         onClose={() => setIsDigestDrawerOpen(false)}
       />
     </main>

@@ -96,6 +96,10 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   const [phases, setPhases] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
+
+  // Tests that can be linked to a topic (loaded per exam)
+  const [examTests, setExamTests] = useState<any[]>([]);
+  const [testToLink, setTestToLink] = useState("");
   
   const [selectedExam, setSelectedExam] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
@@ -199,12 +203,21 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   }
 
   const handleExamChange = async (id: string) => {
+    setExamTests([]); setTestToLink("");
     setSelectedExam(id);
     setSelectedSection(""); setSelectedPhase(""); setSelectedChapter(""); setSelectedTopic(""); setTopicContent({ en: "", hi: "", mr: "" });
     setSections([]); setPhases([]); setChapters([]); setTopics([]);
     setIsCreatingSection(false); setIsCreatingPhase(false); setIsCreatingChapter(false); setIsCreatingTopic(false);
     setIsEditingExamName(false); setIsEditingSectionName(false); setIsEditingPhaseName(false); setIsEditingChapterName(false); setIsEditingTopicName(false);
     if (!id) return;
+    const { data: testRows } = await supabase
+      .from("tests")
+      .select("id, test_name, test_type")
+      .eq("exam_id", id)
+      .is("owner_student_id", null)
+      .neq("test_type", "mistake_vault")
+      .order("test_name");
+    setExamTests(testRows || []);
     const match = exams.find(e => e.id === id);
     if (match) setEditExamName(match.name);
     const { data } = await supabase
@@ -275,6 +288,7 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
   };
 
   const handleTopicSelect = (id: string) => {
+    setTestToLink("");
     setSelectedTopic(id);
     setIsEditingTopicName(false);
     const match = topics.find(t => t.id === id);
@@ -768,6 +782,26 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
         }
       }
     });
+  };
+
+  // ==========================================
+  // 🔗 LINKED TEST (topic -> test)
+  // ==========================================
+  const linkedTestId: string | null = topics.find(t => t.id === selectedTopic)?.test_id || null;
+
+  const handleLinkTest = async () => {
+    if (!selectedTopic || !testToLink) return;
+    const { error } = await supabase.from("notes_topics").update({ test_id: testToLink }).eq("id", selectedTopic);
+    if (error) { alert("Could not link test: " + error.message); return; }
+    setTopics(prev => prev.map(t => t.id === selectedTopic ? { ...t, test_id: testToLink } : t));
+    setTestToLink("");
+  };
+
+  const handleUnlinkTest = async () => {
+    if (!selectedTopic) return;
+    const { error } = await supabase.from("notes_topics").update({ test_id: null }).eq("id", selectedTopic);
+    if (error) { alert("Could not unlink: " + error.message); return; }
+    setTopics(prev => prev.map(t => t.id === selectedTopic ? { ...t, test_id: null } : t));
   };
 
   return (
@@ -1287,7 +1321,44 @@ export default function FormAddNotes({ onSuccess }: FormAddNotesProps) {
                 dir="auto"
               />
             </div>
-            <div className="w-full md:w-80 bg-[#020408] p-6 overflow-y-auto">
+            <div className="w-full md:w-80 bg-[#020408] p-6 overflow-y-auto space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">
+                  Linked Test (shows in student notes)
+                </label>
+                {!selectedTopic ? (
+                  <p className="text-[11px] text-slate-600">Select a topic to link a test.</p>
+                ) : linkedTestId ? (
+                  <div className="flex items-center justify-between bg-[#040814] border border-emerald-500/20 rounded-lg px-2.5 py-2">
+                    <span className="text-xs text-slate-200 truncate">
+                      {examTests.find(x => x.id === linkedTestId)?.test_name || linkedTestId}
+                    </span>
+                    <button onClick={handleUnlinkTest} title="Unlink test" className="text-rose-400 hover:text-rose-300 shrink-0 ml-2">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1">
+                    <select
+                      value={testToLink}
+                      onChange={(e) => setTestToLink(e.target.value)}
+                      className="flex-1 min-w-0 bg-[#070c19] border border-slate-900/90 rounded-xl px-2 py-2 text-xs text-slate-200 outline-none"
+                    >
+                      <option value="">Select a test...</option>
+                      {examTests.map(t => <option key={t.id} value={t.id}>{t.test_name}</option>)}
+                    </select>
+                    <button
+                      onClick={handleLinkTest}
+                      disabled={!testToLink}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 rounded-xl px-2.5 text-white"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-600">Saves instantly. No need to press Commit Changes.</p>
+              </div>
+
               <ImageManager />
             </div>
           </div>

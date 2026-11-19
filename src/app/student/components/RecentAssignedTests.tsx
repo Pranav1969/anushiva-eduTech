@@ -5,7 +5,7 @@ import { Hourglass, Calendar, ArrowRight, Lock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { TestRecord } from "../page";
 import { useTheme } from "../theme/ThemeProvider";
-
+import ShareTestButton from "./ShareTestButton";
 interface RecentAssignedTestsProps {
   tests: TestRecord[];
   onLockedClick: (planName: string) => void;
@@ -38,6 +38,7 @@ export default function RecentAssignedTests({ tests, onLockedClick }: RecentAssi
                 isPremium && !t.is_locked ? th.ui.premiumCard : th.ui.pipelineCard
               }`}
               onClickCapture={(e) => {
+                if ((e.target as HTMLElement).closest("[data-share]")) return;
                 if (t.is_locked) {
                   e.stopPropagation();
                   e.preventDefault();
@@ -92,11 +93,14 @@ export default function RecentAssignedTests({ tests, onLockedClick }: RecentAssi
                 <div className={`text-[10px] ${th.text.muted} font-medium flex items-center gap-1 font-mono`}>
                   <Hourglass size={11} className={th.text.faint} /> {t.timer_type}
                 </div>
-                <Link href={`/student/numerical-ability?id=${t.id}`} className={`inline-flex items-center gap-1 text-[11px] font-bold transition-colors group/link ${
-                  isPremium && !t.is_locked ? th.ui.linkPremium : th.ui.linkNormal
-                }`}>
-                  Launch <ArrowRight size={12} className="group-hover/link:translate-x-0.5 transition-transform" />
-                </Link>
+                                <div className="flex items-center gap-3 relative z-30">
+                  <ShareTestButton testId={t.id} testName={t.test_name} className={th.ui.linkNormal} />
+                  <Link href={`/student/numerical-ability?id=${t.id}`} className={`inline-flex items-center gap-1 text-[11px] font-bold transition-colors group/link ${
+                    isPremium && !t.is_locked ? th.ui.linkPremium : th.ui.linkNormal
+                  }`}>
+                    Launch <ArrowRight size={12} className="group-hover/link:translate-x-0.5 transition-transform" />
+                  </Link>
+                </div>
               </div>
             </div>
           );

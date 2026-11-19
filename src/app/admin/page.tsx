@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Loader2, Users, FolderPlus, UserPlus, Send, BarChart3, Database, BookOpen,
-  ArrowLeft, ShieldCheck, Layers, ListOrdered, FolderOpen,
+  ArrowLeft, ShieldCheck, Layers, ListOrdered, FolderOpen, Sparkles, Tags,
 } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 
@@ -25,10 +25,12 @@ const FormManageNotesPlans = dynamic(() => import("./components/FormManageNotesP
 const FormManageExamBuckets = dynamic(() => import("./components/FormManageExamBuckets"));
 const FormManageTestSequence = dynamic(() => import("./components/FormManageTestSequence"));
 const Pranav = dynamic(() => import("./components/Pranav"));
+const GuruAnalytics = dynamic(() => import("./components/GuruAnalytics"));
+const FormManagePlans = dynamic(() => import("./components/FormManagePlans"));
 
 type FormTab =
   | "onboard" | "group" | "link" | "distribute"
-  | "notes" | "plans" | "buckets" | "sequence" | "docs";
+  | "notes" | "plans" | "buckets" | "sequence" | "docs" | "guru" | "pricing";
 
 const BACK_BTN =
   "flex items-center gap-2 text-sm text-slate-200 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded border border-slate-700";
@@ -171,6 +173,24 @@ export default function AdminDashboard() {
     );
   }
 
+  if (!loading && activeFormTab === "guru") {
+    return (
+      <FocusShell title="Guruji Analytics" subtitle="Database vs Gemini usage, cost and saved-answer review" onBack={goHome}>
+        <GuruAnalytics />
+      </FocusShell>
+    );
+  }
+
+  if (!loading && activeFormTab === "pricing") {
+    return (
+      <FocusShell title="Pricing Plans" subtitle="Edit price, validity and features for Free, Silver, Gold and Premium" onBack={goHome}>
+        <div className="max-w-[1400px] mx-auto p-4">
+          <FormManagePlans onUpdateComplete={loadData} />
+        </div>
+      </FocusShell>
+    );
+  }
+
   if (!loading && activeFormTab === "plans") {
     return (
       <FocusShell title="Plans" subtitle="Gating and subscription management" onBack={goHome}>
@@ -241,6 +261,8 @@ export default function AdminDashboard() {
     { key: "distribute", label: "Assign", Icon: Send },
     { key: "notes", label: "Notes", Icon: BookOpen },
     { key: "docs", label: "Docs", Icon: FolderOpen },
+    { key: "guru", label: "Guruji", Icon: Sparkles },
+    { key: "pricing", label: "Pricing", Icon: Tags },
     { key: "plans", label: "Plans", Icon: ShieldCheck },
     { key: "buckets", label: "Buckets", Icon: Layers },
     { key: "sequence", label: "Order", Icon: ListOrdered },

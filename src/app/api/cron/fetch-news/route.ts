@@ -5,72 +5,114 @@ import { createClient } from "@supabase/supabase-js";
 import { logCronRun } from "@/lib/cronLogger";
 import { toISTDateString, todayIST } from "@/utils/istDate";
 
-// Initialize Supabase with Service Role Key to bypass Row-Level Security (RLS) for cron insertions
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "");
 
-// Setup the stable Google Gemini API Endpoint
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-// Define RSS source targets
-const FEED_SOURCES = [
-  { type: "rbi", url: "https://rbi.org.in/Pressreleases_RSS.xml" },
-  { type: "pib", url: "https://pib.gov.in/RssMain.aspx?MinId=18" }, // Ministry of Finance RSS
+type SourceKind = "rbi" | "pib" | "economy";
+
+// Each source can list several candidate URLs. They are tried in order and the
+// first one that returns usable <item> entries wins. PIB changes/blocks its RSS
+// endpoints often, so it gets multiple fallbacks.
+// NOTE: verify these against https://pib.gov.in (RSS page) if PIB still fails.
+const FEED_SOURCES: { type: SourceKind; urls: string[]; limit: number }[] = [
+  { type: "rbi", urls: ["https://rbi.org.in/Pressreleases_RSS.xml"], limit: 5 },
+  {
+    type: "pib",
+    urls: [
+      "https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3", // all press releases (English)
+      "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3",
+      "https://pib.gov.in/RssMain.aspx?MinId=18", // Ministry of Finance (old URL)
+      "https://www.pib.gov.in/RssMain.aspx?MinId=18",
+    ],
+    limit: 40, // all-ministry feed with only title+link; keyword-filtered + enriched below
+  },
   {
     type: "economy",
-    url: "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms",
+    urls: ["https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms"],
+    limit: 5,
   },
 ];
 
 interface RawArticle {
-  source_type: "rbi" | "pib" | "economy";
+  source_type: SourceKind;
   title: string;
   link: string;
   description: string;
   pubDate: string;
 }
 
-/**
- * Robust, dependency-free regex XML parser to extract <item> tags from live RSS feeds
- */
-function parseRssFeed(xmlText: string, sourceType: "rbi" | "pib" | "economy"): RawArticle[] {
-  const articles: RawArticle[] = [];
-  const itemMatches = xmlText.match(/<item>([\s\S]*?)<\/item>/g);
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+  "Accept-Language": "en-IN,en;q=0.9",
+};
 
+function decodeEntities(input: string): string {
+  return input
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, "&");
+}
+
+function getTag(item: string, tag: string): string {
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const match = item.match(re);
+  if (!match) return "";
+  let value = match[1].trim();
+  const cdata = value.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  if (cdata) value = cdata[1].trim();
+  return value;
+}
+
+function stripHtml(input: string): string {
+  // Decode first (PIB ships escaped HTML like &lt;p&gt;), then strip tags, then decode again.
+  return decodeEntities(decodeEntities(input).replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseRssFeed(xmlText: string, sourceType: SourceKind, baseUrl: string, limit: number): RawArticle[] {
+  const articles: RawArticle[] = [];
+  const itemMatches = xmlText.match(/<item[\s>][\s\S]*?<\/item>/gi);
   if (!itemMatches) return [];
 
-  const targetItems = itemMatches.slice(0, 5);
-  for (const item of targetItems) {
-    const titleMatch =
-      item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
-    const linkMatch =
-      item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/) || item.match(/<link>([\s\S]*?)<\/link>/);
-    const descMatch =
-      item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
-      item.match(/<description>([\s\S]*?)<\/description>/);
-    const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+  for (const item of itemMatches.slice(0, limit)) {
+    const title = stripHtml(getTag(item, "title"));
+    let link = decodeEntities(getTag(item, "link")) || decodeEntities(getTag(item, "guid"));
+    const description = stripHtml(getTag(item, "description"));
+    const rawDate = getTag(item, "pubDate") || getTag(item, "dc:date");
 
-    const title = titleMatch ? titleMatch[1].trim() : "";
-    const link = linkMatch ? linkMatch[1].trim() : "";
-    const rawDesc = descMatch ? descMatch[1].trim() : "";
-    const pubDate = dateMatch ? dateMatch[1].trim() : new Date().toUTCString();
+    if (link.startsWith("/")) {
+      try {
+        link = new URL(link, baseUrl).toString();
+      } catch {
+        /* keep as-is */
+      }
+    }
 
-    const description = rawDesc.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    // Guard against unparseable dates (would otherwise throw later).
+    const parsedDate = rawDate ? new Date(rawDate) : null;
+    const pubDate =
+      parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate.toUTCString() : new Date().toUTCString();
 
     if (title && link) {
-      articles.push({ source_type: sourceType, title, link, description, pubDate });
+      articles.push({ source_type: sourceType, title, link, description: description || title, pubDate });
     }
   }
 
   return articles;
 }
 
-/**
- * Exponential backoff helper for resilient external API connections
- */
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
@@ -90,7 +132,55 @@ async function fetchWithRetry(
   }
 }
 
+async function fetchTextWithTimeout(url: string, ms = 15000): Promise<{ status: number; text: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: BROWSER_HEADERS,
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    return { status: res.status, text };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// PIB's feed covers every ministry and only gives title + link. We keep only
+// items that look finance/banking/economy related (English + Hindi titles).
+const PIB_KEYWORDS = [
+  "bank", "rbi", "reserve bank", "financ", "fiscal", "budget", "tax", "gst", "customs", "economy", "economic",
+  "inflation", "gdp", "scheme", "yojana", "msme", "loan", "credit", "insurance", "pension", "invest", "fdi",
+  "upi", "payment", "digital", "sebi", "nabard", "trade", "export", "import", "subsidy", "msp", "farmer",
+  "mission", "startup", "stock", "bond", "currency", "rupee", "revenue", "disinvest", "cabinet", "gem",
+  "बैंक", "वित्त", "कर", "बजट", "अर्थ", "योजना", "ऋण", "बीमा", "पेंशन", "निवेश", "व्यापार", "निर्यात",
+  "आयात", "किसान", "सब्सिडी", "मुद्रा", "भुगतान", "स्टार्ट", "मंत्रिमंडल", "राजस्व", "मिशन", "रुपये", "रुपया",
+];
+
+function isFinanceRelevant(title: string): boolean {
+  const lower = title.toLowerCase();
+  return PIB_KEYWORDS.some((k) => lower.includes(k));
+}
+
+/** Pulls readable text from a PIB press-release page so Gemini gets more than a headline. */
+async function fetchArticleText(url: string): Promise<string> {
+  try {
+    const { status, text } = await fetchTextWithTimeout(url, 12000);
+    if (status < 200 || status >= 300) return "";
+    const cleaned = text
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]*>/g, " ");
+    return decodeEntities(cleaned).replace(/\s+/g, " ").trim().slice(0, 4000);
+  } catch {
+    return "";
+  }
+}
+
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   console.log("Crawler API route hit!");
@@ -102,7 +192,7 @@ export async function GET(request: Request) {
   const bypassParam = searchParams.get("bypass");
 
   const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-  const isAuthorized = authHeader === `Bearer ${cronSecret}`;
+  const isAuthorized = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
   const isBypass = bypassParam === "true";
 
   if (!isVercelCron && !isAuthorized && !isBypass) {
@@ -112,6 +202,7 @@ export async function GET(request: Request) {
 
   const startedAt = new Date();
   const feedErrors: { feed: string; message: string }[] = [];
+  const feedStats: { feed: string; url_used: string | null; items: number; fetched?: number }[] = [];
 
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Missing Supabase Environment Credentials");
@@ -133,27 +224,55 @@ export async function GET(request: Request) {
   const processedRecords: string[] = [];
   const articleErrors: { title: string; message: string }[] = [];
 
-  // 1. Automated Aggregation Phase (RSS Scrapers)
+  // 1. Aggregation: try each candidate URL until one yields items.
   for (const feed of FEED_SOURCES) {
-    try {
-      const response = await fetch(feed.url, {
-        next: { revalidate: 0 },
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-      });
-      if (!response.ok) continue;
+    let usedUrl: string | null = null;
+    let parsed: RawArticle[] = [];
 
-      const xmlText = await response.text();
-      const parsed = parseRssFeed(xmlText, feed.type as "rbi" | "pib" | "economy");
-      scrapedList.push(...parsed);
-    } catch (err: any) {
-      console.error(`Scrape failure on ${feed.type}:`, err.message);
-      feedErrors.push({ feed: feed.type, message: err.message });
+    for (const url of feed.urls) {
+      try {
+        const { status, text } = await fetchTextWithTimeout(url);
+        if (status < 200 || status >= 300) {
+          feedErrors.push({ feed: feed.type, message: `${url} -> HTTP ${status}` });
+          continue;
+        }
+        const items = parseRssFeed(text, feed.type, url, feed.limit);
+        if (items.length === 0) {
+          feedErrors.push({
+            feed: feed.type,
+            message: `${url} -> HTTP ${status} but 0 <item> parsed (first 120 chars: ${text
+              .slice(0, 120)
+              .replace(/\s+/g, " ")})`,
+          });
+          continue;
+        }
+        usedUrl = url;
+        parsed = items;
+        break;
+      } catch (err: any) {
+        console.error(`Scrape failure on ${feed.type} (${url}):`, err.message);
+        feedErrors.push({ feed: feed.type, message: `${url} -> ${err.name === "AbortError" ? "timeout" : err.message}` });
+      }
     }
+
+    let fetchedCount: number | undefined;
+    if (feed.type === "pib" && parsed.length > 0) {
+      fetchedCount = parsed.length;
+      // Keep only likely-relevant items, cap at 6 to stay inside the function time limit.
+      parsed = parsed.filter((a) => isFinanceRelevant(a.title)).slice(0, 6);
+      for (const a of parsed) {
+        if (a.description === a.title) {
+          const body = await fetchArticleText(a.link);
+          if (body) a.description = body;
+        }
+      }
+    }
+
+    feedStats.push({ feed: feed.type, url_used: usedUrl, items: parsed.length, fetched: fetchedCount });
+    scrapedList.push(...parsed);
   }
 
-  // 2. AI Categorization & Translation Phase (per-article summary only --
-  //    deep notes and quizzes are generated separately, once per DAY, by the
-  //    generate-daily-digest cron. See that route for the "why".)
+  // 2. AI Categorization & Translation Phase
   for (const article of scrapedList) {
     try {
       const { data: existingRecord } = await supabase
@@ -263,9 +382,7 @@ export async function GET(request: Request) {
       const evaluatedData = JSON.parse(rawText);
 
       if (evaluatedData.is_relevant) {
-        const originalDateFormatted = article.pubDate
-          ? toISTDateString(new Date(article.pubDate))
-          : todayIST();
+        const originalDateFormatted = toISTDateString(new Date(article.pubDate)) || todayIST();
 
         const { error: dbError } = await supabase.from("current_affairs_capsules").insert({
           source_type: article.source_type,
@@ -299,6 +416,7 @@ export async function GET(request: Request) {
     scraped_count: scrapedList.length,
     processed_count: processedRecords.length,
     processed_titles: processedRecords,
+    feed_stats: feedStats,
     feed_errors: feedErrors,
     article_errors: articleErrors,
   });
@@ -308,5 +426,7 @@ export async function GET(request: Request) {
     scraped_count: scrapedList.length,
     processed_count: processedRecords.length,
     processed_titles: processedRecords,
+    feed_stats: feedStats,
+    feed_errors: feedErrors,
   });
 }

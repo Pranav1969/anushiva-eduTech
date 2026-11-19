@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, BookOpen, GraduationCap, Lock, Newspaper } from "lucide-react"; // Lock = visual gating indicator
 import { supabase } from "@/utils/supabase";
 import { useStudentSession, StudentSession } from "@/utils/auth";
+import { consumePostLoginRedirect } from "@/utils/shareLinks";
 
 // Component Injections
 import DashboardHeader from "./components/DashboardHeader";
@@ -120,6 +121,13 @@ function StudentDashboardInner() {
     }
   }, [session, sessionLoading, router]);
 
+  // If the student arrived via a shared test link, continue to it after login
+  useEffect(() => {
+    if (!student?.id) return;
+    const next = consumePostLoginRedirect();
+    if (next) router.replace(next);
+  }, [student?.id, router]);
+
   // Aggregate Knowledge Base Material Hierarchy with Phased Navigation Schema
   // Accepts an optional examId string parameter
   const fetchStructuredNotesTree = async (examId?: string) => {
@@ -155,7 +163,9 @@ function StudentDashboardInner() {
                 sequence_order,
                 paragraph_text_en,
                 paragraph_text_hi,
-                paragraph_text_mr
+                paragraph_text_mr,
+                test_id,
+                tests ( id, test_name, test_type, required_plan, owner_student_id )
               )
             )
           )
@@ -404,6 +414,7 @@ function StudentDashboardInner() {
     <div
       className="relative group transition-all duration-200 h-full"
       onClickCapture={(e) => {
+        if ((e.target as HTMLElement).closest("[data-share]")) return; // allow share on locked cards
         if (testItem.is_locked) {
           e.stopPropagation();
           e.preventDefault();
