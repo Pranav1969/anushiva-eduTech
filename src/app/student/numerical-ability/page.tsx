@@ -122,6 +122,16 @@ function LiveTestEngineCore() {
       try {
         const { data: testData } = await supabase.from("tests").select("*").eq("id", testId).single();
         setTestMeta(testData);
+                // Block locked / private tests even if someone types the URL by hand
+        const PLAN_RANK: Record<string, number> = { free: 1, silver: 2, gold: 3, premium: 4 };
+        const needPlan = String(testData?.required_plan || "free").toLowerCase();
+        const myPlan = String(session?.current_plan || "free").toLowerCase();
+        const planBlocked = (PLAN_RANK[myPlan] || 1) < (PLAN_RANK[needPlan] || 1);
+        const privateBlocked = testData?.owner_student_id && testData.owner_student_id !== studentId;
+        if (!testData || planBlocked || privateBlocked) {
+          router.replace("/student");
+          return;
+        }
 
         const { data: qData } = await supabase
           .from("questions")
